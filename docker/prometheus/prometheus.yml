@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'unified-visibility-platform'
+    environment: 'development'
+
+# Alertmanager configuration (to be added)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Backend API metrics (to be added when backend is implemented)
+  # - job_name: 'backend-api'
+  #   static_configs:
+  #     - targets: ['backend:8000']
+  #   metrics_path: '/metrics'
+
+  # Example: Node exporter (if needed)
+  # - job_name: 'node-exporter'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+
