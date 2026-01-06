@@ -21,6 +21,18 @@ services:
     networks:
       - visibility_network
 
+  prometheus-pushgateway:
+    image: prom/pushgateway:latest
+    container_name: unified_visibility_pushgateway
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+    command:
+      - "--web.listen-address=0.0.0.0:9091"
+      - "--web.telemetry-path=/metrics"
+    networks:
+      - visibility_network
+
   grafana:
     image: grafana/grafana:latest
     container_name: unified_visibility_grafana
@@ -41,47 +53,70 @@ services:
     depends_on:
       - prometheus
 
-  # Backend API (to be implemented)
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: unified_visibility_backend
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - DATABASE_URL=${DATABASE_URL}
-  #     - PROMETHEUS_URL=http://prometheus:9090
-  #   volumes:
-  #     - ./backend:/app
-  #   networks:
-  #     - visibility_network
-  #   depends_on:
-  #     - prometheus
+  postgres:
+    image: postgres:15-alpine
+    container_name: unified_visibility_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-visibility_platform}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - visibility_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Frontend (to be implemented)
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: unified_visibility_frontend
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3001:3001"
-  #   environment:
-  #     - REACT_APP_API_URL=http://localhost:8000
-  #   volumes:
-  #     - ./frontend:/app
-  #   networks:
-  #     - visibility_network
-  #   depends_on:
-  #     - backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: unified_visibility_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=8000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-visibility_platform}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - API_URL=${API_URL:-http://localhost:8000}
+      - PROMETHEUS_PUSHGATEWAY_URL=http://prometheus-pushgateway:9091
+      - PROMETHEUS_JOB_NAME=${PROMETHEUS_JOB_NAME:-unified_visibility_platform}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
+    networks:
+      - visibility_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus-pushgateway:
+        condition: service_started
+      prometheus:
+        condition: service_started
 
 volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  backend_logs:
+    driver: local
+  postgres_data:
     driver: local
 
 networks:

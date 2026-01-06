@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Visibility Platform - Client Library Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Unified Visibility Platform - Client Library Example</h1>
+        
+        <div class="info">
+            <strong>Status:</strong> <span id="status">Initializing...</span><br>
+            <strong>Queue Size:</strong> <span id="queueSize">0</span><br>
+            <strong>Client ID:</strong> <span id="clientId">-</span>
+        </div>
+
+        <h2>Test Metrics Tracking</h2>
+        <p>Click the buttons below to track different metrics:</p>
+        
+        <button onclick="trackPageView()">Track Page View</button>
+        <button onclick="trackButtonClick()">Track Button Click</button>
+        <button onclick="trackCustomEvent()">Track Custom Event</button>
+        <button onclick="trackCustomMetric()">Track Custom Metric</button>
+        <button onclick="flushMetrics()">Flush Metrics</button>
+
+        <h2>Instructions</h2>
+        <ol>
+            <li>Update the <code>apiUrl</code> in the script below to point to your API server</li>
+            <li>Open browser console to see debug messages</li>
+            <li>Click buttons to track metrics</li>
+            <li>Check Prometheus/Grafana to see the metrics</li>
+        </ol>
+
+        <h2>Code Example</h2>
+        <pre><code>&lt;script src="http://your-api-url/api/v1/client/script.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  VisibilityTracker.init({
+    apiUrl: 'http://your-api-url',
+    clientId: 'example-client',
+    autoTrack: true,
+    enableDebug: true
+  });
+&lt;/script&gt;</code></pre>
+    </div>
+
+    <!-- Include the client library -->
+    <!-- Update the src URL to point to your API server -->
+    <script src="http://localhost:8000/api/v1/client/script.js"></script>
+    
+    <script>
+        // Initialize the tracker
+        VisibilityTracker.init({
+            apiUrl: 'http://localhost:8000',
+            clientId: 'example-website',
+            autoTrack: true,
+            enableDebug: true
+        });
+
+        // Update status display
+        function updateStatus() {
+            const config = VisibilityTracker.getConfig();
+            document.getElementById('status').textContent = 'Initialized';
+            document.getElementById('queueSize').textContent = VisibilityTracker.getQueueSize();
+            document.getElementById('clientId').textContent = config.clientId;
+        }
+
+        // Update status every second
+        setInterval(updateStatus, 1000);
+        updateStatus();
+
+        // Track page view
+        function trackPageView() {
+            VisibilityTracker.trackPageView();
+            console.log('Page view tracked');
+            updateStatus();
+        }
+
+        // Track button click
+        function trackButtonClick() {
+            VisibilityTracker.trackEvent('button_click', 1, {
+                button_id: 'test-button',
+                button_text: 'Track Button Click'
+            });
+            console.log('Button click tracked');
+            updateStatus();
+        }
+
+        // Track custom event
+        function trackCustomEvent() {
+            VisibilityTracker.trackEvent('user_action', 1, {
+                action_type: 'custom_action',
+                page: window.location.pathname
+            });
+            console.log('Custom event tracked');
+            updateStatus();
+        }
+
+        // Track custom metric
+        function trackCustomMetric() {
+            VisibilityTracker.track('custom_metric_total', 1, {
+                metric_type: 'test',
+                value: Math.random() * 100
+            });
+            console.log('Custom metric tracked');
+            updateStatus();
+        }
+
+        // Flush metrics manually
+        function flushMetrics() {
+            VisibilityTracker.flush();
+            console.log('Metrics flushed');
+            updateStatus();
+        }
+    </script>
+</body>
+</html>
+

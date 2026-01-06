@@ -76,4 +76,5 @@ Thumbs.db
 *.pid
 *.seed
 *.pid.lock
-
+.cursor/
+frontend-react/
