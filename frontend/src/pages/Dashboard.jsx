@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '../api/metricConfigs';
 import { apiKeysAPI } from '../api/apiKeys';
+import GrafanaEmbed from '../components/GrafanaEmbed';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -10,6 +11,7 @@ function Dashboard() {
     apiKeys: 0,
     loading: true
   });
+  const [showEmbed, setShowEmbed] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -64,16 +66,37 @@ function Dashboard() {
       </div>
 
       <div className="card">
-        <h2>Grafana Dashboard</h2>
-        <p>View and analyze your metrics in Grafana:</p>
-        <a 
-          href={grafanaUrl} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="btn btn-primary"
-        >
-          Open Grafana →
-        </a>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div>
+            <h2>Grafana Dashboard</h2>
+            <p>View and analyze your metrics in Grafana:</p>
+          </div>
+          <button 
+            onClick={() => setShowEmbed(!showEmbed)} 
+            className="btn btn-secondary"
+          >
+            {showEmbed ? 'Hide' : 'Show'} Embedded View
+          </button>
+        </div>
+        
+        {showEmbed ? (
+          <div style={{ marginTop: '1rem' }}>
+            <GrafanaEmbed 
+              dashboardUid="metrics-dashboard" 
+              theme="light"
+              height="800px"
+            />
+          </div>
+        ) : (
+          <a 
+            href={grafanaUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            Open Grafana →
+          </a>
+        )}
       </div>
     </div>
   );

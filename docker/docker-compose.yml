@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -24,12 +24,12 @@ services:
     image: prom/prometheus:latest
     container_name: metrics_prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.enable-lifecycle'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
     ports:
       - "9090:9090"
     volumes:
@@ -50,8 +50,8 @@ services:
     networks:
       - metrics_network
     command:
-      - '--persistence.file=/pushgateway/data'
-      - '--persistence.interval=5m'
+      - "--persistence.file=/pushgateway/data"
+      - "--persistence.interval=5m"
 
   grafana:
     image: grafana/grafana:latest
@@ -59,9 +59,15 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      - GF_SERVER_CORS_ALLOW_ORIGIN=${FRONTEND_URL:-http://localhost:5173}
+      - GF_SERVER_CORS_ALLOW_CREDENTIALS=true
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -70,6 +76,7 @@ services:
       - metrics_network
     depends_on:
       - prometheus
+    restart: unless-stopped
 
   backend:
     build:
@@ -110,4 +117,3 @@ volumes:
 networks:
   metrics_network:
     driver: bridge
-
