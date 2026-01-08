@@ -38,6 +38,7 @@ function Dashboard() {
   return (
     <div className="dashboard">
       <h1>Dashboard</h1>
+      <p>Welcome to your metrics tracking platform. Monitor and analyze your application metrics.</p>
       
       <div className="stats-grid">
         <div className="stat-card">

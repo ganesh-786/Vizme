@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { codeGenerationAPI } from '../api/codeGeneration';
 import { apiKeysAPI } from '../api/apiKeys';
 import { metricConfigsAPI } from '../api/metricConfigs';
+import { useToast } from '../components/ToastContainer';
 import './CodeGeneration.css';
 
 function CodeGeneration() {
@@ -14,6 +15,7 @@ function CodeGeneration() {
   const [generatedCode, setGeneratedCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchData();
@@ -50,8 +52,11 @@ function CodeGeneration() {
         { autoTrack, customEvents }
       );
       setGeneratedCode(response.data.code);
+      showToast('Code generated successfully!', 'success');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate code');
+      const errorMsg = err.response?.data?.error || 'Failed to generate code';
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -59,7 +64,7 @@ function CodeGeneration() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedCode);
-    alert('Code copied to clipboard!');
+    showToast('Code copied to clipboard!', 'success', 2000);
   };
 
   return (

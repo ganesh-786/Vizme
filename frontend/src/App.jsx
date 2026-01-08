@@ -7,6 +7,7 @@ import MetricConfigs from './pages/MetricConfigs';
 import ApiKeys from './pages/ApiKeys';
 import CodeGeneration from './pages/CodeGeneration';
 import Layout from './components/Layout';
+import { ToastProvider } from './components/ToastContainer';
 import './App.css';
 
 function PrivateRoute({ children }) {
@@ -17,23 +18,25 @@ function PrivateRoute({ children }) {
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/"
-          element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="metric-configs" element={<MetricConfigs />} />
-          <Route path="api-keys" element={<ApiKeys />} />
-          <Route path="code-generation" element={<CodeGeneration />} />
-        </Route>
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/"
+            element={
+              <PrivateRoute>
+                <Layout />
+              </PrivateRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="metric-configs" element={<MetricConfigs />} />
+            <Route path="api-keys" element={<ApiKeys />} />
+            <Route path="code-generation" element={<CodeGeneration />} />
+          </Route>
+        </Routes>
+      </ToastProvider>
     </Router>
   );
 }

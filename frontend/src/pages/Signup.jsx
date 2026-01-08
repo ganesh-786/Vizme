@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { authAPI } from '../api/auth';
+import { useToast } from '../components/ToastContainer';
 import './Auth.css';
 
 function Signup() {
@@ -12,6 +13,7 @@ function Signup() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
+  const { showToast } = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,9 +25,12 @@ function Signup() {
       const { user, accessToken, refreshToken } = response.data;
       
       setAuth(user, accessToken, refreshToken);
-      navigate('/');
+      showToast('Account created successfully! Redirecting...', 'success', 2000);
+      setTimeout(() => navigate('/'), 500);
     } catch (err) {
-      setError(err.response?.data?.error || 'Signup failed. Please try again.');
+      const errorMsg = err.response?.data?.error || 'Signup failed. Please try again.';
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
