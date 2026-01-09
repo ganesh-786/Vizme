@@ -10,6 +10,7 @@ import { metricConfigRoutes } from "./src/routes/metricconfig.routes.js";
 import { codeGenerationRoutes } from "./src/routes/codeGeneration.routes.js";
 import { metricsRoutes } from "./src/routes/metrics.routes.js";
 import { healthRoutes } from "./src/routes/health.routes.js";
+import { trackerRoutes } from "./src/routes/tracker.routes.js";  // NEW
 import { initDatabase } from "./src/database/connection.js";
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use("/api/v1/api-keys", apiKeyRoutes);
 app.use("/api/v1/metric-configs", metricConfigRoutes);
 app.use("/api/v1/code-generation", codeGenerationRoutes);
 app.use("/api/v1/metrics", metricsRoutes);
+app.use("/api/v1", trackerRoutes);  // NEW - Must be after /metrics to avoid conflicts
 
 // Error handling
 app.use(errorHandler);
