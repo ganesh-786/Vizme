@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
 import { metricConfigsAPI } from '../api/metricConfigs';
 import { apiKeysAPI } from '../api/apiKeys';
 import GrafanaEmbed from '../components/GrafanaEmbed';
@@ -11,9 +12,15 @@ function Dashboard() {
     apiKeys: 0,
     loading: true
   });
-  const [showEmbed, setShowEmbed] = useState(false);
+  const token = useAuthStore((state) => state.token);
+  const authReady = useAuthStore((state) => state.authReady);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    // Block until auth is ready AND token exists
+    if (!authReady || !token || fetchedRef.current) return;
+    fetchedRef.current = true;
+
     const fetchStats = async () => {
       try {
         const [configsRes, keysRes] = await Promise.all([
@@ -33,13 +40,14 @@ function Dashboard() {
     };
 
     fetchStats();
-  }, []);
+  }, [authReady, token]);
 
-  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3001';
+  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000';
 
   return (
     <div className="dashboard">
       <h1>Dashboard</h1>
+      <p>Welcome to your metrics tracking platform. Monitor and analyze your application metrics.</p>
       
       <div className="stats-grid">
         <div className="stat-card">

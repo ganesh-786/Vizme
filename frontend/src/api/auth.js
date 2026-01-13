@@ -1,20 +1,24 @@
 import client from './client';
+import { getToken } from '../services/keycloak';
 
 export const authAPI = {
-  signup: async (email, password, name) => {
-    const response = await client.post('/auth/signup', {
-      email,
-      password,
-      name
+  // Keycloak callback - sync user with backend
+  callback: async (token) => {
+    const response = await client.post('/auth/callback', {
+      token
     });
-    return response.data;
+    return response.data.data;
   },
 
-  signin: async (email, password) => {
-    const response = await client.post('/auth/signin', {
-      email,
-      password
-    });
+  // Get current user info
+  getMe: async () => {
+    const response = await client.get('/auth/me');
+    return response.data.data;
+  },
+
+  // Logout
+  logout: async () => {
+    const response = await client.post('/auth/logout');
     return response.data;
   }
 };

@@ -13,7 +13,7 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || "postgres",
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // Increased to 10 seconds
 });
 
 // Test connection
@@ -40,18 +40,33 @@ export const query = async (text, params) => {
 };
 
 export const initDatabase = async () => {
-  try {
-    // Test connection
-    await query("SELECT NOW()");
+  const maxRetries = 5;
+  const retryDelay = 2000; // 2 seconds
 
-    // Run migrations
-    await runMigrations();
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Attempting database connection (attempt ${attempt}/${maxRetries})...`);
+      
+      // Test connection with retry
+      await query("SELECT NOW()");
+      console.log("✅ Database connection successful");
 
-    console.log("✅ Database initialized successfully");
-    return true;
-  } catch (error) {
-    console.error("❌ Database initialization failed:", error);
-    throw error;
+      // Run migrations
+      await runMigrations();
+
+      console.log("✅ Database initialized successfully");
+      return true;
+    } catch (error) {
+      console.error(`❌ Database connection attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < maxRetries) {
+        console.log(`⏳ Retrying in ${retryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      } else {
+        console.error("❌ Database initialization failed after all retries:", error);
+        throw error;
+      }
+    }
   }
 };
 
@@ -61,11 +76,16 @@ const runMigrations = async () => {
     `CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
+      password_hash VARCHAR(255),
       name VARCHAR(255),
+      keycloak_id VARCHAR(255) UNIQUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`,
+    
+    // Add keycloak_id column if it doesn't exist (for existing databases)
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS keycloak_id VARCHAR(255)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_keycloak_id ON users(keycloak_id) WHERE keycloak_id IS NOT NULL`,
 
     // Refresh tokens table
     `CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -102,17 +122,48 @@ const runMigrations = async () => {
       UNIQUE(user_id, metric_name)
     )`,
 
-    // Indexes
+    // Login records table - tracks all user login attempts and sessions
+    `CREATE TABLE IF NOT EXISTS login_records (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      keycloak_id VARCHAR(255),
+      email VARCHAR(255) NOT NULL,
+      login_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      logout_timestamp TIMESTAMP,
+      ip_address VARCHAR(45),
+      user_agent TEXT,
+      login_status VARCHAR(20) DEFAULT 'success' CHECK (login_status IN ('success', 'failed', 'expired')),
+      session_duration INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    // Indexes - only create if table exists
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)`,
     `CREATE INDEX IF NOT EXISTS idx_metric_configs_user_id ON metric_configs(user_id)`,
+    `DO $$ BEGIN
+       IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'login_records') THEN
+         CREATE INDEX IF NOT EXISTS idx_login_records_user_id ON login_records(user_id);
+         CREATE INDEX IF NOT EXISTS idx_login_records_keycloak_id ON login_records(keycloak_id);
+         CREATE INDEX IF NOT EXISTS idx_login_records_login_timestamp ON login_records(login_timestamp DESC);
+       END IF;
+     END $$;`,
   ];
 
-  for (const migration of migrations) {
-    await query(migration);
+  for (let i = 0; i < migrations.length; i++) {
+    try {
+      console.log(`🔄 Running migration ${i + 1}/${migrations.length}...`);
+      await query(migrations[i]);
+    } catch (error) {
+      console.error(`❌ Migration ${i + 1} failed:`, error.message);
+      // Continue with next migration even if one fails (for IF NOT EXISTS cases)
+      if (!error.message.includes('already exists') && !error.message.includes('duplicate')) {
+        throw error;
+      }
+    }
   }
 
   console.log("✅ Migrations completed");

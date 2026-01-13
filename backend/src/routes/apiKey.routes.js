@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { body, validationResult } from 'express-validator';
 import { query } from '../database/connection.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate } from '../middleware/keycloak.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 

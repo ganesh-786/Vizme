@@ -1,34 +1,35 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { login } from '../services/keycloak';
 import { useAuthStore } from '../store/authStore';
-import { authAPI } from '../api/auth';
 import './Auth.css';
 
 function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
+  const isAuthenticatedStore = useAuthStore((state) => state.isAuthenticated);
+  const authReady = useAuthStore((state) => state.authReady);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const response = await authAPI.signin(email, password);
-      const { user, accessToken, refreshToken } = response.data;
-      
-      setAuth(user, accessToken, refreshToken);
-      navigate('/');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
+  // Redirect to dashboard if already authenticated
+  // CRITICAL: Only use Zustand store, NOT direct Keycloak check
+  // Direct Keycloak check causes race condition with store updates
+  useEffect(() => {
+    if (authReady && isAuthenticatedStore) {
+      navigate('/', { replace: true });
     }
+  }, [authReady, isAuthenticatedStore, navigate]);
+
+  const handleLogin = () => {
+    login();
   };
+
+  // Don't show login form if already authenticated
+  if (authReady && isAuthenticatedStore) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div>Redirecting...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-container">
@@ -36,45 +37,17 @@ function Login() {
         <h1>Sign In</h1>
         <p className="auth-subtitle">Welcome back! Please sign in to your account.</p>
         
-        {error && <div className="error-message">{error}</div>}
+        <button
+          type="button"
+          onClick={handleLogin}
+          className="btn btn-primary"
+          style={{ width: '100%', marginTop: '20px' }}
+        >
+          Sign In with Keycloak
+        </button>
         
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">Email</label>
-            <input
-              type="email"
-              className="form-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input
-              type="password"
-              className="form-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-          
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-            style={{ width: '100%' }}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-        
-        <p className="auth-footer">
-          Don't have an account? <Link to="/signup">Sign up</Link>
+        <p className="auth-footer" style={{ marginTop: '20px' }}>
+          Secure authentication powered by Keycloak
         </p>
       </div>
     </div>
@@ -82,4 +55,3 @@ function Login() {
 }
 
 export default Login;
-

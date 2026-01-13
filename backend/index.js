@@ -6,11 +6,12 @@ import dotenv from "dotenv";
 import { errorHandler } from "./src/middleware/errorHandler.js";
 import { authRoutes } from "./src/routes/auth.routes.js";
 import { apiKeyRoutes } from "./src/routes/apiKey.routes.js";
-import { metricConfigRoutes } from "./src/routes/metricConfig.routes.js";
+import { metricConfigRoutes } from "./src/routes/metricconfig.routes.js";
 import { codeGenerationRoutes } from "./src/routes/codeGeneration.routes.js";
 import { metricsRoutes } from "./src/routes/metrics.routes.js";
 import { healthRoutes } from "./src/routes/health.routes.js";
 import { initDatabase } from "./src/database/connection.js";
+import { authenticate } from "./src/middleware/keycloak.middleware.js";
 
 dotenv.config();
 
@@ -18,7 +19,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet());
+// Configure helmet to allow DevTools and development tools
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: ["'self'", "http://localhost:*", "ws://localhost:*"], // Allow DevTools connections
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow DevTools
+}));
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:5173",
@@ -28,6 +40,19 @@ app.use(
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Root route - provide API info
+app.get("/", (req, res) => {
+  res.json({
+    message: "Unified Visibility Platform API",
+    version: "1.0.0",
+    endpoints: {
+      health: "/health",
+      api: "/api/v1",
+      docs: "See API documentation for available endpoints"
+    }
+  });
+});
 
 // Health check
 app.use("/health", healthRoutes);

@@ -1,7 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import { body, validationResult } from 'express-validator';
-import { authenticateApiKey, authenticate } from '../middleware/auth.middleware.js';
+import { authenticateApiKey, authenticate } from '../middleware/keycloak.middleware.js';
 import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
 import { query } from '../database/connection.js';
@@ -146,7 +146,7 @@ router.get('/',
       res.json({
         success: true,
         message: 'View your metrics in Grafana',
-        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001'
+        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3000'
       });
     } catch (error) {
       next(error);

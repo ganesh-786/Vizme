@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '../store/authStore';
 import { apiKeysAPI } from '../api/apiKeys';
+import { useToast } from '../components/ToastContainer';
 import './ApiKeys.css';
 
 function ApiKeys() {
@@ -9,10 +11,16 @@ function ApiKeys() {
   const [keyName, setKeyName] = useState('');
   const [newKey, setNewKey] = useState(null);
   const [error, setError] = useState('');
+  const token = useAuthStore((state) => state.token);
+  const authReady = useAuthStore((state) => state.authReady);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    // Block until auth is ready AND token exists
+    if (!authReady || !token || fetchedRef.current) return;
+    fetchedRef.current = true;
     fetchKeys();
-  }, []);
+  }, [authReady, token]);
 
   const fetchKeys = async () => {
     try {
@@ -34,18 +42,24 @@ function ApiKeys() {
       setNewKey(response.data);
       setKeyName('');
       setShowForm(false);
+      showToast('API key created successfully!', 'success');
       await fetchKeys();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create API key');
+      const errorMsg = err.response?.data?.error || 'Failed to create API key';
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     }
   };
 
   const handleToggleActive = async (id, isActive) => {
     try {
       await apiKeysAPI.update(id, { is_active: !isActive });
+      showToast(`API key ${!isActive ? 'activated' : 'deactivated'} successfully!`, 'success');
       await fetchKeys();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update API key');
+      const errorMsg = err.response?.data?.error || 'Failed to update API key';
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     }
   };
 
@@ -56,15 +70,18 @@ function ApiKeys() {
 
     try {
       await apiKeysAPI.delete(id);
+      showToast('API key deleted successfully!', 'success');
       await fetchKeys();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete API key');
+      const errorMsg = err.response?.data?.error || 'Failed to delete API key';
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     }
   };
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
+    showToast('Copied to clipboard!', 'success', 2000);
   };
 
   if (loading) {

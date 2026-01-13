@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '../store/authStore';
 import { codeGenerationAPI } from '../api/codeGeneration';
 import { apiKeysAPI } from '../api/apiKeys';
 import { metricConfigsAPI } from '../api/metricConfigs';
+import { useToast } from '../components/ToastContainer';
 import './CodeGeneration.css';
 
 function CodeGeneration() {
@@ -14,10 +16,16 @@ function CodeGeneration() {
   const [generatedCode, setGeneratedCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const token = useAuthStore((state) => state.token);
+  const authReady = useAuthStore((state) => state.authReady);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    // Block until auth is ready AND token exists
+    if (!authReady || !token || fetchedRef.current) return;
+    fetchedRef.current = true;
     fetchData();
-  }, []);
+  }, [authReady, token]);
 
   const fetchData = async () => {
     try {
@@ -50,8 +58,11 @@ function CodeGeneration() {
         { autoTrack, customEvents }
       );
       setGeneratedCode(response.data.code);
+      showToast('Code generated successfully!', 'success');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate code');
+      const errorMsg = err.response?.data?.error || 'Failed to generate code';
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -59,7 +70,7 @@ function CodeGeneration() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedCode);
-    alert('Code copied to clipboard!');
+    showToast('Code copied to clipboard!', 'success', 2000);
   };
 
   return (
