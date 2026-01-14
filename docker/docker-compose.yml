@@ -10,6 +10,7 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -61,6 +62,45 @@ services:
       - "--persistence.file=/pushgateway/data"
       - "--persistence.interval=5m"
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: metrics_keycloak
+    ports:
+      - "8080:8080"
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=postgres
+      - KC_DB_URL_HOST=postgres
+      - KC_DB_URL_PORT=5432
+      - KC_DB_URL_DATABASE=keycloak_db
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloak
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_STRICT_HTTPS=false
+      - KC_HTTP_ENABLED=true
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+    command: start-dev
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - metrics_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/health/ready || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: metrics_grafana
@@ -97,7 +137,7 @@ services:
       dockerfile: Dockerfile
     container_name: metrics_backend
     ports:
-      - "3002:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -107,9 +147,11 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      - KEYCLOAK_URL=http://host.docker.internal:8080
+      - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_REALM=metrics-platform
       - KEYCLOAK_CLIENT_ID=unified-visibility-platform
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
       - PUSHGATEWAY_URL=http://pushgateway:9091
       - GRAFANA_URL=http://localhost:3000
       - FRONTEND_URL=http://localhost:5173
@@ -122,6 +164,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     networks:
       - metrics_network
     restart: unless-stopped
@@ -131,6 +175,7 @@ volumes:
   prometheus_data:
   pushgateway_data:
   grafana_data:
+  keycloak_data:
 
 networks:
   metrics_network:
