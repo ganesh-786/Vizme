@@ -8,6 +8,11 @@
   width: 100%;
   height: 100%;
   flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 0.375rem;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: visible;
 }
 
 /* Logo Wrapper - Ensures perfect stacking and alignment */
@@ -20,6 +25,10 @@
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+  border-radius: 8px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 /* Base logo image styles - Professional rendering */
@@ -31,11 +40,13 @@
   max-height: 100%;
   object-fit: contain;
   object-position: center;
+  border-radius: 6px;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
   transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
-              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   user-select: none;
@@ -44,6 +55,7 @@
   -ms-user-select: none;
   pointer-events: none;
   vertical-align: middle;
+  will-change: transform;
 }
 
 /* Light mode logo - Default visible */
@@ -133,21 +145,62 @@
   height: auto;
 }
 
-/* Hover effect - Subtle and professional */
+/* Professional Hover Effect - Smooth scale and glow */
+.logo-container:hover {
+  transform: translateY(-2px);
+}
+
+.logo-container:hover .logo-wrapper {
+  transform: scale(1.08);
+  filter: drop-shadow(0 8px 16px rgba(59, 130, 246, 0.15));
+}
+
+[data-theme="dark"] .logo-container:hover .logo-wrapper {
+  filter: drop-shadow(0 8px 20px rgba(59, 130, 246, 0.25));
+}
+
 .logo-container:hover .logo-dark {
-  transform: translate(-50%, -50%) scale(1.02);
+  transform: translate(-50%, -50%) scale(1.08);
+  filter: brightness(1.05);
 }
 
 .logo-container:hover .logo-light {
-  transform: scale(1.02);
+  transform: scale(1.08);
+  filter: brightness(1.02);
+}
+
+/* Active state - Pressed effect */
+.logo-container:active {
+  transform: translateY(0);
+}
+
+.logo-container:active .logo-wrapper {
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 8px rgba(59, 130, 246, 0.1));
 }
 
 .logo-container:active .logo-dark {
-  transform: translate(-50%, -50%) scale(0.98);
+  transform: translate(-50%, -50%) scale(1.05);
 }
 
 .logo-container:active .logo-light {
-  transform: scale(0.98);
+  transform: scale(1.05);
+}
+
+/* Smooth transition back on hover out */
+.logo-container:not(:hover) .logo-wrapper {
+  transform: scale(1);
+  filter: drop-shadow(0 0 0 transparent);
+}
+
+.logo-container:not(:hover) .logo-dark {
+  transform: translate(-50%, -50%) scale(1);
+  filter: brightness(1);
+}
+
+.logo-container:not(:hover) .logo-light {
+  transform: scale(1);
+  filter: brightness(1);
 }
 
 /* Responsive design - Mobile optimization */
@@ -229,18 +282,31 @@
 
 /* Reduced motion preference - Accessibility */
 @media (prefers-reduced-motion: reduce) {
+  .logo-container,
+  .logo-wrapper,
   .logo-image {
     transition: opacity 0.2s ease;
   }
   
+  .logo-container:hover {
+    transform: none;
+  }
+  
+  .logo-container:hover .logo-wrapper {
+    transform: scale(1.02);
+    filter: none;
+  }
+  
   .logo-container:hover .logo-dark,
   .logo-container:active .logo-dark {
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-50%, -50%) scale(1.02);
+    filter: none;
   }
   
   .logo-container:hover .logo-light,
   .logo-container:active .logo-light {
-    transform: scale(1);
+    transform: scale(1.02);
+    filter: none;
   }
 }
 
