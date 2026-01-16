@@ -36,9 +36,12 @@ const pushToPrometheus = async (metric, userId) => {
     .map(([k, v]) => `${k}="${String(v).replace(/"/g, '\\"')}"`)
     .join(',');
   
-  const metricString = labelString 
+    const metricLine = labelString 
     ? `${name}{${labelString}} ${value}`
     : `${name} ${value}`;
+
+  // Pushgateway requires TYPE declaration and trailing newline
+  const metricString = `# TYPE ${name} ${type}\n${metricLine}\n`;
 
   // Push to Pushgateway
   // Format: /metrics/job/<job_name>/<label>/<label_value>
@@ -60,8 +63,18 @@ const pushToPrometheus = async (metric, userId) => {
 
 // Metrics ingestion endpoint (requires API key)
 router.post('/',
-  authenticateApiKey,
-  metricsLimiter,
+    // Add CORS middleware
+    (req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+      if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+      }
+      next();
+    },
+    authenticateApiKey,
+    metricsLimiter,
   [
     body('metrics').isArray({ min: 1, max: 100 }).withMessage('Metrics must be an array with 1-100 items'),
     body('metrics.*.name').trim().isLength({ min: 1 }).withMessage('Metric name is required'),

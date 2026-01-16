@@ -4,7 +4,7 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
-import { generateTrackingCode } from '../services/codeGenerator.service.js';
+import { generateMinimalSnippet } from '../services/codeGenerator.service.js';
 
 const router = express.Router();
 
@@ -12,7 +12,12 @@ const router = express.Router();
 router.use(authenticate);
 router.use(apiLimiter);
 
-// Generate tracking code
+/**
+ * POST /api/v1/code-generation
+ * 
+ * Generates minimal tracking snippet (Google Analytics style)
+ * The snippet is only ~150 bytes and loads the full library from tracker.js
+ */
 router.post('/',
   [
     body('metric_config_id').optional().isInt(),
@@ -41,7 +46,7 @@ router.post('/',
 
       const apiKey = apiKeyResult.rows[0].api_key;
 
-      // Get metric configs
+      // Get metric configs (for response metadata, not used in snippet)
       let metricConfigs = [];
       if (metric_config_id) {
         const configResult = await query(
@@ -61,13 +66,13 @@ router.post('/',
         metricConfigs = allConfigsResult.rows;
       }
 
-      // Generate code
-      const code = generateTrackingCode({
+      // Generate minimal snippet (not full code anymore)
+      const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+      const code = generateMinimalSnippet({
         apiKey,
-        metricConfigs,
+        baseUrl,
         autoTrack: auto_track,
-        customEvents: custom_events,
-        baseUrl: process.env.API_BASE_URL || 'http://localhost:3000'
+        customEvents: custom_events
       });
 
       res.json({
@@ -79,7 +84,8 @@ router.post('/',
             id: c.id,
             name: c.name,
             metric_name: c.metric_name
-          }))
+          })),
+          note: 'This is a minimal snippet. The full library loads automatically from the server.'
         }
       });
     } catch (error) {
@@ -89,4 +95,3 @@ router.post('/',
 );
 
 export { router as codeGenerationRoutes };
-
