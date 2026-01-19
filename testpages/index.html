@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Test Website</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f4f4f4;
+        }
+
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        nav {
+            background: #34495e;
+            padding: 0.5rem;
+            text-align: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+            padding: 0.5rem 1rem;
+            display: inline-block;
+        }
+
+        nav a:hover {
+            background: #2c3e50;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        h2 {
+            color: #34495e;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .section {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #f9f9f9;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            margin: 0.5rem;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        button.primary {
+            background: #27ae60;
+        }
+
+        button.primary:hover {
+            background: #229954;
+        }
+
+        button.danger {
+            background: #e74c3c;
+        }
+
+        button.danger:hover {
+            background: #c0392b;
+        }
+
+        form {
+            margin: 1rem 0;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .product-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            text-align: center;
+            background: white;
+        }
+
+        .product-card h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .product-card p {
+            color: #7f8c8d;
+            margin: 0.5rem 0;
+        }
+
+        footer {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border: 1px solid #3498db;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🛍️ Simple Test Store</h1>
+        <p>Testing Metrics Tracking System</p>
+    </header>
+
+    <nav>
+        <a href="#home">Home</a>
+        <a href="#products">Products</a>
+        <a href="#contact">Contact</a>
+    </nav>
+
+    <div class="container">
+        <section id="home" class="section">
+            <h2>Welcome to Our Store</h2>
+            <p>This is a simple test website to verify that the metrics tracking system is working correctly.</p>
+            <p>Navigate around, click buttons, fill forms, and check your metrics dashboard to see the data being collected.</p>
+            
+            <div class="info-box">
+                <strong>📊 Metrics Being Tracked:</strong>
+                <ul style="margin-top: 0.5rem; margin-left: 1.5rem;">
+                    <li>Page views</li>
+                    <li>Button clicks</li>
+                    <li>Form submissions</li>
+                    <li>Page load time</li>
+                    <li>Time on page</li>
+                </ul>
+            </div>
+
+            <h3>Quick Actions</h3>
+            <button onclick="alert('Button clicked!')">Click Me</button>
+            <button class="primary" onclick="alert('Primary action!')">Primary Action</button>
+            <button class="danger" onclick="alert('Danger action!')">Delete</button>
+        </section>
+
+        <section id="products" class="section">
+            <h2>Our Products</h2>
+            <div class="product-grid">
+                <div class="product-card">
+                    <h3>Product A</h3>
+                    <p>$29.99</p>
+                    <button data-track="product_view" data-value="1" data-label-product="Product A" data-label-category="electronics">
+                        View Details
+                    </button>
+                </div>
+                <div class="product-card">
+                    <h3>Product B</h3>
+                    <p>$39.99</p>
+                    <button data-track="product_view" data-value="1" data-label-product="Product B" data-label-category="electronics">
+                        View Details
+                    </button>
+                </div>
+                <div class="product-card">
+                    <h3>Product C</h3>
+                    <p>$49.99</p>
+                    <button data-track="product_view" data-value="1" data-label-product="Product C" data-label-category="accessories">
+                        View Details
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="section">
+            <h2>Contact Us</h2>
+            <form data-track="form_submission" data-value="1" data-label-form="contact_form" onsubmit="event.preventDefault(); alert('Form submitted! (This is a test)'); return false;">
+                <input type="text" placeholder="Your Name" required>
+                <input type="email" placeholder="Your Email" required>
+                <textarea placeholder="Your Message" rows="4" required></textarea>
+                <button type="submit">Send Message</button>
+            </form>
+        </section>
+
+        <section class="section">
+            <h2>Newsletter Signup</h2>
+            <form data-track="newsletter_signup" data-value="1" data-label-form="newsletter" onsubmit="event.preventDefault(); alert('Newsletter signup successful! (This is a test)'); return false;">
+                <input type="email" placeholder="Enter your email" required>
+                <button type="submit">Subscribe</button>
+            </form>
+        </section>
+
+        <section class="section">
+            <h2>Manual Tracking Test</h2>
+            <p>Test manual metric tracking using JavaScript API:</p>
+            <button onclick="trackCustomEvent()">Track Custom Event</button>
+            <button onclick="trackPurchase()">Simulate Purchase</button>
+            <button onclick="trackPageView()">Track Page View</button>
+        </section>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 Simple Test Store. All rights reserved.</p>
+    </footer>
+
+    <!-- ============================================ -->
+    <!-- PASTE YOUR TRACKING CODE SNIPPET BELOW -->
+    <!-- ============================================ -->
+    <script>
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=mk_ede22aafe5262ac43e0991eab13bf0dcdaddb919bc301a34bfbac8fe3ed38eb8&a=1&c=1';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');
+        // Replace this with your actual tracking code snippet from the dashboard
+        // Example format:
+        // (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=YOUR_API_KEY&a=1&c=1';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');
+    </script>
+    <!-- ============================================ -->
+
+    <script>
+        // Manual tracking functions (only work after tracking library loads)
+        function trackCustomEvent() {
+            if (typeof window.MetricsTracker !== 'undefined') {
+                window.MetricsTracker.track('custom_event', 1, {
+                    event_type: 'button_click',
+                    button_name: 'custom_event_button',
+                    page: window.location.pathname
+                });
+                alert('Custom event tracked!');
+            } else {
+                alert('Tracking library not loaded yet. Please wait a moment and try again.');
+            }
+        }
+
+        function trackPurchase() {
+            if (typeof window.MetricsTracker !== 'undefined') {
+                window.MetricsTracker.track('purchase', 99.99, {
+                    product: 'Test Product',
+                    category: 'electronics',
+                    currency: 'USD'
+                });
+                alert('Purchase tracked!');
+            } else {
+                alert('Tracking library not loaded yet. Please wait a moment and try again.');
+            }
+        }
+
+        function trackPageView() {
+            if (typeof window.MetricsTracker !== 'undefined') {
+                window.MetricsTracker.track('manual_page_view', 1, {
+                    page: window.location.pathname,
+                    source: 'manual_test'
+                });
+                alert('Page view tracked!');
+            } else {
+                alert('Tracking library not loaded yet. Please wait a moment and try again.');
+            }
+        }
+
+        // Log when tracking library is ready
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof window.MetricsTracker !== 'undefined') {
+                    console.log('✅ Metrics Tracker loaded successfully!');
+                    console.log('Queue size:', window.MetricsTracker.getQueueSize());
+                    console.log('Batch size:', window.MetricsTracker.getBatchSize());
+                } else {
+                    console.log('⏳ Waiting for Metrics Tracker to load...');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

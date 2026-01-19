@@ -10,26 +10,3 @@ datasources:
     jsonData:
       timeInterval: "15s"
 
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-  external_labels:
-    monitor: 'metrics-monitor'
-
-# Scrape configurations
-scrape_configs:
-  # Scrape metrics from backend application
-  # The backend exposes metrics at /metrics endpoint
-  - job_name: 'backend'
-    scrape_interval: 15s
-    scrape_timeout: 10s
-    static_configs:
-      - targets: ['backend:3000']
-        labels:
-          service: 'unified-visibility-platform'
-          environment: 'production'
-
-  # Scrape Prometheus itself
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
