@@ -1,17 +1,20 @@
 import express from 'express';
-import axios from 'axios';
 import { body, validationResult } from 'express-validator';
 import { authenticateApiKey, authenticate } from '../middleware/auth.middleware.js';
 import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
-import { query } from '../database/connection.js';
+import { recordMetric, getMetrics } from '../services/metrics.service.js';
 
 const router = express.Router();
 
-const PUSHGATEWAY_URL = process.env.PUSHGATEWAY_URL || 'http://localhost:9091';
 const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
 
-// Validate metric value
+/**
+ * Validate metric value based on type
+ * @param {any} value - Metric value to validate
+ * @param {string} type - Metric type
+ * @returns {boolean} - True if valid
+ */
 const validateMetricValue = (value, type) => {
   const numValue = typeof value === 'number' ? value : parseFloat(value);
   
@@ -19,7 +22,7 @@ const validateMetricValue = (value, type) => {
     return false;
   }
 
-  // Prometheus values must be non-negative for counters
+  // Prometheus counters must be non-negative
   if (type === 'counter' && numValue < 0) {
     return false;
   }
@@ -27,54 +30,39 @@ const validateMetricValue = (value, type) => {
   return true;
 };
 
-// Push metric to Prometheus Pushgateway
-const pushToPrometheus = async (metric, userId) => {
-  const { name, type, value, labels } = metric;
-
-  // Build Prometheus metric format
-  const labelString = Object.entries(labels || {})
-    .map(([k, v]) => `${k}="${String(v).replace(/"/g, '\\"')}"`)
-    .join(',');
-  
-    const metricLine = labelString 
-    ? `${name}{${labelString}} ${value}`
-    : `${name} ${value}`;
-
-  // Pushgateway requires TYPE declaration and trailing newline
-  const metricString = `# TYPE ${name} ${type}\n${metricLine}\n`;
-
-  // Push to Pushgateway
-  // Format: /metrics/job/<job_name>/<label>/<label_value>
-  const jobName = `user_${userId}`;
-  const pushUrl = `${PUSHGATEWAY_URL}/metrics/job/${jobName}`;
-
-  try {
-    await axios.post(pushUrl, metricString, {
-      headers: {
-        'Content-Type': 'text/plain'
-      },
-      timeout: 5000
-    });
-  } catch (error) {
-    console.error('Failed to push to Pushgateway:', error.message);
-    throw new Error('Failed to push metric to Prometheus');
-  }
-};
-
-// Metrics ingestion endpoint (requires API key)
+/**
+ * POST /api/v1/metrics
+ * 
+ * Metrics ingestion endpoint (requires API key)
+ * 
+ * This endpoint accepts metrics from clients and stores them in the Prometheus registry.
+ * Prometheus will scrape these metrics from the /metrics endpoint.
+ * 
+ * Request body:
+ * {
+ *   "metrics": [
+ *     {
+ *       "name": "request_count",
+ *       "type": "counter",
+ *       "value": 1,
+ *       "labels": { "endpoint": "/api/users" }
+ *     }
+ *   ]
+ * }
+ */
 router.post('/',
-    // Add CORS middleware
-    (req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
-      if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-      }
-      next();
-    },
-    authenticateApiKey,
-    metricsLimiter,
+  // CORS middleware
+  (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    next();
+  },
+  authenticateApiKey,
+  metricsLimiter,
   [
     body('metrics').isArray({ min: 1, max: 100 }).withMessage('Metrics must be an array with 1-100 items'),
     body('metrics.*.name').trim().isLength({ min: 1 }).withMessage('Metric name is required'),
@@ -114,26 +102,35 @@ router.post('/',
           continue;
         }
 
-        // Verify metric config exists (optional - can allow custom metrics)
-        // For MVP, we'll allow any metric but log it
-        validMetrics.push({
-          name: metric.name,
-          type: metric.type,
-          value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
-          labels: {
-            ...metric.labels,
-            user_id: userId.toString()
-          }
-        });
+        // Record metric in Prometheus registry
+        try {
+          recordMetric({
+            name: metric.name,
+            type: metric.type,
+            value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
+            labels: metric.labels || {}
+          }, userId);
+
+          validMetrics.push({
+            name: metric.name,
+            type: metric.type,
+            value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
+            labels: {
+              ...metric.labels,
+              user_id: userId.toString()
+            }
+          });
+        } catch (error) {
+          errors_list.push({
+            index: i,
+            error: error.message || 'Failed to record metric'
+          });
+        }
       }
 
       if (validMetrics.length === 0) {
         throw new BadRequestError('No valid metrics to process', errors_list);
       }
-
-      // Push to Prometheus Pushgateway
-      const pushPromises = validMetrics.map(metric => pushToPrometheus(metric, userId));
-      await Promise.allSettled(pushPromises);
 
       res.json({
         success: true,
@@ -149,17 +146,22 @@ router.post('/',
   }
 );
 
-// Get metrics (for authenticated users to view their metrics)
+/**
+ * GET /api/v1/metrics
+ * 
+ * Get metrics information (for authenticated users)
+ * Note: Actual Prometheus metrics are exposed at /metrics endpoint
+ */
 router.get('/',
   authenticate,
   async (req, res, next) => {
     try {
-      // This would typically query Prometheus API or a metrics database
-      // For MVP, we'll return a message directing to Grafana
       res.json({
         success: true,
-        message: 'View your metrics in Grafana',
-        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001'
+        message: 'View your metrics in Grafana or query Prometheus',
+        prometheusUrl: process.env.PROMETHEUS_URL || 'http://localhost:9090',
+        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001',
+        metricsEndpoint: '/metrics'
       });
     } catch (error) {
       next(error);
@@ -168,4 +170,3 @@ router.get('/',
 );
 
 export { router as metricsRoutes };
-

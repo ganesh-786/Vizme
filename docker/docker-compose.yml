@@ -38,20 +38,7 @@ services:
     networks:
       - metrics_network
     depends_on:
-      - pushgateway
-
-  pushgateway:
-    image: prom/pushgateway:latest
-    container_name: metrics_pushgateway
-    ports:
-      - "9091:9091"
-    volumes:
-      - pushgateway_data:/pushgateway
-    networks:
-      - metrics_network
-    command:
-      - '--persistence.file=/pushgateway/data'
-      - '--persistence.interval=5m'
+      - backend
 
   grafana:
     image: grafana/grafana:latest
@@ -87,8 +74,8 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      - PUSHGATEWAY_URL=http://pushgateway:9091
       - GRAFANA_URL=http://localhost:3001
+      - PROMETHEUS_URL=http://localhost:9090
       - FRONTEND_URL=http://localhost:5173
       - API_BASE_URL=http://localhost:3000
     volumes:
@@ -104,10 +91,8 @@ services:
 volumes:
   postgres_data:
   prometheus_data:
-  pushgateway_data:
   grafana_data:
 
 networks:
   metrics_network:
     driver: bridge
-
