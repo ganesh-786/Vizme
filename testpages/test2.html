@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics Tracker Test Page</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .code-snippet {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            position: relative;
+        }
+        
+        .code-snippet::before {
+            content: '📋 PASTE YOUR GENERATED CODE HERE';
+            display: block;
+            color: #ffd700;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 11px;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-left: 4px solid #2196f3;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .instructions li {
+            margin: 8px 0;
+        }
+        
+        button {
+            padding: 12px 24px;
+            margin: 5px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .status-box {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        #log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        
+        .log-success { color: #4caf50; }
+        .log-error { color: #f44336; }
+        .log-info { color: #2196f3; }
+        .log-warning { color: #ff9800; }
+        
+        .metric-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            text-align: center;
+        }
+        
+        .metric-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .metric-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .network-monitor {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        
+        .network-request {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #4caf50;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        
+        .network-request.error {
+            border-left-color: #f44336;
+        }
+        
+        .test-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .badge-success {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .badge-error {
+            background: #f44336;
+            color: white;
+        }
+        
+        .badge-info {
+            background: #2196f3;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Metrics Tracker Test Page</h1>
+            <p>Test and verify your metrics collection in real-time</p>
+        </div>
+        
+        <div class="content">
+            <!-- Step 1: Paste Code -->
+            <div class="section">
+                <h2>📝 Step 1: Paste Your Generated Code</h2>
+                <div class="instructions">
+                    <strong>Instructions:</strong>
+                    <ol>
+                        <li>Copy the code snippet from your dashboard's Code Generation page</li>
+                        <li>Replace the placeholder code below with your generated snippet</li>
+                        <li>Save this file and open it in your browser</li>
+                    </ol>
+                </div>
+                <div class="code-snippet" id="codeSnippet">
+                    (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=mk_003fd8e3f70e2900541cfa28df88e7c36516232b15df424923ca10b6bccbce32&a=1&c=1';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');
+                </div>
+            </div>
+            
+            <!-- Step 2: Library Status -->
+            <div class="section">
+                <h2>✅ Step 2: Check Library Status</h2>
+                <p>Verify that the tracking library has loaded successfully.</p>
+                <button onclick="checkLibrary()">Check Library Status</button>
+                <div id="libraryStatus"></div>
+            </div>
+            
+            <!-- Step 3: Auto-Tracking Test -->
+            <div class="section">
+                <h2>🔄 Step 3: Auto-Tracking Test</h2>
+                <p>Auto-tracking captures page views, load times, and performance metrics automatically.</p>
+                <div class="test-buttons">
+                    <button onclick="reloadPage()">🔄 Reload Page (Test Auto-Track)</button>
+                    <button onclick="checkAutoTrack()">📊 Check Auto-Track Metrics</button>
+                </div>
+                <div id="autoTrackStatus"></div>
+            </div>
+            
+            <!-- Step 4: Manual Tracking Test -->
+            <div class="section">
+                <h2>🎯 Step 4: Manual Tracking Test</h2>
+                <p>Test manual metric tracking with custom events.</p>
+                <div class="test-buttons">
+                    <button onclick="testManualTrack()">📈 Track Test Metric</button>
+                    <button onclick="testIncrement()">➕ Increment Counter</button>
+                    <button onclick="testDecrement()">➖ Decrement Gauge</button>
+                    <button onclick="testCustomEvent()">⭐ Custom Event</button>
+                </div>
+                <div id="manualStatus"></div>
+            </div>
+            
+            <!-- Step 5: Click Tracking -->
+            <div class="section">
+                <h2>🖱️ Step 5: Click Tracking Test</h2>
+                <p>Buttons with <code>data-track</code> attributes are automatically tracked.</p>
+                <button data-track="button_clicks" data-value="1" data-label-button="test-button" data-label-section="test-page">
+                    Click Me (Auto-tracked) 🎯
+                </button>
+                <button data-track="special_clicks" data-value="5" data-label-type="special">
+                    Special Button (Value: 5) ⭐
+                </button>
+            </div>
+            
+            <!-- Step 6: Form Tracking -->
+            <div class="section">
+                <h2>📝 Step 6: Form Submission Tracking</h2>
+                <p>Forms with <code>data-track</code> attributes track submissions.</p>
+                <form data-track="form_submissions" data-value="1" data-label-form="test-form" onsubmit="event.preventDefault(); log('Form submitted - should be tracked', 'success'); return false;">
+                    <input type="text" placeholder="Enter something..." style="padding: 10px; width: 300px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <button type="submit">Submit Form</button>
+                </form>
+            </div>
+            
+            <!-- Step 7: Queue Status -->
+            <div class="section">
+                <h2>📊 Step 7: Queue & Batch Status</h2>
+                <p>Monitor the internal queue of metrics waiting to be sent.</p>
+                <div class="test-buttons">
+                    <button onclick="checkQueueStatus()">📊 Check Queue Status</button>
+                    <button onclick="flushMetrics()">⚡ Force Flush (Send Now)</button>
+                </div>
+                <div id="queueStatus"></div>
+                <div class="metric-display" id="metricDisplay"></div>
+            </div>
+            
+            <!-- Step 8: Network Monitoring -->
+            <div class="section">
+                <h2>🌐 Step 8: Network Request Monitor</h2>
+                <p>See all requests being sent to the metrics API in real-time.</p>
+                <div class="instructions">
+                    <strong>💡 Tip:</strong> Also check your browser's Developer Tools (F12) → Network tab → Filter by "metrics"
+                </div>
+                <div class="network-monitor" id="networkMonitor">
+                    <p style="color: #666; font-style: italic;">No requests yet. Metrics will appear here when sent.</p>
+                </div>
+            </div>
+            
+            <!-- Step 9: Activity Log -->
+            <div class="section">
+                <h2>📋 Step 9: Activity Log</h2>
+                <p>Real-time log of all tracking activities and events.</p>
+                <div class="test-buttons">
+                    <button onclick="clearLog()">🗑️ Clear Log</button>
+                    <button onclick="exportLog()">💾 Export Log</button>
+                </div>
+                <div id="log"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PASTE YOUR GENERATED CODE HERE (before closing body tag) -->
+    <script>
+        // ============================================
+        // PASTE YOUR GENERATED CODE SNIPPET BELOW
+        // ============================================
+        
+        // Replace this with your actual generated code from the dashboard
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=mk_152e445a464974dc541dca3383c01795b436dbbbed302e3e947fb24f224c20df&a=1&c=1';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');
+        
+        // ============================================
+        // END OF YOUR SNIPPET
+        // ============================================
+
+        // ============================================
+        // TEST FUNCTIONS (DO NOT MODIFY)
+        // ============================================
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[MetricsTest] ${message}`);
+        }
+
+        function addNetworkRequest(url, status, error = false) {
+            const monitor = document.getElementById('networkMonitor');
+            if (monitor.querySelector('p[style*="italic"]')) {
+                monitor.innerHTML = '';
+            }
+            
+            const requestDiv = document.createElement('div');
+            requestDiv.className = `network-request ${error ? 'error' : ''}`;
+            requestDiv.innerHTML = `
+                <strong>${error ? '❌' : '✅'}</strong> 
+                <span style="color: ${error ? '#f44336' : '#4caf50'}">${status}</span> - 
+                <code>${url}</code>
+                <span style="color: #666; margin-left: 10px;">${new Date().toLocaleTimeString()}</span>
+            `;
+            monitor.appendChild(requestDiv);
+            monitor.scrollTop = monitor.scrollHeight;
+        }
+
+        function checkLibrary() {
+            const statusDiv = document.getElementById('libraryStatus');
+            
+            if (typeof window.MetricsTracker === 'undefined') {
+                statusDiv.innerHTML = `
+                    <div class="status-box status-error">
+                        ❌ <strong>MetricsTracker not loaded!</strong><br>
+                        <small>Make sure you've pasted your generated code snippet correctly above.</small>
+                    </div>
+                `;
+                log('Library check: FAILED - MetricsTracker not found', 'error');
+                return;
+            }
+
+            const queueSize = window.MetricsTracker.getQueueSize();
+            const batchSize = window.MetricsTracker.getBatchSize();
+            
+            statusDiv.innerHTML = `
+                <div class="status-box status-success">
+                    ✅ <strong>Library Loaded Successfully!</strong><br>
+                    <div class="metric-display" style="margin-top: 15px;">
+                        <div class="metric-card">
+                            <div class="label">Queue Size</div>
+                            <div class="value">${queueSize}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Batch Size</div>
+                            <div class="value">${batchSize}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            log('Library check: SUCCESS - MetricsTracker is loaded', 'success');
+        }
+
+        function checkAutoTrack() {
+            const statusDiv = document.getElementById('autoTrackStatus');
+            
+            if (typeof window.MetricsTracker === 'undefined') {
+                statusDiv.innerHTML = '<div class="status-box status-error">Library not loaded!</div>';
+                return;
+            }
+
+            statusDiv.innerHTML = `
+                <div class="status-box status-info">
+                    ℹ️ Auto-tracking should have fired on page load.<br>
+                    Check the Network Monitor section below to see if metrics were sent.<br>
+                    <small>Auto-tracked metrics: page_views, page_load_time, time_on_page, etc.</small>
+                </div>
+            `;
+            log('Auto-track check: Metrics should be visible in Network Monitor', 'info');
+        }
+
+        function testManualTrack() {
+            const statusDiv = document.getElementById('manualStatus');
+            
+            if (typeof window.MetricsTracker === 'undefined') {
+                statusDiv.innerHTML = '<div class="status-box status-error">Library not loaded!</div>';
+                return;
+            }
+
+            const result = window.MetricsTracker.track('test_metric', 42, { 
+                test: true, 
+                source: 'manual_test',
+                timestamp: Date.now()
+            });
+            
+            if (result) {
+                statusDiv.innerHTML = `
+                    <div class="status-box status-success">
+                        ✅ <strong>Metric tracked successfully!</strong><br>
+                        <small>Metric: test_metric, Value: 42</small><br>
+                        <small>Check Network Monitor below to see the request.</small>
+                    </div>
+                `;
+                log('Manual track: SUCCESS - test_metric = 42', 'success');
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="status-box status-warning">
+                        ⚠️ <strong>Tracking attempted but metric may not be configured.</strong><br>
+                        <small>This is OK if you haven't created a metric config named "test_metric" yet.</small>
+                    </div>
+                `;
+                log('Manual track: Metric may not be configured in dashboard', 'warning');
+            }
+        }
+
+        function testIncrement() {
+            if (typeof window.MetricsTracker === 'undefined') {
+                log('Increment test: FAILED - Library not loaded', 'error');
+                return;
+            }
+            
+            const result = window.MetricsTracker.increment('test_counter', 1, { source: 'test_page' });
+            log(`Increment test: ${result ? 'SUCCESS' : 'FAILED'} - test_counter`, result ? 'success' : 'warning');
+        }
+
+        function testDecrement() {
+            if (typeof window.MetricsTracker === 'undefined') {
+                log('Decrement test: FAILED - Library not loaded', 'error');
+                return;
+            }
+            
+            const result = window.MetricsTracker.decrement('test_gauge', 1, { source: 'test_page' });
+            log(`Decrement test: ${result ? 'SUCCESS' : 'FAILED'} - test_gauge`, result ? 'success' : 'warning');
+        }
+
+        function testCustomEvent() {
+            if (typeof window.MetricsTracker === 'undefined') {
+                log('Custom event test: FAILED - Library not loaded', 'error');
+                return;
+            }
+            
+            const result = window.MetricsTracker.track('custom_event', 1, {
+                event_type: 'user_interaction',
+                page: window.location.pathname,
+                timestamp: Date.now()
+            });
+            
+            log(`Custom event test: ${result ? 'SUCCESS' : 'FAILED'} - custom_event`, result ? 'success' : 'warning');
+        }
+
+        function checkQueueStatus() {
+            if (typeof window.MetricsTracker === 'undefined') {
+                document.getElementById('queueStatus').innerHTML = '<div class="status-box status-error">Library not loaded!</div>';
+                return;
+            }
+
+            const queueSize = window.MetricsTracker.getQueueSize();
+            const batchSize = window.MetricsTracker.getBatchSize();
+            
+            document.getElementById('queueStatus').innerHTML = `
+                <div class="status-box ${batchSize > 0 ? 'status-warning' : 'status-success'}">
+                    ${batchSize > 0 ? '⚠️' : '✅'} <strong>Queue Status</strong><br>
+                    Queue Size: ${queueSize} | Batch Size: ${batchSize}<br>
+                    ${batchSize > 0 ? 'Metrics are queued and will be sent soon (or click Force Flush)' : 'No pending metrics'}
+                </div>
+            `;
+            
+            document.getElementById('metricDisplay').innerHTML = `
+                <div class="metric-card">
+                    <div class="label">Queue Size</div>
+                    <div class="value">${queueSize}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="label">Batch Size</div>
+                    <div class="value">${batchSize}</div>
+                </div>
+            `;
+            
+            log(`Queue status: Queue=${queueSize}, Batch=${batchSize}`, 'info');
+        }
+
+        function flushMetrics() {
+            if (typeof window.MetricsTracker === 'undefined') {
+                log('Force flush: FAILED - Library not loaded', 'error');
+                return;
+            }
+            
+            window.MetricsTracker.flush();
+            log('Force flush: Metrics sent immediately', 'success');
+            
+            setTimeout(() => {
+                checkQueueStatus();
+            }, 500);
+        }
+
+        function reloadPage() {
+            log('Reloading page to test auto-tracking...', 'info');
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            log('Log cleared', 'info');
+        }
+
+        function exportLog() {
+            const logDiv = document.getElementById('log');
+            const logText = Array.from(logDiv.children)
+                .map(entry => entry.textContent)
+                .join('\n');
+            
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `metrics-test-log-${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            log('Log exported', 'success');
+        }
+
+        // Monitor network requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const url = args[0];
+            
+            if (url && typeof url === 'string' && url.includes('/api/v1/metrics')) {
+                log(`📤 Sending metrics to: ${url}`, 'info');
+                addNetworkRequest(url, 'Sending...', false);
+                
+                return originalFetch.apply(this, args)
+                    .then(response => {
+                        if (response.ok) {
+                            response.clone().json().then(data => {
+                                log(`✅ Metrics sent successfully (${response.status}) - Processed: ${data.data?.processed || 'N/A'}`, 'success');
+                                addNetworkRequest(url, `✅ ${response.status} OK - Processed: ${data.data?.processed || 'N/A'} metrics`, false);
+                            }).catch(() => {
+                                log(`✅ Metrics sent successfully (${response.status})`, 'success');
+                                addNetworkRequest(url, `✅ ${response.status} OK`, false);
+                            });
+                        } else {
+                            log(`❌ Metrics send failed (${response.status})`, 'error');
+                            addNetworkRequest(url, `❌ ${response.status} Error`, true);
+                        }
+                        return response;
+                    })
+                    .catch(error => {
+                        log(`❌ Network error: ${error.message}`, 'error');
+                        addNetworkRequest(url, `❌ Error: ${error.message}`, true);
+                        throw error;
+                    });
+            }
+            return originalFetch.apply(this, args);
+        };
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkLibrary();
+                log('Page loaded - auto-tracking should have fired', 'info');
+                log('💡 Open Developer Tools (F12) → Network tab to see requests', 'info');
+            }, 1500);
+        });
+
+        // Log when library loads
+        const checkInterval = setInterval(() => {
+            if (typeof window.MetricsTracker !== 'undefined') {
+                log('✅ MetricsTracker library loaded successfully!', 'success');
+                clearInterval(checkInterval);
+                checkLibrary();
+            }
+        }, 100);
+
+        // Initial log
+        log('🚀 Test page initialized. Waiting for library to load...', 'info');
+        
+    </script>
+</body>
+</html>

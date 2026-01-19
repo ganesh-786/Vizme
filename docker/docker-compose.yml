@@ -125,7 +125,6 @@ services:
 volumes:
   postgres_data:
   prometheus_data:
-  pushgateway_data:
   grafana_data:
 
 networks:

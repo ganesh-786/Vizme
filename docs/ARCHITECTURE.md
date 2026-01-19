@@ -27,31 +27,30 @@ The Metrics Tracker MVP is built as a microservices-oriented architecture with c
 │  │  │   Auth   │  │  Config  │  │  Metrics │          │   │
 │  │  │  Module  │  │  Module  │  │  Module  │          │   │
 │  │  └──────────┘  └──────────┘  └──────────┘          │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────┬───────────────────────────────────┬───────────────┘
-          │                                   │
-          │                                   │
-          ▼                                   ▼
-┌──────────────────────┐        ┌──────────────────────────┐
-│   Data Layer         │        │   Metrics Layer          │
-│                      │        │                          │
-│  ┌──────────────┐   │        │  ┌────────────────────┐   │
-│  │  PostgreSQL  │   │        │  │  Pushgateway      │   │
-│  │              │   │        │  │  (Ingestion)      │   │
-│  │  - Users     │   │        │  └────────┬─────────┘   │
-│  │  - API Keys  │   │        │           │             │
-│  │  - Configs   │   │        │           ▼             │
-│  └──────────────┘   │        │  ┌────────────────────┐   │
-│                     │        │  │   Prometheus       │   │
-│                     │        │  │   (TSDB)           │   │
-│                     │        │  └────────┬────────────┘   │
-└─────────────────────┘        │           │                │
-                               │           ▼                │
-                               │  ┌────────────────────┐   │
-                               │  │     Grafana        │   │
-                               │  │  (Visualization)   │   │
-                               │  └────────────────────┘   │
-                               └──────────────────────────┘
+│  │  ┌──────────┐  ┌──────────────────────────┐        │   │
+│  │  │  Tracker │  │  Prometheus Registry     │        │   │
+│  │  │  Module  │  │  (prom-client)           │        │   │
+│  │  └──────────┘  └──────────┬───────────────┘        │   │
+│  └────────────────────────────┼─────────────────────────┘   │
+└─────────┬─────────────────────┼─────────────────────────────┘
+          │                     │
+          │                     │ /metrics endpoint
+          ▼                     ▼
+┌──────────────────────┐  ┌──────────────────────────┐
+│   Data Layer         │  │   Metrics Layer          │
+│                      │  │                          │
+│  ┌──────────────┐   │  │  ┌────────────────────┐  │
+│  │  PostgreSQL  │   │  │  │   Prometheus      │  │
+│  │              │   │  │  │   (Scrapes /metrics│  │
+│  │  - Users     │   │  │  │   from Backend)    │  │
+│  │  - API Keys  │   │  │  └────────┬───────────┘  │
+│  │  - Configs   │   │  │           │              │
+│  └──────────────┘   │  │           ▼              │
+│                     │  │  ┌────────────────────┐  │
+│                     │  │  │     Grafana        │  │
+│                     │  │  │  (Visualization)   │  │
+│                     │  │  └────────────────────┘  │
+└─────────────────────┘  └──────────────────────────┘
 ```
 
 ## Component Details
@@ -130,15 +129,47 @@ backend/
    - User-scoped access
 
 4. **Code Generation Module**
-   - Template-based generation
+   - Minimal snippet generation (~150 bytes)
+   - Dynamic library loading via tracker.js endpoint
    - API key embedding
-   - Customizable options
+   - Customizable options (auto-track, custom events)
 
-5. **Metrics Ingestion Module**
-   - REST endpoint
+5. **Tracker Module**
+   - Dynamic JavaScript library generation
+   - API key validation
+   - User metric configuration fetching
+   - Browser caching optimization
+   - CORS support for cross-origin loading
+
+6. **Metrics Ingestion Module**
+   - REST endpoint (`/api/v1/metrics`)
    - API key authentication
-   - Batch processing
-   - Prometheus Pushgateway integration
+   - Batch processing (up to 100 metrics per request)
+   - Direct Prometheus registry integration (prom-client)
+   - In-memory metric storage
+   - Prometheus scraping endpoint (`/metrics`)
+
+**Key API Endpoints**:
+
+- `GET /api/v1/tracker.js` - Dynamic tracking library generator
+  - Query params: `k` (API key), `a` (auto-track), `c` (custom events)
+  - Returns: Full JavaScript tracking library
+  - CORS enabled for cross-origin loading
+  - Browser caching (1 hour)
+
+- `POST /api/v1/metrics` - Metrics ingestion endpoint
+  - Headers: `X-API-Key` (required)
+  - Body: Array of metrics (name, type, value, labels)
+  - Returns: Processing results with error details
+
+- `GET /metrics` - Prometheus scraping endpoint
+  - No authentication (Prometheus needs access)
+  - Returns: Prometheus text format metrics
+  - Scraped by Prometheus server
+
+- `POST /api/v1/code-generation` - Generate tracking snippet
+  - Auth: JWT required
+  - Returns: Minimal snippet (~150 bytes) that loads tracker.js
 
 ### 3. Database (PostgreSQL)
 
@@ -185,22 +216,27 @@ backend/
 
 ### 4. Metrics Infrastructure
 
-**Prometheus Pushgateway**:
-- Receives metrics from backend
-- Temporary storage for ephemeral clients
-- Scraped by Prometheus
+**Backend Metrics Service (prom-client)**:
+- In-memory Prometheus registry
+- Stores metrics with user_id labels for multi-tenancy
+- Supports Counter, Gauge, Histogram, and Summary metric types
+- Exposes `/metrics` endpoint in Prometheus text format
+- Automatic metric instance management
+- Default labels for application identification
 
 **Prometheus**:
 - Time-series database
-- Scrapes from Pushgateway
-- Stores metrics long-term
+- Scrapes metrics directly from backend `/metrics` endpoint
+- Stores metrics long-term (30-day retention)
 - Query language (PromQL)
+- No Pushgateway dependency (direct scraping)
 
 **Grafana**:
 - Visualization platform
-- Connects to Prometheus
+- Connects to Prometheus datasource
 - Pre-configured dashboards
 - Query builder interface
+- Multi-tenant metric filtering by user_id
 
 ## Data Flow
 
@@ -229,47 +265,61 @@ backend/
 ### Metric Collection Flow
 
 ```
-1. Client website loads tracking code
+1. Client website loads minimal tracking snippet (~150 bytes)
    ↓
-2. Code initializes with API key and configs
+2. Snippet asynchronously loads full library from /api/v1/tracker.js
    ↓
-3. Code tracks events (auto or custom)
+3. Tracker.js endpoint validates API key and fetches user's metric configs
    ↓
-4. Code batches metrics (10 per batch or 5s timeout)
+4. Full tracking library is generated dynamically and served
    ↓
-5. Code sends POST to /api/v1/metrics
+5. Library initializes with API key, endpoint, and metric configurations
    ↓
-6. Backend validates API key
+6. Library tracks events (auto or custom)
    ↓
-7. Backend validates metrics format
+7. Library batches metrics (10 per batch or 5s timeout)
    ↓
-8. Backend pushes to Pushgateway
+8. Library sends POST to /api/v1/metrics with API key in header
    ↓
-9. Prometheus scrapes Pushgateway
+9. Backend validates API key
    ↓
-10. Metrics stored in Prometheus TSDB
+10. Backend validates metrics format
     ↓
-11. Grafana queries Prometheus
+11. Backend records metrics in Prometheus registry (prom-client)
     ↓
-12. User views metrics in Grafana
+12. Prometheus scrapes /metrics endpoint from backend
+    ↓
+13. Metrics stored in Prometheus TSDB
+    ↓
+14. Grafana queries Prometheus
+    ↓
+15. User views metrics in Grafana (filtered by user_id)
 ```
 
 ### Code Generation Flow
 
 ```
-1. User selects API key and metric configs
+1. User selects API key and metric configs in web app
    ↓
 2. Backend fetches configs from database
    ↓
-3. Backend generates JavaScript code template
+3. Backend generates minimal tracking snippet (~150 bytes)
    ↓
-4. Backend embeds API key and configs
+4. Snippet includes API key and options (auto-track, custom events)
    ↓
-5. Backend returns code to frontend
+5. Snippet contains URL to /api/v1/tracker.js endpoint
    ↓
-6. User copies code to clipboard
+6. Backend returns minimal snippet to frontend
    ↓
-7. User pastes code in website
+7. User copies snippet to clipboard
+   ↓
+8. User pastes snippet in website HTML
+   ↓
+9. When page loads, snippet loads full library from tracker.js
+   ↓
+10. Tracker.js dynamically generates library with user's metric configs
+    ↓
+11. Library is cached by browser (1 hour cache)
 ```
 
 ## Security Architecture
@@ -337,8 +387,9 @@ backend/
 
 3. **Metrics Scaling**:
    - Prometheus federation
-   - Multiple Pushgateway instances
+   - Multiple backend instances with shared registry
    - Metric aggregation
+   - Consider Pushgateway for ephemeral jobs (future)
 
 4. **Caching**:
    - Redis for session storage
@@ -361,9 +412,11 @@ backend/
 
 ### Metrics Monitoring
 
-- Prometheus metrics
-- Grafana dashboards
+- Prometheus metrics exposed at `/metrics` endpoint
+- Direct Prometheus scraping (no Pushgateway)
+- Grafana dashboards with user_id filtering
 - Alert rules (future)
+- In-memory metric registry (prom-client)
 
 ### Logging
 
@@ -380,10 +433,12 @@ backend/
 Local Machine
 ├── Frontend (Vite dev server :5173)
 ├── Backend (Node.js :3000)
+│   ├── /api/v1/* (REST API)
+│   ├── /api/v1/tracker.js (Dynamic library)
+│   └── /metrics (Prometheus scraping)
 └── Docker Compose
     ├── PostgreSQL (:5432)
     ├── Prometheus (:9090)
-    ├── Pushgateway (:9091)
     └── Grafana (:3001)
 ```
 
@@ -397,8 +452,7 @@ Load Balancer (nginx/HAProxy)
   └── Backend (Multiple instances)
       ├── PostgreSQL (Primary + Replicas)
       └── Prometheus Stack
-          ├── Pushgateway
-          ├── Prometheus
+          ├── Prometheus (Scrapes backend /metrics)
           └── Grafana
 ```
 
@@ -442,8 +496,12 @@ Load Balancer (nginx/HAProxy)
 
 - Database indexes
 - Connection pooling
-- Batch metric processing
-- Client-side batching
+- Batch metric processing (client-side: 10 metrics or 5s timeout)
+- Client-side batching and retry logic
+- Browser caching for tracker.js (1 hour)
+- Minimal tracking snippet (~150 bytes)
+- Dynamic library generation (reduces initial payload)
+- In-memory Prometheus registry (fast metric recording)
 
 ### Future Optimizations
 
