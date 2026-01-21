@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { authAPI } from '../api/auth';
-import { useToast } from '../components/ToastContainer';
-import Logo from '../components/Logo';
-import './Auth.css';
+import { useAuthStore } from '../../store/authStore';
+import { authAPI } from '../../api/auth';
+import { useToast } from '../../components/ToastContainer';
+import Logo from '../../components/Logo';
+import { ArrowRightIcon, EyeIcon, EyeOffIcon } from '../../assets/icons';
+import '../Auth/Auth.css';
 
 function Signup() {
   const [name, setName] = useState('');
@@ -101,36 +102,7 @@ function Signup() {
                   onClick={() => setShowPassword((v) => !v)}
                   disabled={loading}
                 >
-                  {showPassword ? (
-                    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
-                      <path
-                        d="M2.1 12c2.1-4.8 6-7.5 9.9-7.5S19.8 7.2 21.9 12c-2.1 4.8-6 7.5-9.9 7.5S4.2 16.8 2.1 12Z"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      />
-                      <path d="M4 20 20 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                  ) : (
-                    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
-                      <path
-                        d="M2.1 12c2.1-4.8 6-7.5 9.9-7.5S19.8 7.2 21.9 12c-2.1 4.8-6 7.5-9.9 7.5S4.2 16.8 2.1 12Z"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      />
-                    </svg>
-                  )}
+                  {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
                 </button>
               </div>
               <small className="form-hint">Must be at least 8 characters with one number.</small>
@@ -138,21 +110,7 @@ function Signup() {
 
             <button type="submit" className="btn btn-primary auth-cta" disabled={loading} style={{ width: '100%' }}>
               <span>{loading ? 'Creating account…' : 'Create Account'}</span>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
-                <path
-                  d="M5 12h12"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M13 6l6 6-6 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ArrowRightIcon size={20} />
             </button>
           </form>
 

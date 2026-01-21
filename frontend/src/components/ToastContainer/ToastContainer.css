@@ -10,7 +10,7 @@
   max-width: calc(100vw - 3rem);
 }
 
-.toast-container > * {
+.toast-container>* {
   pointer-events: auto;
 }
 
@@ -21,4 +21,3 @@
     max-width: none;
   }
 }
-

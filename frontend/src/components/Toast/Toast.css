@@ -19,6 +19,7 @@
     transform: translateX(100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -99,4 +100,3 @@
   --toast-bg: #78350f;
   --toast-color: #fef3c7;
 }
-

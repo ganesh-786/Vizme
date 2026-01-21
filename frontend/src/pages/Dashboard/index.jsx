@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { metricConfigsAPI } from '../api/metricConfigs';
-import { apiKeysAPI } from '../api/apiKeys';
+import { metricConfigsAPI } from '../../api/metricConfigs';
+import { apiKeysAPI } from '../../api/apiKeys';
+import { AnalyticsIcon, DocumentIcon, KeyIcon, PlusIcon, TrendUpIcon } from '../../assets/icons';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -59,13 +60,7 @@ function Dashboard() {
           </div>
           <div className="overview-icon" aria-hidden="true">
             {/* analytics icon */}
-            <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
-              <path d="M4 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <path d="M4 19H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <path d="M8 16v-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <path d="M12 16V9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <path d="M16 16V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <AnalyticsIcon size={30} />
           </div>
         </div>
 
@@ -83,20 +78,7 @@ function Dashboard() {
           </div>
           <div className="overview-icon" aria-hidden="true">
             {/* key icon */}
-            <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
-              <path
-                d="M7.5 14.5a4.5 4.5 0 1 1 3.9-6.8h8.6v3h-2v2h-2v2h-3.2"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              <path
-                d="M7.5 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-            </svg>
+            <KeyIcon size={30} />
           </div>
         </div>
       </div>
@@ -112,10 +94,7 @@ function Dashboard() {
 
           <div className="timeline-item">
             <div className="timeline-dot timeline-dot--filled" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-                <path d="M12 3v18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M3 12h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              <PlusIcon size={22} />
             </div>
             <div className="timeline-content">
               <h3>Create Metric</h3>
@@ -131,16 +110,7 @@ function Dashboard() {
 
           <div className="timeline-item">
             <div className="timeline-dot timeline-dot--ring" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-                <path
-                  d="M7.5 14.5a4.5 4.5 0 1 1 3.9-6.8h8.6v3h-2v2h-2v2h-3.2"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-                <path d="M7.5 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" strokeWidth="2" />
-              </svg>
+              <KeyIcon size={22} />
             </div>
             <div className="timeline-content">
               <h3>Generate Key</h3>
@@ -151,11 +121,7 @@ function Dashboard() {
 
           <div className="timeline-item">
             <div className="timeline-dot timeline-dot--muted" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-                <path d="M5 7h14v10H5z" stroke="currentColor" strokeWidth="2" />
-                <path d="M8 10h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M8 13h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              <DocumentIcon size={22} />
             </div>
             <div className="timeline-content">
               <h3>Generate Code</h3>
@@ -171,11 +137,7 @@ function Dashboard() {
 
           <div className="timeline-item">
             <div className="timeline-dot timeline-dot--muted" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-                <path d="M4 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M4 19H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <path d="M7 15l3-3 3 2 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <TrendUpIcon size={22} />
             </div>
             <div className="timeline-content">
               <h3>View in Grafana</h3>
