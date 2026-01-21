@@ -78,3 +78,6 @@ Thumbs.db
 *.pid.lock
 .cursor/
 frontend-react/
+.editorconfig
+.gitattributes
+scripts/
