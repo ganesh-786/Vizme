@@ -54,4 +54,3 @@ export const authenticateApiKey = async (req, res, next) => {
     next(error);
   }
 };
-

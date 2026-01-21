@@ -25,4 +25,3 @@ router.get('/', async (req, res) => {
 });
 
 export { router as healthRoutes };
-

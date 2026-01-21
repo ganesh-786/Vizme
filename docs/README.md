@@ -562,4 +562,3 @@ Authorization: Bearer <access_token>
 ## Support
 
 For issues or questions, please refer to the project repository or contact the development team.
-

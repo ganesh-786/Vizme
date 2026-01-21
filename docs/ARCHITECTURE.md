@@ -510,4 +510,3 @@ Load Balancer (nginx/HAProxy)
 - CDN for static assets
 - Compression (gzip)
 - Database query result caching
-

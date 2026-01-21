@@ -91,4 +91,3 @@
 - **Metrics not showing**: Verify Pushgateway and Prometheus are running
 
 For detailed documentation, see [README.md](./README.md) and [ARCHITECTURE.md](./ARCHITECTURE.md).
-

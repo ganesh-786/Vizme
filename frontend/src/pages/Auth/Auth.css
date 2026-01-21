@@ -7,7 +7,23 @@
   padding: 2rem;
   position: relative;
   overflow: hidden;
-  background: var(--bg-secondary);
+  background: #FDFCFB;
+  /* reference creamy white */
+}
+
+[data-theme="dark"] .auth-container {
+  background: #1f1f1f;
+  /* reference dark background */
+}
+
+.auth-layout {
+  width: 100%;
+  max-width: 480px;
+  /* reference */
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 /* Subtle professional background pattern - Light mode */
@@ -57,25 +73,22 @@
 /* Professional Auth Card */
 .auth-card {
   background: var(--bg-primary);
-  border-radius: 20px;
+  border-radius: 16px;
+  /* closer to reference rounded-2xl */
   padding: 3rem;
   width: 100%;
-  max-width: 440px;
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   position: relative;
-  z-index: 1;
   animation: slideInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(20px);
 }
 
 [data-theme="dark"] .auth-card {
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   background: rgba(26, 26, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 @keyframes slideInUp {
@@ -148,6 +161,48 @@
   text-align: center;
 }
 
+.auth-subtitle-lg {
+  font-size: 1rem;
+}
+
+/* Signup hero title (reference has a large Sign Up heading) */
+.auth-title-hero {
+  font-size: clamp(2.25rem, 6vw, 3.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+/* Signup card gets slightly tighter spacing like the reference */
+.auth-card--signup .auth-logo {
+  margin-bottom: 1.75rem;
+  padding: 1rem 0;
+}
+
+/* Label row (Password + Forgot password?) */
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.form-label-row .form-label {
+  margin-bottom: 0;
+}
+
+.auth-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
 /* Form Styling - Professional Enhancement */
 .auth-card .form-group {
   margin-bottom: 1.75rem;
@@ -195,6 +250,46 @@
   font-weight: 400;
 }
 
+/* Input with right-side action (password visibility toggle) */
+.input-with-action {
+  position: relative;
+}
+
+.input-with-action .form-input {
+  padding-right: 3.25rem;
+}
+
+.input-action {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  padding: 0.4rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.input-action:hover {
+  color: var(--primary);
+  background-color: rgba(59, 130, 246, 0.06);
+}
+
+.input-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.input-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .form-hint {
   display: block;
   margin-top: 0.5rem;
@@ -202,6 +297,49 @@
   font-size: 0.75rem;
   line-height: 1.4;
   font-weight: 400;
+}
+
+/* Signup CTA button content alignment */
+.auth-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Divider above "Already have an account?" (reference has a subtle rule) */
+.auth-divider {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .auth-divider {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Terms line below signup card */
+.auth-terms {
+  margin-top: 2rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-align: center;
+  max-width: 420px;
+  align-self: center;
+  line-height: 1.5;
+}
+
+.auth-terms a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.auth-terms a:hover {
+  color: var(--text-primary);
 }
 
 /* Professional Button Styling */
@@ -215,11 +353,13 @@
   letter-spacing: 0.01em;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, #4A90E2 0%, #5B7FE8 100%);
 }
 
 .auth-card .btn-primary:hover {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
   transform: translateY(-1px);
+  filter: brightness(0.98);
 }
 
 .auth-card .btn-primary:active {
@@ -304,6 +444,28 @@
 
 .auth-footer a:hover::after {
   width: 100%;
+}
+
+/* Bottom legal links row (outside card) */
+.auth-legal {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.auth-legal a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.auth-legal a:hover {
+  color: var(--primary);
 }
 
 /* Responsive Design - Mobile Optimization */

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback } from 'react';
-import Toast from './Toast';
+import Toast from '../Toast';
 import './ToastContainer.css';
 
 const ToastContext = createContext(null);
@@ -51,4 +51,3 @@ export function useToast() {
   }
   return context;
 }
-

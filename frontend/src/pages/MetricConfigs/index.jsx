@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { metricConfigsAPI } from '../api/metricConfigs';
-import { useToast } from '../components/ToastContainer';
+import { metricConfigsAPI } from '../../api/metricConfigs';
+import { useToast } from '../../components/ToastContainer';
 import './MetricConfigs.css';
 
 const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
@@ -220,4 +220,3 @@ function MetricConfigs() {
 }
 
 export default MetricConfigs;
-

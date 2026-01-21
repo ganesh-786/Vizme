@@ -23,4 +23,3 @@ export const apiKeysAPI = {
     return response.data;
   }
 };
-

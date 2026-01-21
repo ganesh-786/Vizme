@@ -267,4 +267,3 @@ unified-project/
 - Some features are simplified (e.g., password reset)
 - Documentation is comprehensive for production use
 - Code follows best practices and is production-ready
-

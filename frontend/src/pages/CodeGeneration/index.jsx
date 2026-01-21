@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { codeGenerationAPI } from '../api/codeGeneration';
-import { apiKeysAPI } from '../api/apiKeys';
-import { metricConfigsAPI } from '../api/metricConfigs';
-import { useToast } from '../components/ToastContainer';
+import { codeGenerationAPI } from '../../api/codeGeneration';
+import { apiKeysAPI } from '../../api/apiKeys';
+import { metricConfigsAPI } from '../../api/metricConfigs';
+import { useToast } from '../../components/ToastContainer';
 import './CodeGeneration.css';
 
 function CodeGeneration() {
@@ -166,4 +166,3 @@ function CodeGeneration() {
 }
 
 export default CodeGeneration;
-

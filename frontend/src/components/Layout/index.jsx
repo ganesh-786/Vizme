@@ -1,7 +1,9 @@
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
-import { useAuthStore } from "../store/authStore";
-import { useThemeStore } from "../store/themeStore";
-import Logo from "./Logo";
+import { useMemo } from "react";
+import { useAuthStore } from "../../store/authStore";
+import { useThemeStore } from "../../store/themeStore";
+import Logo from "../Logo";
+import { BellIcon, MoonIcon, SunIcon } from "../../assets/icons";
 import "./Layout.css";
 
 function Layout() {
@@ -9,6 +11,12 @@ function Layout() {
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const avatarLetter = useMemo(() => {
+    const email = user?.email || "";
+    const first = email.trim()[0];
+    return (first ? first : "U").toUpperCase();
+  }, [user?.email]);
 
   const handleLogout = () => {
     logout();
@@ -56,7 +64,7 @@ function Layout() {
                 isActive("/code-generation") ? "active" : ""
               }`}
             >
-              Code Generation
+              Code Gen
             </Link>
           </div>
           <div className="nav-user">
@@ -66,11 +74,21 @@ function Layout() {
               aria-label="Toggle theme"
               title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
             >
-              {theme === "light" ? "🌙" : "☀️"}
+              {theme === "light" ? <SunIcon size={20} /> : <MoonIcon size={20} />}
             </button>
-            <span className="user-email">{user?.email}</span>
-            <button onClick={handleLogout} className="btn btn-secondary">
-              Logout
+
+            <button className="icon-button" type="button" aria-label="Notifications" title="Notifications">
+              <BellIcon size={20} />
+            </button>
+
+            <button
+              type="button"
+              className="avatar"
+              aria-label="Account menu"
+              title={user?.email || "Account"}
+              onClick={handleLogout}
+            >
+              <span className="avatar-letter" aria-hidden="true">{avatarLetter}</span>
             </button>
           </div>
         </div>

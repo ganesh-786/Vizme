@@ -11,4 +11,3 @@ export const codeGenerationAPI = {
     return response.data;
   }
 };
-

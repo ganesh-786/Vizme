@@ -26,4 +26,3 @@ export const metricConfigsAPI = {
     return response.data;
   }
 };
-

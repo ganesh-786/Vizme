@@ -237,4 +237,3 @@ router.post('/password-reset-request',
 );
 
 export { router as authRoutes };
-

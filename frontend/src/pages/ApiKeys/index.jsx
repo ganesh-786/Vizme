@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { apiKeysAPI } from '../api/apiKeys';
-import { useToast } from '../components/ToastContainer';
+import { apiKeysAPI } from '../../api/apiKeys';
+import { useToast } from '../../components/ToastContainer';
 import './ApiKeys.css';
 
 function ApiKeys() {
@@ -183,4 +183,3 @@ function ApiKeys() {
 }
 
 export default ApiKeys;
-
