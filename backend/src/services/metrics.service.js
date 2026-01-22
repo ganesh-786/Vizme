@@ -46,6 +46,17 @@ const hashLabels = (labels) => {
   return sorted || 'no-labels';
 };
 
+//Helper: get current gauge value for an exact label-set ( used to clamp decrements)
+const getCurrentGaugeValue = (gauge, metricLabels) => {
+  const snapshot = gauge.get(); // {name , help. type. values: [..,..]}
+  const targetHash = hashLabels(metricLabels); //this will use sorted keys
+
+  const point = snapshot?.values?.find(v=> {
+    const vHash = hashLabels(v.labels || {});
+    return vHash === targetHash; //compare hashes instead of objects for performance
+  });
+  return typeof point?.value === 'number' ? point.value : 0;
+};
 /**
  * Get or create a Prometheus metric instance
  * @param {string} userId - User ID
@@ -164,10 +175,39 @@ export const recordMetric = (metricData, userId) => {
         }
         break;
 
-      case 'gauge':
-        // Gauges can be set to any value
-        metric.set(metricLabels, numValue);
+      case 'gauge':{
+        const delta = numValue;
+
+        console.log('📊 [GAUGE] Processing:', {
+          delta,
+          metricLabels: JSON.stringify(metricLabels),
+          labelsHash: hashLabels(metricLabels)
+        });
+
+        if(delta > 0){
+          const before = getCurrentGaugeValue(metric, metricLabels);
+          metric.inc(metricLabels, delta);
+          const after = getCurrentGaugeValue(metric, metricLabels);
+          console.log('📈 [GAUGE] Increment:', { before, delta, after });
+          break;
+        }
+
+        if(delta < 0){
+          const current = getCurrentGaugeValue(metric, metricLabels);
+          console.log('📉 [GAUGE] Decrement attempt:', { current, delta });
+          const decAmount = Math.min(current, Math.abs(delta));
+          if(decAmount > 0) {
+            metric.dec(metricLabels, decAmount);
+            const after = getCurrentGaugeValue(metric, metricLabels);
+            console.log('📉 [GAUGE] Decrement:', { before: current, decAmount, after });
+          } else {
+            console.log('⚠️ [GAUGE] Cannot decrement - current is 0 or labels not found');
+          }
+          break;
+        }
+
         break;
+      }
 
       case 'histogram':
         // Histograms observe values

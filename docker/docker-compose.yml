@@ -39,20 +39,20 @@ services:
     networks:
       - metrics_network
     depends_on:
-      - pushgateway
+      - backend
 
-  pushgateway:
-    image: prom/pushgateway:latest
-    container_name: metrics_pushgateway
-    ports:
-      - "9091:9091"
-    volumes:
-      - pushgateway_data:/pushgateway
-    networks:
-      - metrics_network
-    command:
-      - "--persistence.file=/pushgateway/data"
-      - "--persistence.interval=5m"
+  # pushgateway:
+  #   image: prom/pushgateway:latest
+  #   container_name: metrics_pushgateway
+  #   ports:
+  #     - "9091:9091"
+  #   volumes:
+  #     - pushgateway_data:/pushgateway
+  #   networks:
+  #     - metrics_network
+  #   command:
+  #     - "--persistence.file=/pushgateway/data"
+  #     - "--persistence.interval=5m"
 
   grafana:
     image: grafana/grafana:latest
