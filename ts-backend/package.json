@@ -15,6 +15,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.10",
+    "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.53.1",
     "@typescript-eslint/parser": "^8.53.1",
     "eslint": "^9.39.2",
@@ -26,6 +27,7 @@
     "@asteasolutions/zod-to-openapi": "^8.4.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "pg": "^8.17.2",
     "pino": "^10.2.1",
     "pino-http": "^11.0.0",
     "prom-client": "^15.1.3",
