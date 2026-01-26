@@ -46,17 +46,6 @@ const hashLabels = (labels) => {
   return sorted || 'no-labels';
 };
 
-//Helper: get current gauge value for an exact label-set ( used to clamp decrements)
-const getCurrentGaugeValue = (gauge, metricLabels) => {
-  const snapshot = gauge.get(); // {name , help. type. values: [..,..]}
-  const targetHash = hashLabels(metricLabels); //this will use sorted keys
-
-  const point = snapshot?.values?.find(v=> {
-    const vHash = hashLabels(v.labels || {});
-    return vHash === targetHash; //compare hashes instead of objects for performance
-  });
-  return typeof point?.value === 'number' ? point.value : 0;
-};
 /**
  * Get or create a Prometheus metric instance
  * @param {string} userId - User ID
@@ -66,7 +55,13 @@ const getCurrentGaugeValue = (gauge, metricLabels) => {
  * @returns {Counter|Gauge|Histogram|Summary} - Prometheus metric instance
  */
 const getOrCreateMetric = (userId, metricName, metricType, labels) => {
-  const labelHash = hashLabels(labels);
+    // Create labels with user_id included
+    const metricLabels = {
+      ...labels,
+      user_id: userId.toString()
+    };
+
+  const labelHash = hashLabels(metricLabels);
   const key = `${userId}_${metricName}_${labelHash}`;
 
   // Return existing instance if available
@@ -74,22 +69,27 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
     return metricInstances.get(key);
   }
 
-  // Create labels with user_id included
-  const metricLabels = {
-    ...labels,
-    user_id: userId.toString()
-  };
-
+  const fullMetricName = `user_metric_${metricName}`;
+  
+  // Check if metric already exists in registry
+  const existingMetric = register.getSingleMetric(fullMetricName);
+  
+  if (existingMetric) {
+    // Metric exists - reuse it (prom-client allows different label combinations on same metric)
+    // Just cache this instance for this label combination
+    metricInstances.set(key, existingMetric);
+    return existingMetric;
+  }
   // Create appropriate metric type
   let metric;
-  const fullMetricName = `user_metric_${metricName}`;
+  const labelNames = Object.keys(metricLabels).sort(); // Sort for consistency
 
   switch (metricType.toLowerCase()) {
     case 'counter':
       metric = new Counter({
         name: fullMetricName,
         help: `Counter metric: ${metricName}`,
-        labelNames: Object.keys(metricLabels),
+        labelNames: labelNames,
         registers: [register]
       });
       break;
@@ -98,7 +98,7 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
       metric = new Gauge({
         name: fullMetricName,
         help: `Gauge metric: ${metricName}`,
-        labelNames: Object.keys(metricLabels),
+        labelNames: labelNames,
         registers: [register]
       });
       break;
@@ -143,6 +143,7 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
  */
 export const recordMetric = (metricData, userId) => {
   const { name, type, value, labels = {} } = metricData;
+  console.log(`🔵🔵🔵🔵[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
 
   // Validate value
   const numValue = typeof value === 'number' ? value : parseFloat(value);
@@ -175,39 +176,20 @@ export const recordMetric = (metricData, userId) => {
         }
         break;
 
-      case 'gauge':{
-        const delta = numValue;
-
-        console.log('📊 [GAUGE] Processing:', {
-          delta,
-          metricLabels: JSON.stringify(metricLabels),
-          labelsHash: hashLabels(metricLabels)
-        });
-
-        if(delta > 0){
-          const before = getCurrentGaugeValue(metric, metricLabels);
-          metric.inc(metricLabels, delta);
-          const after = getCurrentGaugeValue(metric, metricLabels);
-          console.log('📈 [GAUGE] Increment:', { before, delta, after });
-          break;
-        }
-
-        if(delta < 0){
-          const current = getCurrentGaugeValue(metric, metricLabels);
-          console.log('📉 [GAUGE] Decrement attempt:', { current, delta });
-          const decAmount = Math.min(current, Math.abs(delta));
-          if(decAmount > 0) {
-            metric.dec(metricLabels, decAmount);
-            const after = getCurrentGaugeValue(metric, metricLabels);
-            console.log('📉 [GAUGE] Decrement:', { before: current, decAmount, after });
-          } else {
-            console.log('⚠️ [GAUGE] Cannot decrement - current is 0 or labels not found');
+        case 'gauge':
+          console.log(`🟡🟡🟡🟡[DEBUG] Gauge ${name}: adding=${numValue}, labels=`, JSON.stringify(metricLabels));
+          
+          if (numValue > 0) {
+            // Just increment - prom-client handles the rest
+            metric.inc(metricLabels, numValue);
+            console.log(`🟡🟡🟡🟡[DEBUG] Incremented by ${numValue}`);
+          } else if (numValue < 0) {
+            // Just decrement - prom-client handles the rest
+            metric.dec(metricLabels, Math.abs(numValue));
+            console.log(`🟡🟡🟡🟡[DEBUG] Decremented by ${Math.abs(numValue)}`);
           }
+          // If numValue is 0, do nothing (or reset if you want)
           break;
-        }
-
-        break;
-      }
 
       case 'histogram':
         // Histograms observe values
