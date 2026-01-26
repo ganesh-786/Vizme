@@ -176,17 +176,13 @@ export const recordMetric = (metricData, userId) => {
         }
         break;
 
-        case 'gauge':
-          console.log(`🟡🟡🟡🟡[DEBUG] Gauge ${name}: adding=${numValue}, labels=`, JSON.stringify(metricLabels));
-          
+        case 'gauge':          
           if (numValue > 0) {
             // Just increment - prom-client handles the rest
             metric.inc(metricLabels, numValue);
-            console.log(`🟡🟡🟡🟡[DEBUG] Incremented by ${numValue}`);
           } else if (numValue < 0) {
             // Just decrement - prom-client handles the rest
             metric.dec(metricLabels, Math.abs(numValue));
-            console.log(`🟡🟡🟡🟡[DEBUG] Decremented by ${Math.abs(numValue)}`);
           }
           // If numValue is 0, do nothing (or reset if you want)
           break;
