@@ -51,7 +51,7 @@ app.use(helmet({
 app.use(
   cors({
     origin: true,
-    credentials: true,
+    credentials: true
   })
 );
 app.use(morgan("combined"));
