@@ -81,9 +81,17 @@ function MetricConfigForm({ isEdit = false }) {
   };
 
   const handleLabelChange = (index, field, value) => {
-    const updated = [...labels];
-    updated[index][field] = value;
-    setLabels(updated);
+    setLabels((prevLabels) => {
+      // Guard against invalid index or missing element (race condition protection)
+      if (index < 0 || index >= prevLabels.length || !prevLabels[index]) {
+        return prevLabels;
+      }
+      
+      // Immutable update pattern
+      const updated = [...prevLabels];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
   // Generate metric_name from configuration name
