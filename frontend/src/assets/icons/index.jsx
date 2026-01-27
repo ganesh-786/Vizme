@@ -250,3 +250,144 @@ export function ArrowRightIcon({ size = 20, ...props }) {
     </svg>
   );
 }
+
+export function BarChartIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <path d="M3 3v18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="7" y="12" width="2" height="6" fill="currentColor" />
+      <rect x="11" y="8" width="2" height="10" fill="currentColor" />
+      <rect x="15" y="4" width="2" height="14" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function RocketIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
+      <path
+        d="M9 12l2 2 4-4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+export function SettingsIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <path
+        d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function AddCircleIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function DeleteIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <path
+        d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ExpandMoreIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function UnfoldMoreIcon({ size = 20, ...props }) {
+  return (
+    <svg
+      {...defaultSvgProps}
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      {...props}
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}

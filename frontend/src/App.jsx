@@ -1,14 +1,19 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store/authStore';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import Dashboard from './pages/Dashboard';
-import MetricConfigs from './pages/MetricConfigs';
-import ApiKeys from './pages/ApiKeys';
-import CodeGeneration from './pages/CodeGeneration';
-import Layout from './components/Layout';
-import { ToastProvider } from './components/ToastContainer';
-import './App.css';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { useAuthStore } from "./store/authStore";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Dashboard from "./pages/Dashboard";
+import MetricConfigs from "./pages/MetricConfigs";
+import ApiKeys from "./pages/ApiKeys";
+import CodeGeneration from "./pages/CodeGeneration";
+import Layout from "./components/Layout";
+import { ToastProvider } from "./components/ToastContainer";
+import "./App.css";
 
 function PrivateRoute({ children }) {
   const { isAuthenticated } = useAuthStore();

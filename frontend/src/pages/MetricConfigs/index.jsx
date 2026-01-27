@@ -1,36 +1,80 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { metricConfigsAPI } from '../../api/metricConfigs';
 import { useToast } from '../../components/ToastContainer';
+import ProgressStepper from '../../components/ProgressStepper';
+import {
+  SettingsIcon,
+  AddCircleIcon,
+  DeleteIcon,
+  ExpandMoreIcon,
+  ArrowRightIcon,
+  UnfoldMoreIcon,
+} from '../../assets/icons';
 import './MetricConfigs.css';
 
-const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
+const METRIC_TYPES = ['Counter', 'Gauge', 'Summary', 'Histogram'];
 
 function MetricConfigs() {
-  const [configs, setConfigs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    metric_type: 'counter',
-    metric_name: '',
-    help_text: '',
-    labels: []
-  });
-  const [error, setError] = useState('');
+  const navigate = useNavigate();
   const { showToast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [anonymizeIP, setAnonymizeIP] = useState(true);
+  const [realTimeWebhook, setRealTimeWebhook] = useState(false);
+  const [labels, setLabels] = useState([{ key: 'env', value: 'prod' }]);
+  const [formData, setFormData] = useState({
+    name: 'Main Production Feed',
+    metric_type: 'Counter',
+    description: '',
+    help_text: '',
+  });
 
-  useEffect(() => {
-    fetchConfigs();
-  }, []);
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
-  const fetchConfigs = async () => {
+  const handleAddLabel = () => {
+    setLabels([...labels, { key: '', value: '' }]);
+  };
+
+  const handleRemoveLabel = (index) => {
+    setLabels(labels.filter((_, i) => i !== index));
+  };
+
+  const handleLabelChange = (index, field, value) => {
+    const updated = [...labels];
+    updated[index][field] = value;
+    setLabels(updated);
+  };
+
+  // Generate metric_name from configuration name
+  const generateMetricName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/_{2,}/g, '_')
+      .replace(/^_|_$/g, '') || 'metric';
+  };
+
+  const handleSaveDraft = async () => {
+    setLoading(true);
     try {
-      const response = await metricConfigsAPI.getAll();
-      setConfigs(response.data || []);
+      const payload = {
+        name: formData.name,
+        metric_name: generateMetricName(formData.name),
+        metric_type: formData.metric_type.toLowerCase(),
+        description: formData.description,
+        help_text: formData.help_text,
+        labels: labels
+          .filter((l) => l.key && l.value)
+          .map((l) => ({ name: l.key, value: l.value })),
+      };
+      await metricConfigsAPI.create(payload);
+      showToast('Draft saved successfully!', 'success');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to fetch metric configs');
+      const errorMsg = err.response?.data?.error || 'Failed to save draft';
+      showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -38,182 +82,230 @@ function MetricConfigs() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setLoading(true);
 
     try {
-      if (editingId) {
-        await metricConfigsAPI.update(editingId, formData);
-        showToast('Metric configuration updated successfully!', 'success');
-      } else {
-        await metricConfigsAPI.create(formData);
-        showToast('Metric configuration created successfully!', 'success');
-      }
-      await fetchConfigs();
-      resetForm();
+      const payload = {
+        name: formData.name,
+        metric_name: generateMetricName(formData.name),
+        metric_type: formData.metric_type.toLowerCase(),
+        description: formData.description,
+        help_text: formData.help_text,
+        labels: labels
+          .filter((l) => l.key && l.value)
+          .map((l) => ({ name: l.key, value: l.value })),
+      };
+      await metricConfigsAPI.create(payload);
+      showToast('Metric configuration created successfully!', 'success');
+      navigate('/api-keys');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to save metric config';
-      setError(errorMsg);
+      const errorMsg = err.response?.data?.error || 'Failed to create metric config';
       showToast(errorMsg, 'error');
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleEdit = (config) => {
-    setFormData({
-      name: config.name,
-      description: config.description || '',
-      metric_type: config.metric_type,
-      metric_name: config.metric_name,
-      help_text: config.help_text || '',
-      labels: config.labels || []
-    });
-    setEditingId(config.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this metric config?')) {
-      return;
-    }
-
-    try {
-      await metricConfigsAPI.delete(id);
-      showToast('Metric configuration deleted successfully!', 'success');
-      await fetchConfigs();
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to delete metric config';
-      setError(errorMsg);
-      showToast(errorMsg, 'error');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-      metric_type: 'counter',
-      metric_name: '',
-      help_text: '',
-      labels: []
-    });
-    setEditingId(null);
-    setShowForm(false);
-  };
-
-  if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>;
-  }
 
   return (
-    <div className="metric-configs">
-      <div className="page-header">
-        <h1>Metric Configurations</h1>
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-          {showForm ? 'Cancel' : '+ New Configuration'}
-        </button>
-      </div>
+    <div className="metric-configs-page">
+      <div className="metric-configs-container">
+        <ProgressStepper currentStep={1} />
 
-      {error && <div className="error-message">{error}</div>}
+        <div className="metric-configs-header">
+          <h1 className="metric-configs-title">Configure Your Metrics</h1>
+          <p className="metric-configs-subtitle">
+            Define the identity and context for your data stream.
+          </p>
+        </div>
 
-      {showForm && (
-        <div className="card">
-          <h2>{editingId ? 'Edit' : 'Create'} Metric Configuration</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label className="form-label">Name *</label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
+        <div className="metric-configs-card">
+          <form onSubmit={handleSubmit} className="metric-configs-form">
+            <div className="form-grid">
+              <div className="form-field">
+                <label className="form-label">Configuration Name</label>
+                <p className="form-helper">Unique identifier for this tracking instance.</p>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="e.g. Production Analytics V2"
+                />
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">Metric Type</label>
+                <p className="form-helper">Select the primary data structure.</p>
+                <div className="select-wrapper">
+                  <select
+                    className="form-select"
+                    value={formData.metric_type}
+                    onChange={(e) => handleInputChange('metric_type', e.target.value)}
+                  >
+                    {METRIC_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <UnfoldMoreIcon size={20} className="select-icon" />
+                </div>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Metric Name *</label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.metric_name}
-                onChange={(e) => setFormData({ ...formData, metric_name: e.target.value })}
-                required
-                pattern="^[a-zA-Z_:][a-zA-Z0-9_:]*$"
-              />
-              <small className="form-hint">Alphanumeric, underscore, colon (e.g., user_clicks_total)</small>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Metric Type *</label>
-              <select
-                className="form-select"
-                value={formData.metric_type}
-                onChange={(e) => setFormData({ ...formData, metric_type: e.target.value })}
-                required
-              >
-                {METRIC_TYPES.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
+            <div className="form-field form-field-full">
               <label className="form-label">Description</label>
+              <p className="form-helper">
+                Provide detailed context about what this metric tracks and why.
+              </p>
               <textarea
                 className="form-textarea"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                placeholder="Describe the purpose of this metric..."
+                rows={4}
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Help Text</label>
-              <textarea
-                className="form-textarea"
-                value={formData.help_text}
-                onChange={(e) => setFormData({ ...formData, help_text: e.target.value })}
-              />
+            <div className="form-grid">
+              <div className="form-field">
+                <label className="form-label">Help Text</label>
+                <p className="form-helper">Define what users see in UI tooltips.</p>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.help_text}
+                  onChange={(e) => handleInputChange('help_text', e.target.value)}
+                  placeholder="Tooltip content..."
+                />
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">Labels</label>
+                <p className="form-helper">Apply key-value pairs for filtering.</p>
+                <div className="labels-container">
+                  {labels.map((label, index) => (
+                    <div key={index} className="label-row">
+                      <input
+                        type="text"
+                        className="label-input"
+                        placeholder="Key (e.g. env)"
+                        value={label.key}
+                        onChange={(e) => handleLabelChange(index, 'key', e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        className="label-input"
+                        placeholder="Value (e.g. prod)"
+                        value={label.value}
+                        onChange={(e) => handleLabelChange(index, 'value', e.target.value)}
+                      />
+                      {labels.length > 1 && (
+                        <button
+                          type="button"
+                          className="label-delete-btn"
+                          onClick={() => handleRemoveLabel(index)}
+                          aria-label="Remove label"
+                        >
+                          <DeleteIcon size={18} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="add-label-btn"
+                    onClick={handleAddLabel}
+                  >
+                    <AddCircleIcon size={18} />
+                    Add Label
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="advanced-section">
+              <button
+                type="button"
+                className="advanced-summary"
+                onClick={() => setAdvancedOpen(!advancedOpen)}
+              >
+                <div className="advanced-summary-content">
+                  <SettingsIcon size={20} />
+                  Advanced Configuration Settings
+                </div>
+                <ExpandMoreIcon
+                  size={20}
+                  className={`advanced-chevron ${advancedOpen ? 'open' : ''}`}
+                />
+              </button>
+              {advancedOpen && (
+                <div className="advanced-content">
+                  <div className="advanced-item">
+                    <div className="advanced-item-info">
+                      <p className="advanced-item-title">Anonymize IP Addresses</p>
+                      <p className="advanced-item-desc">
+                        GDPR-compliant masking for all incoming requests.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`toggle-switch ${anonymizeIP ? 'active' : ''}`}
+                      onClick={() => setAnonymizeIP(!anonymizeIP)}
+                      aria-label="Toggle anonymize IP"
+                    >
+                      <span className="toggle-slider"></span>
+                    </button>
+                  </div>
+
+                  <div className="advanced-item">
+                    <div className="advanced-item-info">
+                      <p className="advanced-item-title">Real-time Webhook</p>
+                      <p className="advanced-item-desc">
+                        Stream filtered events to your custom endpoint.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`toggle-switch ${realTimeWebhook ? 'active' : ''}`}
+                      onClick={() => setRealTimeWebhook(!realTimeWebhook)}
+                      aria-label="Toggle real-time webhook"
+                    >
+                      <span className="toggle-slider"></span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                {editingId ? 'Update' : 'Create'}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleSaveDraft}
+                disabled={loading}
+              >
+                Save as Draft
               </button>
-              <button type="button" onClick={resetForm} className="btn btn-secondary">
-                Cancel
+              <button type="submit" className="btn-primary" disabled={loading}>
+                Continue to API Keys
+                <ArrowRightIcon size={20} />
               </button>
             </div>
           </form>
         </div>
-      )}
 
-      <div className="configs-list">
-        {configs.length === 0 ? (
-          <div className="card">
-            <p>No metric configurations yet. Create one to get started!</p>
-          </div>
-        ) : (
-          configs.map(config => (
-            <div key={config.id} className="card config-card">
-              <div className="config-header">
-                <h3>{config.name}</h3>
-                <div className="config-actions">
-                  <button onClick={() => handleEdit(config)} className="btn btn-secondary">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(config.id)} className="btn btn-danger">
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <div className="config-details">
-                <p><strong>Metric Name:</strong> {config.metric_name}</p>
-                <p><strong>Type:</strong> <span className="badge">{config.metric_type}</span></p>
-                {config.description && <p><strong>Description:</strong> {config.description}</p>}
-                {config.help_text && <p><strong>Help:</strong> {config.help_text}</p>}
-              </div>
-            </div>
-          ))
-        )}
+        <p className="help-text">
+          Need help?{' '}
+          <a href="#" className="help-link">
+            Read the technical documentation
+          </a>{' '}
+          or{' '}
+          <a href="#" className="help-link">
+            contact engineering support
+          </a>
+          .
+        </p>
       </div>
     </div>
   );

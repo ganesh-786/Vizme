@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { apiKeysAPI } from '../../api/apiKeys';
-import { useToast } from '../../components/ToastContainer';
-import './ApiKeys.css';
+import { useState, useEffect } from "react";
+import { apiKeysAPI } from "../../api/apiKeys";
+import { useToast } from "../../components/ToastContainer";
+import "./ApiKeys.css";
 
 function ApiKeys() {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [keyName, setKeyName] = useState('');
+  const [keyName, setKeyName] = useState("");
   const [newKey, setNewKey] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -21,7 +21,7 @@ function ApiKeys() {
       const response = await apiKeysAPI.getAll();
       setKeys(response.data || []);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to fetch API keys');
+      setError(err.response?.data?.error || "Failed to fetch API keys");
     } finally {
       setLoading(false);
     }
@@ -29,65 +29,75 @@ function ApiKeys() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
       const response = await apiKeysAPI.create(keyName);
       setNewKey(response.data);
-      setKeyName('');
+      setKeyName("");
       setShowForm(false);
-      showToast('API key created successfully!', 'success');
+      showToast("API key created successfully!", "success");
       await fetchKeys();
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to create API key';
+      const errorMsg = err.response?.data?.error || "Failed to create API key";
       setError(errorMsg);
-      showToast(errorMsg, 'error');
+      showToast(errorMsg, "error");
     }
   };
 
   const handleToggleActive = async (id, isActive) => {
     try {
       await apiKeysAPI.update(id, { is_active: !isActive });
-      showToast(`API key ${!isActive ? 'activated' : 'deactivated'} successfully!`, 'success');
+      showToast(
+        `API key ${!isActive ? "activated" : "deactivated"} successfully!`,
+        "success",
+      );
       await fetchKeys();
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to update API key';
+      const errorMsg = err.response?.data?.error || "Failed to update API key";
       setError(errorMsg);
-      showToast(errorMsg, 'error');
+      showToast(errorMsg, "error");
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this API key?')) {
+    if (!window.confirm("Are you sure you want to delete this API key?")) {
       return;
     }
 
     try {
       await apiKeysAPI.delete(id);
-      showToast('API key deleted successfully!', 'success');
+      showToast("API key deleted successfully!", "success");
       await fetchKeys();
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to delete API key';
+      const errorMsg = err.response?.data?.error || "Failed to delete API key";
       setError(errorMsg);
-      showToast(errorMsg, 'error');
+      showToast(errorMsg, "error");
     }
   };
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    showToast('Copied to clipboard!', 'success', 2000);
+    showToast("Copied to clipboard!", "success", 2000);
   };
 
   if (loading) {
-    return <div className="loading"><div className="spinner"></div></div>;
+    return (
+      <div className="loading">
+        <div className="spinner"></div>
+      </div>
+    );
   }
 
   return (
     <div className="api-keys">
       <div className="page-header">
         <h1>API Keys</h1>
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-          {showForm ? 'Cancel' : '+ New API Key'}
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="btn btn-primary"
+        >
+          {showForm ? "Cancel" : "+ New API Key"}
         </button>
       </div>
 
@@ -99,7 +109,10 @@ function ApiKeys() {
           <p>Store this key securely - it will not be shown again.</p>
           <div className="key-display">
             <code>{newKey.api_key}</code>
-            <button onClick={() => copyToClipboard(newKey.api_key)} className="btn btn-secondary">
+            <button
+              onClick={() => copyToClipboard(newKey.api_key)}
+              className="btn btn-secondary"
+            >
               Copy
             </button>
           </div>
@@ -128,7 +141,11 @@ function ApiKeys() {
               <button type="submit" className="btn btn-primary">
                 Create
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="btn btn-secondary">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="btn btn-secondary"
+              >
                 Cancel
               </button>
             </div>
@@ -142,7 +159,7 @@ function ApiKeys() {
             <p>No API keys yet. Create one to get started!</p>
           </div>
         ) : (
-          keys.map(key => (
+          keys.map((key) => (
             <div key={key.id} className="card key-card">
               <div className="key-header">
                 <div>
@@ -152,8 +169,10 @@ function ApiKeys() {
                   </p>
                 </div>
                 <div className="key-status">
-                  <span className={`status-badge ${key.is_active ? 'active' : 'inactive'}`}>
-                    {key.is_active ? 'Active' : 'Inactive'}
+                  <span
+                    className={`status-badge ${key.is_active ? "active" : "inactive"}`}
+                  >
+                    {key.is_active ? "Active" : "Inactive"}
                   </span>
                 </div>
               </div>
@@ -165,7 +184,7 @@ function ApiKeys() {
                   onClick={() => handleToggleActive(key.id, key.is_active)}
                   className="btn btn-secondary"
                 >
-                  {key.is_active ? 'Deactivate' : 'Activate'}
+                  {key.is_active ? "Deactivate" : "Activate"}
                 </button>
                 <button
                   onClick={() => handleDelete(key.id)}
