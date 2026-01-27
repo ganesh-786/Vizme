@@ -65,9 +65,24 @@ router.get('/tracker.js', async (req, res, next) => {
     const metrics = {};
     metricConfigsResult.rows.forEach(config => {
       if (config.metric_name) {
+        // Convert labels array to object format
+        // Labels are stored as [{name: "key", value: "val"}, ...]
+        // But the library expects {key: "val", ...}
+        let labelsObj = {};
+        if (config.labels && Array.isArray(config.labels)) {
+          config.labels.forEach(label => {
+            if (label && label.name) {
+              labelsObj[label.name] = label.value || '';
+            }
+          });
+        } else if (config.labels && typeof config.labels === 'object' && !Array.isArray(config.labels)) {
+          // Handle case where labels might already be an object
+          labelsObj = config.labels;
+        }
+        
         metrics[config.metric_name] = {
           t: config.metric_type,  // 't' = type (counter, gauge, etc.)
-          l: config.labels || {}  // 'l' = labels
+          l: labelsObj  // 'l' = labels (now as object)
         };
       }
     });

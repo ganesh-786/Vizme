@@ -55,7 +55,13 @@ const hashLabels = (labels) => {
  * @returns {Counter|Gauge|Histogram|Summary} - Prometheus metric instance
  */
 const getOrCreateMetric = (userId, metricName, metricType, labels) => {
-  const labelHash = hashLabels(labels);
+    // Create labels with user_id included
+    const metricLabels = {
+      ...labels,
+      user_id: userId.toString()
+    };
+
+  const labelHash = hashLabels(metricLabels);
   const key = `${userId}_${metricName}_${labelHash}`;
 
   // Return existing instance if available
@@ -63,22 +69,27 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
     return metricInstances.get(key);
   }
 
-  // Create labels with user_id included
-  const metricLabels = {
-    ...labels,
-    user_id: userId.toString()
-  };
-
+  const fullMetricName = `user_metric_${metricName}`;
+  
+  // Check if metric already exists in registry
+  const existingMetric = register.getSingleMetric(fullMetricName);
+  
+  if (existingMetric) {
+    // Metric exists - reuse it (prom-client allows different label combinations on same metric)
+    // Just cache this instance for this label combination
+    metricInstances.set(key, existingMetric);
+    return existingMetric;
+  }
   // Create appropriate metric type
   let metric;
-  const fullMetricName = `user_metric_${metricName}`;
+  const labelNames = Object.keys(metricLabels).sort(); // Sort for consistency
 
   switch (metricType.toLowerCase()) {
     case 'counter':
       metric = new Counter({
         name: fullMetricName,
         help: `Counter metric: ${metricName}`,
-        labelNames: Object.keys(metricLabels),
+        labelNames: labelNames,
         registers: [register]
       });
       break;
@@ -87,7 +98,7 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
       metric = new Gauge({
         name: fullMetricName,
         help: `Gauge metric: ${metricName}`,
-        labelNames: Object.keys(metricLabels),
+        labelNames: labelNames,
         registers: [register]
       });
       break;
@@ -132,6 +143,7 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
  */
 export const recordMetric = (metricData, userId) => {
   const { name, type, value, labels = {} } = metricData;
+  console.log(`🔵🔵🔵🔵[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
 
   // Validate value
   const numValue = typeof value === 'number' ? value : parseFloat(value);
@@ -164,10 +176,16 @@ export const recordMetric = (metricData, userId) => {
         }
         break;
 
-      case 'gauge':
-        // Gauges can be set to any value
-        metric.set(metricLabels, numValue);
-        break;
+        case 'gauge':          
+          if (numValue > 0) {
+            // Just increment - prom-client handles the rest
+            metric.inc(metricLabels, numValue);
+          } else if (numValue < 0) {
+            // Just decrement - prom-client handles the rest
+            metric.dec(metricLabels, Math.abs(numValue));
+          }
+          // If numValue is 0, do nothing (or reset if you want)
+          break;
 
       case 'histogram':
         // Histograms observe values
