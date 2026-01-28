@@ -8,7 +8,7 @@ import { useAuthStore } from "./store/authStore";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
-import MetricConfigs from "./pages/MetricConfigs";
+import MetricConfigs, { MetricConfigForm } from "./pages/MetricConfigs";
 import ApiKeys from "./pages/ApiKeys";
 import CodeGeneration from "./pages/CodeGeneration";
 import Layout from "./components/Layout";
@@ -37,6 +37,8 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="metric-configs" element={<MetricConfigs />} />
+            <Route path="metric-configs/new" element={<MetricConfigForm />} />
+            <Route path="metric-configs/:id/edit" element={<MetricConfigForm isEdit />} />
             <Route path="api-keys" element={<ApiKeys />} />
             <Route path="code-generation" element={<CodeGeneration />} />
           </Route>
