@@ -12,14 +12,73 @@ function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [hasLoginError, setHasLoginError] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
   const { showToast } = useToast();
 
+  // Clear error state when user starts typing
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    if (hasLoginError) {
+      setHasLoginError(false);
+      setError('');
+    }
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+    if (hasLoginError) {
+      setHasLoginError(false);
+      setError('');
+    }
+  };
+
+  // Parse and format error messages professionally
+  const getErrorMessage = (err) => {
+    const serverError = err.response?.data?.error;
+    const statusCode = err.response?.status;
+
+    // Handle specific error cases
+    if (statusCode === 401 || serverError?.toLowerCase().includes('invalid')) {
+      return {
+        message: 'Invalid email or password. Please check your credentials and try again.',
+        toastMessage: 'Login failed: Invalid email or password'
+      };
+    }
+
+    if (statusCode === 429) {
+      return {
+        message: 'Too many login attempts. Please wait a moment before trying again.',
+        toastMessage: 'Too many attempts. Please wait and try again.'
+      };
+    }
+
+    if (statusCode === 400) {
+      return {
+        message: 'Please enter a valid email address and password.',
+        toastMessage: 'Please check your email and password format'
+      };
+    }
+
+    if (!err.response) {
+      return {
+        message: 'Unable to connect to the server. Please check your internet connection.',
+        toastMessage: 'Connection error. Please check your internet.'
+      };
+    }
+
+    return {
+      message: serverError || 'Login failed. Please try again.',
+      toastMessage: serverError || 'Login failed. Please try again.'
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setHasLoginError(false);
     setLoading(true);
 
     try {
@@ -30,9 +89,10 @@ function Login() {
       showToast('Welcome back! Redirecting...', 'success', 2000);
       setTimeout(() => navigate('/'), 500);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Login failed. Please try again.';
-      setError(errorMsg);
-      showToast(errorMsg, 'error');
+      const { message, toastMessage } = getErrorMessage(err);
+      setError(message);
+      setHasLoginError(true);
+      showToast(toastMessage, 'error', 4000);
     } finally {
       setLoading(false);
     }
@@ -56,13 +116,14 @@ function Login() {
               <label className="form-label">Email Address</label>
               <input
                 type="email"
-                className="form-input"
+                className={`form-input ${hasLoginError ? 'form-input--error' : ''}`}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
                 placeholder="jeshika@gmail.com"
                 required
                 disabled={loading}
                 autoComplete="email"
+                aria-invalid={hasLoginError}
               />
             </div>
 
@@ -84,13 +145,14 @@ function Login() {
               <div className="input-with-action">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="form-input"
+                  className={`form-input ${hasLoginError ? 'form-input--error' : ''}`}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   placeholder="••••••••"
                   required
                   disabled={loading}
                   autoComplete="current-password"
+                  aria-invalid={hasLoginError}
                 />
                 <button
                   type="button"

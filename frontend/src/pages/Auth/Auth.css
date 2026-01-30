@@ -547,3 +547,26 @@
     border: 2px solid var(--primary-dark);
   }
 }
+
+/* ========================================
+   Login Error State Styling
+   ======================================== */
+
+/* Error state for form inputs - highlights fields on login failure */
+.form-input--error {
+  border-color: var(--danger) !important;
+  background-color: rgba(239, 68, 68, 0.04);
+}
+
+.form-input--error:focus {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+  border-color: var(--danger) !important;
+}
+
+[data-theme="dark"] .form-input--error {
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
+[data-theme="dark"] .form-input--error:focus {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+}
