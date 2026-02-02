@@ -1,22 +1,16 @@
-import { BarChartIcon, KeyIcon, RocketIcon, CheckIcon } from '@/assets/icons';
+import { CheckIcon } from '@/assets/icons';
 import './ProgressStepper.css';
 
-function ProgressStepper({ currentStep = 1 }) {
+function ProgressStepper({ currentStep = 3 }) {
   const steps = [
-    {
-      number: 1,
-      label: 'Metric Setup',
-      icon: BarChartIcon,
-      id: 'metric-setup',
-    },
-    { number: 2, label: 'API Key', icon: KeyIcon, id: 'api-key' },
-    { number: 3, label: 'Activation', icon: RocketIcon, id: 'activation' },
+    { number: 1, label: 'Metric Setup', id: 'metric-setup' },
+    { number: 2, label: 'API Key', id: 'api-key' },
+    { number: 3, label: 'Activation', id: 'activation' },
   ];
 
   return (
     <div className="progress-stepper">
       {steps.map((step, index) => {
-        const Icon = step.icon;
         const isActive = step.number === currentStep;
         const isCompleted = step.number < currentStep;
 
@@ -26,7 +20,11 @@ function ProgressStepper({ currentStep = 1 }) {
               className={`step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
             >
               <div className="step-icon-wrapper">
-                {isCompleted ? <CheckIcon size={18} /> : <Icon size={20} />}
+                {isCompleted ? (
+                  <CheckIcon size={20} />
+                ) : (
+                  <span className="step-number">{step.number}</span>
+                )}
               </div>
               <span className="step-label">{step.label}</span>
             </div>
