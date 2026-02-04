@@ -1,0 +1,19 @@
+{
+    "name": "vizme",
+    "version": "1.0.0",
+    "description": "Unified visibility platform - automatic metrics tracking library",
+    "type": "module",
+    "main": "dist/vizme.js",
+    "scripts": {
+      "build": "node build.js"
+    },
+    "keywords": [
+      "metrics",
+      "analytics",
+      "tracking",
+      "monitoring",
+      "prometheus"
+    ],
+    "author": "",
+    "license": "MIT"
+  }

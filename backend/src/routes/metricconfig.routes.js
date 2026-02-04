@@ -7,6 +7,74 @@ import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
+// Get metric configs by API key (for client library)
+// This allows the library to automatically fetch configs
+router.get('/by-api-key',
+  async (req, res, next) => {
+    try {
+      const apiKey = req.headers['x-api-key'] || req.query.api_key;
+      
+      if (!apiKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'API key required'
+        });
+      }
+
+      // Verify API key and get user_id
+      const apiKeyResult = await query(
+        'SELECT user_id FROM api_keys WHERE api_key = $1 AND is_active = true',
+        [apiKey]
+      );
+
+      if (apiKeyResult.rows.length === 0) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or inactive API key'
+        });
+      }
+
+      const userId = apiKeyResult.rows[0].user_id;
+
+      // Get all metric configurations for this user
+      const result = await query(
+        'SELECT metric_name, metric_type, labels FROM metric_configs WHERE user_id = $1',
+        [userId]
+      );
+
+      // Convert to the format the library expects
+      const configs = {};
+      result.rows.forEach(config => {
+        if (config.metric_name) {
+          // Convert labels array to object format
+          let labelsObj = {};
+          if (config.labels && Array.isArray(config.labels)) {
+            config.labels.forEach(label => {
+              if (label && label.name) {
+                labelsObj[label.name] = label.value || '';
+              }
+            });
+          } else if (config.labels && typeof config.labels === 'object' && !Array.isArray(config.labels)) {
+            labelsObj = config.labels;
+          }
+          
+          configs[config.metric_name] = {
+            type: config.metric_type,
+            labels: labelsObj
+          };
+        }
+      });
+
+      res.json({
+        success: true,
+        data: configs
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // All routes require authentication
 router.use(authenticate);
 router.use(apiLimiter);
@@ -52,6 +120,7 @@ router.get('/:id', async (req, res, next) => {
     next(error);
   }
 });
+
 
 // Create metric config
 router.post('/',

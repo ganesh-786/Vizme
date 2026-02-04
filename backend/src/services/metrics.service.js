@@ -176,15 +176,17 @@ export const recordMetric = (metricData, userId) => {
         }
         break;
 
-        case 'gauge':          
-          if (numValue > 0) {
-            // Just increment - prom-client handles the rest
-            metric.inc(metricLabels, numValue);
-          } else if (numValue < 0) {
-            // Just decrement - prom-client handles the rest
+        case 'gauge':
+          const operation = metricData.operation || (numValue < 0 ? 'decrement' : numValue>0 ? 'increment' : 'set');
+          if (operation === 'set') {
+            metric.set(metricLabels, Math.abs(numValue));
+          } else if (operation === 'increment') {
+            metric.inc(metricLabels, Math.abs(numValue));
+          } else if (operation === 'decrement') {
             metric.dec(metricLabels, Math.abs(numValue));
+          } else {
+            throw new Error(`Unsupported operation: ${operation}`);
           }
-          // If numValue is 0, do nothing (or reset if you want)
           break;
 
       case 'histogram':

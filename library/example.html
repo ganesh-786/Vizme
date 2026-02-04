@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vizme Library Example</title>
+</head>
+<body>
+    <h1>Vizme Library Test</h1>
+    
+    <!-- Example 1: HTML Attribute Tracking (Zero Code) -->
+    <button 
+        data-vizme-track="button_click"
+        data-vizme-value="1"
+        data-vizme-label-button-name="test-button">
+        Click Me (Auto-tracked via HTML attribute)
+    </button>
+    
+    <!-- Example 2: Manual JavaScript Tracking -->
+    <button id="manual-track-btn">
+        Click Me (Manual tracking)
+    </button>
+    
+    <script src="dist/vizme.js"></script>
+    <script>
+        // Initialize Vizme
+        window.vizme = new window.Vizme({
+            apiKey: 'mk_your_api_key_here',
+            endpoint: 'http://localhost:3000/api/v1/metrics',
+            autoTrack: true
+        });
+        
+        console.log('✅ Vizme initialized:', window.vizme);
+        console.log('Status:', window.vizme.getStatus());
+        
+        // Manual tracking example
+        document.getElementById('manual-track-btn').addEventListener('click', () => {
+            window.vizme.increment('manual_button_click', 1, {
+                button_id: 'manual-track-btn',
+                timestamp: Date.now().toString()
+            });
+            console.log('✅ Manual metric sent!');
+        });
+        
+        // Test manual tracking
+        setTimeout(() => {
+            window.vizme.increment('test_metric', 1, { test: 'value' });
+            console.log('✅ Test metric sent!');
+        }, 2000);
+    </script>
+</body>
+</html>

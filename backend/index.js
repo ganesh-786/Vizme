@@ -48,12 +48,49 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
-app.use(
+
+const adminFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// Custom CORS middleware that handles metrics endpoint differently
+app.use((req, res, next) => {
+  // For metrics endpoint, allow any origin (with credentials if browser sends them)
+  if (req.path.startsWith('/api/v1/metrics')) {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    // DO NOT set Access-Control-Allow-Credentials
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+    
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    return next();
+  }
+  
+  // For all other routes, use standard CORS
+  next();
+});
+
+// Apply CORS for non-metrics routes
+app.use((req, res, next) => {
+  // Skip if already handled (metrics endpoint)
+  if (req.path.startsWith('/api/v1/metrics')) {
+    return next();
+  }
+  
   cors({
-    origin: true,
+    origin: adminFrontendUrl,
     credentials: true,
-  })
-);
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  })(req, res, next);
+});
+
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
