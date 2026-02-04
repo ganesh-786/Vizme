@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { metricConfigsAPI } from '../../api/metricConfigs';
-import { apiKeysAPI } from '../../api/apiKeys';
-import { AnalyticsIcon, DocumentIcon, KeyIcon, PlusIcon, TrendUpIcon } from '../../assets/icons';
+import { metricConfigsAPI } from '@/api/metricConfigs';
+import { apiKeysAPI } from '@/api/apiKeys';
+import { AnalyticsIcon, DocumentIcon, KeyIcon, PlusIcon, TrendUpIcon } from '@/assets/icons';
 import './Dashboard.css';
 
 function Dashboard() {

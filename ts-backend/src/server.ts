@@ -1,7 +1,7 @@
-import { app } from "./app.js";
-import { env } from "./config/env.js";
-import { pool } from "./db/pool.js";
-import { logger } from "./utils/logger.js";
+import { app } from "@/app.js";
+import { env } from "@/config/env.js";
+import { pool } from "@/db/pool.js";
+import { logger } from "@/utils/logger.js";
 
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT }, "Server listening");

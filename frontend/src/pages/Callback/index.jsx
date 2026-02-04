@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
-import { authAPI } from '../../api/auth';
-import { useToast } from '../../components/ToastContainer';
-import Logo from '../../components/Logo';
+import { useAuthStore } from '@/store/authStore';
+import { authAPI } from '@/api/auth';
+import { useToast } from '@/components/ToastContainer';
+import Logo from '@/components/Logo';
 import '../Auth/Auth.css';
 
 function Callback() {

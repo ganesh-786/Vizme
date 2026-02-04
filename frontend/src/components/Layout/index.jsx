@@ -1,10 +1,10 @@
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import { useMemo } from "react";
-import { useAuthStore } from "../../store/authStore";
-import { useThemeStore } from "../../store/themeStore";
-import { authAPI } from "../../api/auth";
-import Logo from "../Logo";
-import { BellIcon, MoonIcon, SunIcon } from "../../assets/icons";
+import { useAuthStore } from "@/store/authStore";
+import { useThemeStore } from "@/store/themeStore";
+import { authAPI } from "@/api/auth";
+import Logo from "@/components/Logo";
+import { BellIcon, MoonIcon, SunIcon } from "@/assets/icons";
 import "./Layout.css";
 
 function Layout() {

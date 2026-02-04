@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { checkHealth } from "../services/health.service.js";
+import { checkHealth } from "@/services/health.service.js";
 
 // Controller handler for health check endpoint.
 // Responds with general API status ("up") and database connectivity status.
