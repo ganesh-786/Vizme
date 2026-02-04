@@ -19,6 +19,7 @@
     "crypto": "^1.0.1",
     "dotenv": "^16.3.1",
     "express": "^5.2.1",
+    "express-oauth2-jwt-bearer": "^1.7.4",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",

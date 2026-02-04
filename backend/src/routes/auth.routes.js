@@ -1,239 +1,146 @@
+/**
+ * Keycloak-based auth routes.
+ * Login and signup (registration) happen in Keycloak; this API exposes
+ * config URLs, token exchange (to avoid CORS), and /me.
+ */
 import express from 'express';
-import { body, validationResult } from 'express-validator';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { query } from '../database/connection.js';
-import { authLimiter } from '../middleware/rateLimiter.js';
-import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
+import axios from 'axios';
+import { authenticate } from '../middleware/auth.middleware.js';
+import { BadRequestError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
+const KEYCLOAK_ISSUER_URI = process.env.KEYCLOAK_ISSUER_URI;
+/** When set (e.g. in Docker), backend uses this to reach Keycloak for token exchange (cannot use localhost from container). */
+const KEYCLOAK_INTERNAL_ISSUER_URI = process.env.KEYCLOAK_INTERNAL_ISSUER_URI;
+const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID || 'metrics-client';
+const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET || '';
+const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'metrics';
+/** URL the browser uses to reach Keycloak (e.g. http://localhost:8180). Must match KC_HOSTNAME/KC_HOSTNAME_PORT. */
+const KEYCLOAK_PUBLIC_URL = process.env.KEYCLOAK_PUBLIC_URL || 'http://localhost:8180';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// Helper: Generate tokens
-const generateTokens = (userId) => {
-  const accessToken = jwt.sign(
-    { userId, type: 'access' },
-    JWT_SECRET,
-    { expiresIn: JWT_ACCESS_EXPIRY }
-  );
-  
-  const refreshToken = jwt.sign(
-    { userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRY }
-  );
-  
-  return { accessToken, refreshToken };
-};
-
-// Helper: Store refresh token
-const storeRefreshToken = async (userId, token) => {
-  const decoded = jwt.decode(token);
-  const expiresAt = new Date(decoded.exp * 1000);
-  
-  await query(
-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-    [userId, token, expiresAt]
-  );
-};
-
-// Signup
-router.post('/signup',
-  authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('name').optional().trim().isLength({ min: 1 })
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { email, password, name } = req.body;
-
-      // Check if user exists
-      const existingUser = await query('SELECT id FROM users WHERE email = $1', [email]);
-      if (existingUser.rows.length > 0) {
-        throw new BadRequestError('User with this email already exists');
-      }
-
-      // Hash password (12+ rounds)
-      const passwordHash = await bcrypt.hash(password, 12);
-
-      // Create user
-      const result = await query(
-        'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, created_at',
-        [email, passwordHash, name || null]
-      );
-
-      const user = result.rows[0];
-      const { accessToken, refreshToken } = generateTokens(user.id);
-      await storeRefreshToken(user.id, refreshToken);
-
-      res.status(201).json({
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name
-          },
-          accessToken,
-          refreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
+/**
+ * GET /api/v1/auth/me
+ * Returns the current user (requires Keycloak Bearer token).
+ * Frontend calls this after redirect from Keycloak with the access token.
+ */
+router.get('/me', ...authenticate, (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          name: req.user.name,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
-// Signin
-router.post('/signin',
-  authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').notEmpty()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { email, password } = req.body;
-
-      // Find user
-      const result = await query('SELECT id, email, password_hash, name FROM users WHERE email = $1', [email]);
-      if (result.rows.length === 0) {
-        throw new UnauthorizedError('Invalid email or password');
-      }
-
-      const user = result.rows[0];
-
-      // Verify password
-      const isValid = await bcrypt.compare(password, user.password_hash);
-      if (!isValid) {
-        throw new UnauthorizedError('Invalid email or password');
-      }
-
-      // Generate tokens
-      const { accessToken, refreshToken } = generateTokens(user.id);
-      
-      // Rotate refresh token (delete old ones for this user)
-      await query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
-      await storeRefreshToken(user.id, refreshToken);
-
-      res.json({
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name
-          },
-          accessToken,
-          refreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
+/**
+ * GET /api/v1/auth/config
+ * Public endpoint: returns Keycloak URLs for login and registration.
+ * Frontend uses these to redirect users to Keycloak for login/signup.
+ */
+router.get('/config', (req, res) => {
+  if (!KEYCLOAK_ISSUER_URI) {
+    return res.status(503).json({
+      success: false,
+      error: 'Keycloak not configured',
+      message: 'KEYCLOAK_ISSUER_URI is not set',
+    });
   }
-);
+  const publicBase = KEYCLOAK_PUBLIC_URL.replace(/\/$/, '') + '/realms/' + KEYCLOAK_REALM;
+  const redirectUri = `${FRONTEND_URL}/callback`;
+  const redirectUriEnc = encodeURIComponent(redirectUri);
+  const scope = encodeURIComponent('openid profile email');
+  const authBase = `${publicBase}/protocol/openid-connect/auth`;
+  const commonParams = `client_id=${KEYCLOAK_CLIENT_ID}&redirect_uri=${redirectUriEnc}&response_type=code&scope=${scope}`;
+  // Standard login URL
+  const loginUrl = `${authBase}?${commonParams}&prompt=login`;
+  // User self-registration: use kc_action=register so Keycloak shows the registration form
+  const registerUrl = `${authBase}?${commonParams}&kc_action=register`;
+  const signupRedirect = encodeURIComponent(`${FRONTEND_URL}/signup?then=register`);
+  const logoutUrl = `${publicBase}/protocol/openid-connect/logout?client_id=${KEYCLOAK_CLIENT_ID}&post_logout_redirect_uri=${signupRedirect}`;
+  res.json({
+    success: true,
+    data: {
+      loginUrl,
+      registerUrl,
+      logoutUrl,
+      redirectUri,
+      issuerUri: KEYCLOAK_ISSUER_URI.replace(/\/$/, ''),
+      clientId: KEYCLOAK_CLIENT_ID,
+    },
+  });
+});
 
-// Refresh token
-router.post('/refresh',
-  [
-    body('refreshToken').notEmpty()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { refreshToken } = req.body;
-
-      // Verify token
-      let decoded;
-      try {
-        decoded = jwt.verify(refreshToken, JWT_SECRET);
-      } catch (error) {
-        throw new UnauthorizedError('Invalid refresh token');
-      }
-
-      if (decoded.type !== 'refresh') {
-        throw new UnauthorizedError('Invalid token type');
-      }
-
-      // Check if token exists in database
-      const tokenResult = await query(
-        'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-        [refreshToken]
-      );
-
-      if (tokenResult.rows.length === 0) {
-        throw new UnauthorizedError('Refresh token not found or expired');
-      }
-
-      const userId = tokenResult.rows[0].user_id;
-
-      // Generate new tokens
-      const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
-
-      // Rotate refresh token
-      await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-      await storeRefreshToken(userId, newRefreshToken);
-
-      res.json({
-        success: true,
-        data: {
-          accessToken,
-          refreshToken: newRefreshToken
-        }
+/**
+ * POST /api/v1/auth/token
+ * Public endpoint: exchange Keycloak authorization code for tokens (server-side to avoid CORS).
+ * Body: { code, redirect_uri } (redirect_uri must match FRONTEND_URL/callback).
+ */
+router.post('/token', async (req, res, next) => {
+  try {
+    if (!KEYCLOAK_ISSUER_URI) {
+      return res.status(503).json({
+        success: false,
+        error: 'Keycloak not configured',
+        message: 'KEYCLOAK_ISSUER_URI is not set',
       });
-    } catch (error) {
-      next(error);
     }
-  }
-);
-
-// Password reset request (simplified - in production, send email)
-router.post('/password-reset-request',
-  authLimiter,
-  [
-    body('email').isEmail().normalizeEmail()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { email } = req.body;
-
-      const result = await query('SELECT id FROM users WHERE email = $1', [email]);
-      
-      // Don't reveal if user exists (security best practice)
-      res.json({
-        success: true,
-        message: 'If an account exists with this email, a password reset link has been sent'
+    const code = req.body?.code;
+    const redirectUri = req.body?.redirect_uri;
+    if (!code || !redirectUri) {
+      throw new BadRequestError('code and redirect_uri are required');
+    }
+    const expectedRedirect = `${FRONTEND_URL.replace(/\/$/, '')}/callback`;
+    if (redirectUri !== expectedRedirect) {
+      throw new BadRequestError('redirect_uri does not match configured FRONTEND_URL');
+    }
+    const issuerBase = (KEYCLOAK_INTERNAL_ISSUER_URI || KEYCLOAK_ISSUER_URI || '').replace(/\/$/, '');
+    const tokenUrl = `${issuerBase}/protocol/openid-connect/token`;
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+      client_id: KEYCLOAK_CLIENT_ID,
+    });
+    if (KEYCLOAK_CLIENT_SECRET) {
+      params.set('client_secret', KEYCLOAK_CLIENT_SECRET);
+    }
+    const response = await axios.post(tokenUrl, params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 10000,
+      validateStatus: () => true,
+    });
+    if (response.status !== 200) {
+      const errBody = response.data || {};
+      const msg = errBody.error_description || errBody.error || response.statusText;
+      return res.status(response.status === 400 ? 400 : 502).json({
+        success: false,
+        error: 'Token exchange failed',
+        message: msg,
       });
-    } catch (error) {
-      next(error);
     }
+    const data = response.data;
+    res.json({
+      success: true,
+      data: {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_in: data.expires_in,
+        token_type: data.token_type || 'Bearer',
+      },
+    });
+  } catch (err) {
+    next(err);
   }
-);
+});
 
 export { router as authRoutes };

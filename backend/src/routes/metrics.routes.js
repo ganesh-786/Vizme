@@ -153,7 +153,7 @@ router.post('/',
  * Note: Actual Prometheus metrics are exposed at /metrics endpoint
  */
 router.get('/',
-  authenticate,
+  ...authenticate,
   async (req, res, next) => {
     try {
       res.json({

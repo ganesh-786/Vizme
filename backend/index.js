@@ -30,9 +30,10 @@ console.log(`   - Database Name: ${process.env.DB_NAME || "metrics_db"}`);
 console.log(`   - Database User: ${process.env.DB_USER || "postgres"}`);
 console.log(`   - Database SSL: ${process.env.DB_SSL || "false"}`);
 console.log(`   - Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
+console.log(`   - Keycloak Issuer: ${process.env.KEYCLOAK_ISSUER_URI || "(not set)"}`);
 
-// Validate required environment variables
-const requiredEnvVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
+// Validate required environment variables (Keycloak required for auth)
+const requiredEnvVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'KEYCLOAK_ISSUER_URI'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {

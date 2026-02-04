@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
 import { useMemo } from "react";
 import { useAuthStore } from "../../store/authStore";
 import { useThemeStore } from "../../store/themeStore";
+import { authAPI } from "../../api/auth";
 import Logo from "../Logo";
 import { BellIcon, MoonIcon, SunIcon } from "../../assets/icons";
 import "./Layout.css";
@@ -18,8 +19,23 @@ function Layout() {
     return (first ? first : "U").toUpperCase();
   }, [user?.email]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear local auth state first
     logout();
+
+    try {
+      // Use backend-provided Keycloak logout URL so we fully log out of Keycloak
+      const config = await authAPI.getConfig();
+      if (config.logoutUrl) {
+        window.location.href = config.logoutUrl;
+        return;
+      }
+    } catch (e) {
+      // If anything fails, fall back to local logout only
+      console.error("Failed to fetch auth config for logout", e);
+    }
+
+    // Fallback: send user back to login screen
     navigate("/login");
   };
 

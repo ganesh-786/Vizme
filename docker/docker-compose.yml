@@ -22,7 +22,9 @@ services:
     profiles:
       - local-db # Only start with: docker compose --profile local-db up
 
-  # Keycloak Identity Provider (uses same cloud Postgres as backend)
+  # Keycloak Identity Provider
+  # Default: dev-file DB (no Postgres needed) so the admin portal starts reliably.
+  # Set KEYCLOAK_USE_POSTGRES=true and ensure DB_* are set to use your Postgres instead.
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
     container_name: metrics_keycloak
@@ -32,14 +34,17 @@ services:
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}
-      KC_DB_USERNAME: ${DB_USER}
-      KC_DB_PASSWORD: ${DB_PASSWORD}
+      # Hostname so browser at http://localhost:8180 works (no redirect to keycloak:8080)
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_HOSTNAME_PORT: ${KEYCLOAK_HOSTNAME_PORT:-8180}
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      KC_PROXY: "edge"
+      # dev-file = no Postgres needed; Keycloak starts and portal works at http://localhost:8180
+      # To use Postgres instead, set KEYCLOAK_DB=postgres and KC_DB_* in .env
+      KC_DB: ${KEYCLOAK_DB:-dev-file}
     ports:
       - "8180:8080"
     volumes:
@@ -51,7 +56,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
     restart: unless-stopped
   # ... (prometheus, pushgateway, grafana stay the same) ...
   prometheus:
@@ -128,13 +133,21 @@ services:
       - GRAFANA_URL=${GRAFANA_URL:-http://localhost:3001}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
-      # Keycloak configuration
-      - KEYCLOAK_URL=${KEYCLOAK_URL:-http://localhost:8080}
+      # Keycloak: issuer for JWT validation (must match token iss from browser login at KEYCLOAK_PUBLIC_URL).
+      - KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI:-http://localhost:8180/realms/metrics}
+      # Internal URL for token exchange and JWKS (backend in Docker cannot reach localhost; use keycloak service).
+      - KEYCLOAK_INTERNAL_ISSUER_URI=${KEYCLOAK_INTERNAL_ISSUER_URI:-http://keycloak:8080/realms/metrics}
+      - KEYCLOAK_PUBLIC_URL=${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-metrics}
+      - KEYCLOAK_AUDIENCE=${KEYCLOAK_AUDIENCE:-}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-metrics-client}
+      - KEYCLOAK_URL=${KEYCLOAK_URL:-http://localhost:8180}
     volumes:
       - ../backend:/app
       - /app/node_modules
+    # So backend in Docker can reach Keycloak at host (for JWKS when KEYCLOAK_ISSUER_URI uses host.docker.internal)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # Remove postgres dependency if using external DB only
     # depends_on:
     #   postgres:

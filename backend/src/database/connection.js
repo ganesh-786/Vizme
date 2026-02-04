@@ -171,6 +171,19 @@ const runMigrations = async () => {
     await query(migration);
   }
 
+  // Keycloak migration: add keycloak_sub to users, make password_hash optional (no local passwords)
+  const keycloakMigrations = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS keycloak_sub VARCHAR(255) UNIQUE`,
+    `ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`,
+  ];
+  for (const m of keycloakMigrations) {
+    try {
+      await query(m);
+    } catch (e) {
+      if (e.code !== '42701' && e.code !== '23502') console.error('Keycloak migration warning:', e.message);
+    }
+  }
+
   console.log("✅ Migrations completed");
 };
 

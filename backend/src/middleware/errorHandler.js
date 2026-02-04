@@ -10,8 +10,8 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Authentication errors
-  if (err.name === 'UnauthorizedError' || err.name === 'JsonWebTokenError') {
+  // Authentication errors (custom + JWT + Keycloak/OAuth2 JWT bearer)
+  if (err.status === 401 || err.name === 'UnauthorizedError' || err.name === 'JsonWebTokenError' || err.code === 'invalid_token') {
     return res.status(401).json({
       success: false,
       error: 'Unauthorized',
