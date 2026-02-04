@@ -8,7 +8,7 @@ export const apiKeysAPI = {
 
   create: async (keyName) => {
     const response = await client.post('/api-keys', {
-      key_name: keyName
+      key_name: keyName,
     });
     return response.data;
   },
@@ -21,5 +21,5 @@ export const apiKeysAPI = {
   delete: async (id) => {
     const response = await client.delete(`/api-keys/${id}`);
     return response.data;
-  }
+  },
 };

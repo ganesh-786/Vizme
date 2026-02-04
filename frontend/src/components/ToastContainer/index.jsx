@@ -46,7 +46,7 @@ export function useToast() {
           window.alert(message);
         }
       },
-      removeToast: () => {}
+      removeToast: () => {},
     };
   }
   return context;

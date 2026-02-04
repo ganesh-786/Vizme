@@ -6,8 +6,8 @@ export const codeGenerationAPI = {
       api_key_id: apiKeyId,
       metric_config_id: metricConfigId,
       auto_track: options.autoTrack !== false,
-      custom_events: options.customEvents !== false
+      custom_events: options.customEvents !== false,
     });
     return response.data;
-  }
+  },
 };

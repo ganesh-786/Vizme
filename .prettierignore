@@ -1,0 +1,23 @@
+# Dependencies
+node_modules
+frontend/node_modules
+backend/node_modules
+
+# Build outputs
+dist
+build
+frontend/dist
+
+# Package locks (don't format these)
+package-lock.json
+frontend/package-lock.json
+backend/package-lock.json
+
+# Docker & Config
+docker/
+*.yml
+*.yaml
+
+# Other
+.git
+coverage

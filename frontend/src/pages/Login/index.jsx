@@ -25,12 +25,29 @@ function Login() {
     try {
       const response = await authAPI.signin(email, password);
       const { user, accessToken, refreshToken } = response.data;
-      
+
       setAuth(user, accessToken, refreshToken);
       showToast('Welcome back! Redirecting...', 'success', 2000);
       setTimeout(() => navigate('/'), 500);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Login failed. Please try again.';
+      // Handle various error response formats from backend
+      const responseData = err.response?.data;
+      let errorMsg = 'Login failed. Please try again.';
+
+      if (responseData) {
+        // Try common error message locations
+        errorMsg =
+          responseData.error ||
+          responseData.message ||
+          responseData.msg ||
+          (typeof responseData === 'string' ? responseData : errorMsg);
+      }
+
+      // Map generic "Unauthorized" to user-friendly message
+      if (err.response?.status === 401 || errorMsg.toLowerCase() === 'unauthorized') {
+        errorMsg = 'Invalid email or password. Please try again.';
+      }
+
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
@@ -105,7 +122,12 @@ function Login() {
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+              style={{ width: '100%' }}
+            >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>

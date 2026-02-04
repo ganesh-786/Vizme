@@ -42,10 +42,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
-[data-theme="dark"] .overview-card {
+[data-theme='dark'] .overview-card {
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
@@ -83,7 +85,7 @@
   color: rgba(17, 24, 39, 0.7);
 }
 
-[data-theme="dark"] .overview-status {
+[data-theme='dark'] .overview-status {
   color: rgba(243, 244, 246, 0.85);
 }
 
@@ -97,7 +99,7 @@
   font-weight: 600;
 }
 
-[data-theme="dark"] .overview-note {
+[data-theme='dark'] .overview-note {
   color: #4ade80;
 }
 
@@ -140,7 +142,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-[data-theme="dark"] .quickstart {
+[data-theme='dark'] .quickstart {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -183,7 +185,7 @@
   background: rgba(0, 0, 0, 0.06);
 }
 
-[data-theme="dark"] .timeline-line {
+[data-theme='dark'] .timeline-line {
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -227,7 +229,7 @@
   border: 2px solid rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="dark"] .timeline-dot--muted {
+[data-theme='dark'] .timeline-dot--muted {
   border-color: rgba(255, 255, 255, 0.12);
   color: rgba(156, 163, 175, 1);
 }
@@ -257,7 +259,9 @@
   font-weight: 700;
   font-size: 0.875rem;
   box-shadow: var(--shadow-sm);
-  transition: filter 0.2s ease, transform 0.2s ease;
+  transition:
+    filter 0.2s ease,
+    transform 0.2s ease;
 }
 
 .primary-inline-btn:hover {
@@ -282,12 +286,14 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   padding: 0.9rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   font-size: 0.875rem;
   color: var(--text-primary);
 }
 
-[data-theme="dark"] .code-snippet {
+[data-theme='dark'] .code-snippet {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
 }
@@ -302,7 +308,7 @@
   font-weight: 700;
 }
 
-[data-theme="dark"] .code-fn {
+[data-theme='dark'] .code-fn {
   color: #93c5fd;
 }
 
@@ -311,7 +317,7 @@
   font-weight: 700;
 }
 
-[data-theme="dark"] .code-str {
+[data-theme='dark'] .code-str {
   color: #4ade80;
 }
 
@@ -339,7 +345,7 @@
   background: rgba(0, 0, 0, 0.2);
 }
 
-[data-theme="dark"] .footer-sep {
+[data-theme='dark'] .footer-sep {
   background: rgba(255, 255, 255, 0.2);
 }
 

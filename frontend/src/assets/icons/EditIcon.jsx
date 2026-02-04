@@ -2,13 +2,7 @@ import { defaultSvgProps } from './constants';
 
 export function EditIcon({ size = 20, ...props }) {
   return (
-    <svg
-      {...defaultSvgProps}
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      {...props}
-    >
+    <svg {...defaultSvgProps} viewBox="0 0 24 24" width={size} height={size} {...props}>
       <path
         d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
         stroke="currentColor"

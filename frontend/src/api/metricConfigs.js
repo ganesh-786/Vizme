@@ -24,5 +24,5 @@ export const metricConfigsAPI = {
   delete: async (id) => {
     const response = await client.delete(`/metric-configs/${id}`);
     return response.data;
-  }
+  },
 };

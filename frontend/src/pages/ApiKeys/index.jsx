@@ -1,15 +1,39 @@
-import { useState, useEffect } from "react";
-import { apiKeysAPI } from "@/api/apiKeys";
-import { useToast } from "@/components/ToastContainer";
-import "./ApiKeys.css";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiKeysAPI } from '@/api/apiKeys';
+import { useToast } from '@/components/ToastContainer';
+import ProgressStepper from '@/components/ProgressStepper';
+import {
+  AddCircleIcon,
+  CopyIcon,
+  RefreshIcon,
+  KeyIcon,
+  LockIcon,
+  ShieldIcon,
+  WarningIcon,
+  DocumentIcon,
+  ArrowBackIcon,
+  SecurityIcon,
+  HubIcon,
+  EyeOffIcon,
+} from '@/assets/icons';
+import './ApiKeys.css';
 
 function ApiKeys() {
+  const navigate = useNavigate();
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [keyName, setKeyName] = useState("");
+  const [keyName, setKeyName] = useState('Main Analytics Feed');
+  const [environment, setEnvironment] = useState('production');
+  const [permissions, setPermissions] = useState({
+    readMetrics: true,
+    writeData: true,
+    adminAccess: false,
+    webhooks: true,
+  });
   const [newKey, setNewKey] = useState(null);
-  const [error, setError] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState('');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -21,182 +45,362 @@ function ApiKeys() {
       const response = await apiKeysAPI.getAll();
       setKeys(response.data || []);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to fetch API keys");
+      setError(err.response?.data?.error || 'Failed to fetch API keys');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setError("");
+  const handleGenerateKey = async () => {
+    if (!keyName.trim()) {
+      showToast('Please enter a key name', 'error');
+      return;
+    }
+
+    setGenerating(true);
+    setError('');
 
     try {
       const response = await apiKeysAPI.create(keyName);
       setNewKey(response.data);
-      setKeyName("");
-      setShowForm(false);
-      showToast("API key created successfully!", "success");
+      showToast('API key generated successfully!', 'success');
       await fetchKeys();
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "Failed to create API key";
+      const errorMsg = err.response?.data?.error || 'Failed to generate API key';
       setError(errorMsg);
-      showToast(errorMsg, "error");
+      showToast(errorMsg, 'error');
+    } finally {
+      setGenerating(false);
     }
   };
 
-  const handleToggleActive = async (id, isActive) => {
-    try {
-      await apiKeysAPI.update(id, { is_active: !isActive });
-      showToast(
-        `API key ${!isActive ? "activated" : "deactivated"} successfully!`,
-        "success",
-      );
-      await fetchKeys();
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || "Failed to update API key";
-      setError(errorMsg);
-      showToast(errorMsg, "error");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this API key?")) {
+  const handleRevoke = async (id) => {
+    if (
+      !window.confirm('Are you sure you want to revoke this API key? This action cannot be undone.')
+    ) {
       return;
     }
 
     try {
       await apiKeysAPI.delete(id);
-      showToast("API key deleted successfully!", "success");
+      showToast('API key revoked successfully!', 'success');
       await fetchKeys();
     } catch (err) {
-      const errorMsg = err.response?.data?.error || "Failed to delete API key";
-      setError(errorMsg);
-      showToast(errorMsg, "error");
+      const errorMsg = err.response?.data?.error || 'Failed to revoke API key';
+      showToast(errorMsg, 'error');
     }
   };
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    showToast("Copied to clipboard!", "success", 2000);
+    showToast('Copied to clipboard!', 'success', 2000);
+  };
+
+  const handlePermissionChange = (permission) => {
+    setPermissions((prev) => ({
+      ...prev,
+      [permission]: !prev[permission],
+    }));
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Created today';
+    if (diffDays === 1) return 'Created 1 day ago';
+    return `Created ${diffDays} days ago`;
+  };
+
+  const maskKey = (key) => {
+    if (!key) return '';
+    const prefix = key.substring(0, 8);
+    return `${prefix}••••_••••_••••`;
+  };
+
+  const getEnvironmentFromKey = (key) => {
+    if (key.api_key?.includes('live')) return 'production';
+    if (key.api_key?.includes('test')) return 'staging';
+    return 'development';
   };
 
   if (loading) {
     return (
-      <div className="loading">
-        <div className="spinner"></div>
+      <div className="apikeys-page">
+        <ProgressStepper currentStep={2} />
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Loading API keys...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="api-keys">
-      <div className="page-header">
-        <h1>API Keys</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn btn-primary"
-        >
-          {showForm ? "Cancel" : "+ New API Key"}
-        </button>
-      </div>
+    <div className="apikeys-page">
+      <ProgressStepper currentStep={2} />
 
-      {error && <div className="error-message">{error}</div>}
-
-      {newKey && (
-        <div className="card new-key-alert">
-          <h3>API Key Created!</h3>
-          <p>Store this key securely - it will not be shown again.</p>
-          <div className="key-display">
-            <code>{newKey.api_key}</code>
-            <button
-              onClick={() => copyToClipboard(newKey.api_key)}
-              className="btn btn-secondary"
-            >
-              Copy
-            </button>
+      {/* Main Card */}
+      <div className="apikeys-card">
+        {/* Header */}
+        <div className="apikeys-header">
+          <div className="apikeys-header-content">
+            <h1 className="apikeys-title">Step 2: Generate API Key</h1>
+            <p className="apikeys-subtitle">Establish a secure connection to your data sources.</p>
           </div>
-          <button onClick={() => setNewKey(null)} className="btn btn-primary">
-            Got it
+          <button className="btn-docs">
+            <DocumentIcon size={18} />
+            <span>View Docs</span>
           </button>
         </div>
-      )}
 
-      {showForm && (
-        <div className="card">
-          <h2>Create New API Key</h2>
-          <form onSubmit={handleCreate}>
-            <div className="form-group">
-              <label className="form-label">Key Name *</label>
-              <input
-                type="text"
-                className="form-input"
-                value={keyName}
-                onChange={(e) => setKeyName(e.target.value)}
-                required
-                placeholder="e.g., Production Key"
-              />
-            </div>
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">
-                Create
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="btn btn-secondary"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+        {/* Content */}
+        <div className="apikeys-content">
+          <div className="apikeys-grid">
+            {/* Left Column - Key Configuration */}
+            <div className="key-configuration">
+              <h3 className="section-title">Key Configuration</h3>
 
-      <div className="keys-list">
-        {keys.length === 0 ? (
-          <div className="card">
-            <p>No API keys yet. Create one to get started!</p>
-          </div>
-        ) : (
-          keys.map((key) => (
-            <div key={key.id} className="card key-card">
-              <div className="key-header">
-                <div>
-                  <h3>{key.key_name}</h3>
-                  <p className="key-meta">
-                    Created: {new Date(key.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="key-status">
-                  <span
-                    className={`status-badge ${key.is_active ? "active" : "inactive"}`}
+              <div className="form-fields">
+                <label className="form-field">
+                  <span className="field-label">Key Name</span>
+                  <input
+                    type="text"
+                    className="field-input"
+                    placeholder="e.g., Production Analytics Key"
+                    value={keyName}
+                    onChange={(e) => setKeyName(e.target.value)}
+                  />
+                </label>
+
+                <label className="form-field">
+                  <span className="field-label">Environment</span>
+                  <select
+                    className="field-select"
+                    value={environment}
+                    onChange={(e) => setEnvironment(e.target.value)}
                   >
-                    {key.is_active ? "Active" : "Inactive"}
-                  </span>
+                    <option value="production">Production</option>
+                    <option value="staging">Staging</option>
+                    <option value="development">Development</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="permissions-section">
+                <span className="field-label">Permissions Matrix</span>
+                <div className="permissions-grid">
+                  <label className="permission-item">
+                    <input
+                      type="checkbox"
+                      checked={permissions.readMetrics}
+                      onChange={() => handlePermissionChange('readMetrics')}
+                    />
+                    <span className="permission-label">Read Metrics</span>
+                  </label>
+                  <label className="permission-item">
+                    <input
+                      type="checkbox"
+                      checked={permissions.writeData}
+                      onChange={() => handlePermissionChange('writeData')}
+                    />
+                    <span className="permission-label">Write Data</span>
+                  </label>
+                  <label className="permission-item">
+                    <input
+                      type="checkbox"
+                      checked={permissions.adminAccess}
+                      onChange={() => handlePermissionChange('adminAccess')}
+                    />
+                    <span className="permission-label">Admin Access</span>
+                  </label>
+                  <label className="permission-item">
+                    <input
+                      type="checkbox"
+                      checked={permissions.webhooks}
+                      onChange={() => handlePermissionChange('webhooks')}
+                    />
+                    <span className="permission-label">Webhooks</span>
+                  </label>
                 </div>
               </div>
-              <div className="key-value">
-                <code>{key.api_key.substring(0, 20)}...</code>
+
+              <button className="btn-generate" onClick={handleGenerateKey} disabled={generating}>
+                <AddCircleIcon size={20} />
+                {generating ? 'Generating...' : 'Generate New Key'}
+              </button>
+            </div>
+
+            {/* Right Column - Secret Key Display */}
+            <div className="secret-key-panel">
+              <div className="secret-key-header">
+                <span className="secret-key-label">Your Secret Key</span>
+                {newKey && (
+                  <span className="live-badge">
+                    <span className="live-dot"></span>
+                    Live
+                  </span>
+                )}
               </div>
-              <div className="key-actions">
-                <button
-                  onClick={() => handleToggleActive(key.id, key.is_active)}
-                  className="btn btn-secondary"
-                >
-                  {key.is_active ? "Deactivate" : "Activate"}
-                </button>
-                <button
-                  onClick={() => handleDelete(key.id)}
-                  className="btn btn-danger"
-                >
-                  Delete
-                </button>
+
+              <div className="secret-key-display">
+                <div className="key-value">
+                  {newKey ? newKey.api_key : 'vz_live_••••_••••_••••_••••'}
+                </div>
+                <div className="key-actions-inline">
+                  <button
+                    className="key-action-btn"
+                    onClick={() => newKey && copyToClipboard(newKey.api_key)}
+                    title="Copy to clipboard"
+                    disabled={!newKey}
+                  >
+                    <CopyIcon size={20} />
+                  </button>
+                  <button
+                    className="key-action-btn"
+                    onClick={handleGenerateKey}
+                    title="Regenerate"
+                    disabled={generating}
+                  >
+                    <RefreshIcon size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {newKey && (
+                <div className="security-warning">
+                  <WarningIcon size={20} />
+                  <div className="warning-content">
+                    <p className="warning-title">Security Warning</p>
+                    <p className="warning-text">
+                      For your security, we only show this key once. Please store it in a secure
+                      password manager immediately.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="security-icons">
+                <KeyIcon size={32} />
+                <div className="icon-divider"></div>
+                <LockIcon size={32} />
+                <div className="icon-divider"></div>
+                <ShieldIcon size={32} />
               </div>
             </div>
-          ))
-        )}
+          </div>
+
+          {/* Existing Keys Table */}
+          <div className="existing-keys-section">
+            <div className="existing-keys-header">
+              <h3 className="section-title">Existing Project Keys</h3>
+              <span className="keys-count">Total: {keys.length} Active Keys</span>
+            </div>
+
+            <div className="keys-table-container">
+              <table className="keys-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Environment</th>
+                    <th>Key (Masked)</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {keys.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="empty-state">
+                        <p>No API keys yet. Generate one to get started!</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    keys.map((key) => {
+                      const env = getEnvironmentFromKey(key);
+                      return (
+                        <tr key={key.id}>
+                          <td>
+                            <div className="key-name-cell">
+                              <span className="key-name">{key.key_name}</span>
+                              <span className="key-created">{formatDate(key.created_at)}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`env-badge env-${env}`}>
+                              {env === 'production'
+                                ? 'Production'
+                                : env === 'staging'
+                                  ? 'Staging'
+                                  : 'Development'}
+                            </span>
+                          </td>
+                          <td className="key-masked">{maskKey(key.api_key)}</td>
+                          <td className="text-right">
+                            <button className="btn-revoke" onClick={() => handleRevoke(key.id)}>
+                              Revoke
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Navigation */}
+        <div className="apikeys-footer">
+          <button className="btn-back" onClick={() => navigate('/metric-configs')}>
+            <ArrowBackIcon size={18} />
+            Back to Metrics
+          </button>
+          <div className="footer-actions">
+            <button className="btn-skip" onClick={() => navigate('/code-generation')}>
+              Skip for now
+            </button>
+            <button className="btn-continue" onClick={() => navigate('/code-generation')}>
+              Continue to Activation
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Feature Cards */}
+      <div className="feature-cards">
+        <div className="feature-card">
+          <SecurityIcon size={24} className="feature-icon" />
+          <h4 className="feature-title">Encrypted Storage</h4>
+          <p className="feature-description">
+            All keys are hashed using industry-standard salt protocols before storage in our secure
+            vault.
+          </p>
+        </div>
+        <div className="feature-card">
+          <HubIcon size={24} className="feature-icon" />
+          <h4 className="feature-title">Multi-Environment</h4>
+          <p className="feature-description">
+            Generate isolated keys for prod, staging, and local development flows to ensure data
+            integrity.
+          </p>
+        </div>
+        <div className="feature-card">
+          <EyeOffIcon size={24} className="feature-icon" />
+          <h4 className="feature-title">Least Privilege</h4>
+          <p className="feature-description">
+            Use the permissions matrix to restrict keys to only necessary actions, minimizing
+            security risk.
+          </p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="page-footer">
+        &copy; 2024 VIZME Inc. &bull; Enterprise Grade &bull; Built for Engineering Teams
+      </footer>
     </div>
   );
 }

@@ -74,7 +74,7 @@
   --toast-border: var(--secondary);
 }
 
-[data-theme="dark"] .toast-success {
+[data-theme='dark'] .toast-success {
   --toast-bg: #064e3b;
   --toast-color: #d1fae5;
 }
@@ -85,7 +85,7 @@
   --toast-border: var(--danger);
 }
 
-[data-theme="dark"] .toast-error {
+[data-theme='dark'] .toast-error {
   --toast-bg: #7f1d1d;
   --toast-color: #fee2e2;
 }
@@ -96,7 +96,7 @@
   --toast-border: var(--warning);
 }
 
-[data-theme="dark"] .toast-warning {
+[data-theme='dark'] .toast-warning {
   --toast-bg: #78350f;
   --toast-color: #fef3c7;
 }

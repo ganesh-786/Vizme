@@ -2,10 +2,15 @@
   min-height: calc(100vh - 72px);
   background: var(--bg-secondary);
   padding: 3rem 1.5rem;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
 }
 
-[data-theme="dark"] .metric-configs-page {
+[data-theme='dark'] .metric-configs-page {
   background: var(--bg-primary);
 }
 
@@ -184,7 +189,6 @@
   padding-right: 3rem;
 }
 
-
 .labels-container {
   display: flex;
   flex-direction: column;
@@ -338,7 +342,7 @@
   padding: 0;
 }
 
-[data-theme="dark"] .toggle-switch {
+[data-theme='dark'] .toggle-switch {
   background: rgba(255, 255, 255, 0.2);
 }
 

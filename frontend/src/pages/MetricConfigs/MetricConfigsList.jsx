@@ -2,12 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { useToast } from '@/components/ToastContainer';
-import {
-  PlusIcon,
-  EditIcon,
-  CopyIcon,
-  ArchiveIcon,
-} from '@/assets/icons';
+import { PlusIcon, EditIcon, CopyIcon, ArchiveIcon } from '@/assets/icons';
 import './MetricConfigsList.css';
 
 // Label color mapping based on label content
@@ -189,16 +184,11 @@ function MetricConfigsList() {
                   </tr>
                 ) : (
                   paginatedConfigs.map((config) => (
-                    <tr
-                      key={config.id}
-                      className={config.status === 'paused' ? 'row-paused' : ''}
-                    >
+                    <tr key={config.id} className={config.status === 'paused' ? 'row-paused' : ''}>
                       <td className="config-name-cell">
                         <span className="config-name">{config.name}</span>
                       </td>
-                      <td className="config-type-cell">
-                        {formatMetricType(config.metric_type)}
-                      </td>
+                      <td className="config-type-cell">{formatMetricType(config.metric_type)}</td>
                       <td className="config-description-cell">
                         <div className="description-truncate" title={config.description}>
                           {config.description || 'No description'}
@@ -212,10 +202,7 @@ function MetricConfigsList() {
                               labels.map((label, idx) => {
                                 const text = getLabelText(label);
                                 return text ? (
-                                  <span
-                                    key={idx}
-                                    className={`config-label ${getLabelStyle(text)}`}
-                                  >
+                                  <span key={idx} className={`config-label ${getLabelStyle(text)}`}>
                                     {text}
                                   </span>
                                 ) : null;
@@ -265,7 +252,8 @@ function MetricConfigsList() {
           {configs.length > 0 && (
             <div className="configs-table-footer">
               <p className="configs-count">
-                Showing {paginatedConfigs.length} configuration{paginatedConfigs.length !== 1 ? 's' : ''}
+                Showing {paginatedConfigs.length} configuration
+                {paginatedConfigs.length !== 1 ? 's' : ''}
                 {configs.length > itemsPerPage && ` of ${configs.length}`}
               </p>
               {totalPages > 1 && (

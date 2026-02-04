@@ -13,7 +13,9 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # IDEs and Editors
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo

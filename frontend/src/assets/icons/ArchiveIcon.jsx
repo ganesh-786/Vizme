@@ -2,13 +2,7 @@ import { defaultSvgProps } from './constants';
 
 export function ArchiveIcon({ size = 20, ...props }) {
   return (
-    <svg
-      {...defaultSvgProps}
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      {...props}
-    >
+    <svg {...defaultSvgProps} viewBox="0 0 24 24" width={size} height={size} {...props}>
       <polyline
         points="21 8 21 21 3 21 3 8"
         stroke="currentColor"

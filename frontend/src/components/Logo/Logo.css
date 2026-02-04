@@ -34,7 +34,8 @@
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
-  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+  transition:
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -72,13 +73,13 @@
 }
 
 /* Dark theme - Show dark logo, hide light logo */
-[data-theme="dark"] .logo-light {
+[data-theme='dark'] .logo-light {
   opacity: 0;
   pointer-events: none;
   z-index: 1;
 }
 
-[data-theme="dark"] .logo-dark {
+[data-theme='dark'] .logo-dark {
   opacity: 1;
   pointer-events: none;
   z-index: 2;
@@ -217,9 +218,7 @@
 }
 
 /* High DPI displays - Ensure crisp rendering */
-@media (-webkit-min-device-pixel-ratio: 2),
-(min-resolution: 192dpi),
-(min-resolution: 2dppx) {
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi), (min-resolution: 2dppx) {
   .logo-image {
     image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
@@ -276,6 +275,6 @@
 }
 
 /* Ensure perfect centering in flex containers */
-.logo-container[class*="logo-"] {
+.logo-container[class*='logo-'] {
   margin: 0 auto;
 }

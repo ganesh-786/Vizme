@@ -26,12 +26,31 @@ function Signup() {
     try {
       const response = await authAPI.signup(email, password, name);
       const { user, accessToken, refreshToken } = response.data;
-      
+
       setAuth(user, accessToken, refreshToken);
       showToast('Account created successfully! Redirecting...', 'success', 2000);
       setTimeout(() => navigate('/'), 500);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Signup failed. Please try again.';
+      // Handle various error response formats from backend
+      const responseData = err.response?.data;
+      let errorMsg = 'Signup failed. Please try again.';
+
+      if (responseData) {
+        // Try common error message locations
+        errorMsg =
+          responseData.error ||
+          responseData.message ||
+          responseData.msg ||
+          (typeof responseData === 'string' ? responseData : errorMsg);
+      }
+
+      // Map generic status messages to user-friendly messages
+      if (err.response?.status === 401 || errorMsg.toLowerCase() === 'unauthorized') {
+        errorMsg = 'Invalid credentials. Please try again.';
+      } else if (err.response?.status === 409 || errorMsg.toLowerCase().includes('exists')) {
+        errorMsg = 'An account with this email already exists.';
+      }
+
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
@@ -48,7 +67,9 @@ function Signup() {
           </div>
 
           <h1 className="auth-title-hero">Sign Up</h1>
-          <p className="auth-subtitle auth-subtitle-lg">Join the next generation of engineering analytics.</p>
+          <p className="auth-subtitle auth-subtitle-lg">
+            Join the next generation of engineering analytics.
+          </p>
 
           {error && <div className="error-message">{error}</div>}
 
@@ -108,7 +129,12 @@ function Signup() {
               <small className="form-hint">Must be at least 8 characters with one number.</small>
             </div>
 
-            <button type="submit" className="btn btn-primary auth-cta" disabled={loading} style={{ width: '100%' }}>
+            <button
+              type="submit"
+              className="btn btn-primary auth-cta"
+              disabled={loading}
+              style={{ width: '100%' }}
+            >
               <span>{loading ? 'Creating account…' : 'Create Account'}</span>
               <ArrowRightIcon size={20} />
             </button>

@@ -1,0 +1,138 @@
+/* Breadcrumbs – professional pattern (Linear / Vercel / Stripe style) */
+
+.breadcrumbs {
+  margin-bottom: 1.5rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.breadcrumbs-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.breadcrumbs-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.breadcrumbs-separator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  margin: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.breadcrumbs-separator svg {
+  opacity: 0.7;
+}
+
+.breadcrumbs-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 0.5rem;
+}
+
+.breadcrumbs-icon,
+.breadcrumbs-icon-current {
+  flex-shrink: 0;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.breadcrumbs-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  border-radius: 6px;
+  padding: 0.25rem 0.375rem;
+  margin: -0.25rem -0.375rem;
+}
+
+.breadcrumbs-link:hover {
+  color: var(--primary);
+}
+
+.breadcrumbs-link:hover .breadcrumbs-icon {
+  color: var(--primary);
+  opacity: 1;
+}
+
+.breadcrumbs-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.breadcrumbs-current {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.breadcrumbs-current .breadcrumbs-icon-current {
+  color: var(--primary);
+  opacity: 1;
+}
+
+.breadcrumbs-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 12rem;
+}
+
+@media (min-width: 769px) {
+  .breadcrumbs-label {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .breadcrumbs {
+    margin-bottom: 1.25rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 8px;
+  }
+
+  .breadcrumbs-list {
+    font-size: 0.8125rem;
+  }
+
+  .breadcrumbs-separator {
+    margin: 0 0.375rem;
+  }
+
+  .breadcrumbs-icon-wrap {
+    margin-right: 0.375rem;
+  }
+
+  .breadcrumbs-label {
+    max-width: 8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .breadcrumbs-label {
+    max-width: 6rem;
+  }
+}

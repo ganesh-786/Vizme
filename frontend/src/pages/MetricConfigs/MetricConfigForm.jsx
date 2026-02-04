@@ -45,20 +45,23 @@ function MetricConfigForm({ isEdit = false }) {
       setFetchingData(true);
       const response = await metricConfigsAPI.getById(id);
       const config = response.data;
-      
+
       setFormData({
         name: config.name || '',
-        metric_type: config.metric_type ? 
-          config.metric_type.charAt(0).toUpperCase() + config.metric_type.slice(1) : 'Counter',
+        metric_type: config.metric_type
+          ? config.metric_type.charAt(0).toUpperCase() + config.metric_type.slice(1)
+          : 'Counter',
         description: config.description || '',
         help_text: config.help_text || '',
       });
-      
+
       if (config.labels && config.labels.length > 0) {
-        setLabels(config.labels.map(l => ({ 
-          key: l.name || l.key || '', 
-          value: l.value || '' 
-        })));
+        setLabels(
+          config.labels.map((l) => ({
+            key: l.name || l.key || '',
+            value: l.value || '',
+          }))
+        );
       }
     } catch (err) {
       showToast('Failed to load configuration', 'error');
@@ -86,7 +89,7 @@ function MetricConfigForm({ isEdit = false }) {
       if (index < 0 || index >= prevLabels.length || !prevLabels[index]) {
         return prevLabels;
       }
-      
+
       // Immutable update pattern
       const updated = [...prevLabels];
       updated[index] = { ...updated[index], [field]: value };
@@ -96,11 +99,13 @@ function MetricConfigForm({ isEdit = false }) {
 
   // Generate metric_name from configuration name
   const generateMetricName = (name) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '_')
-      .replace(/_{2,}/g, '_')
-      .replace(/^_|_$/g, '') || 'metric';
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^_|_$/g, '') || 'metric'
+    );
   };
 
   const handleSaveDraft = async () => {
@@ -117,7 +122,7 @@ function MetricConfigForm({ isEdit = false }) {
           .map((l) => ({ name: l.key, value: l.value })),
         status: 'draft',
       };
-      
+
       if (isEdit && id) {
         await metricConfigsAPI.update(id, payload);
         showToast('Draft saved successfully!', 'success');
@@ -150,7 +155,7 @@ function MetricConfigForm({ isEdit = false }) {
           .map((l) => ({ name: l.key, value: l.value })),
         status: 'active',
       };
-      
+
       if (isEdit && id) {
         await metricConfigsAPI.update(id, payload);
         showToast('Configuration updated successfully!', 'success');
@@ -201,7 +206,7 @@ function MetricConfigForm({ isEdit = false }) {
             {isEdit ? 'Edit Configuration' : 'Configure Your Metrics'}
           </h1>
           <p className="metric-configs-subtitle">
-            {isEdit 
+            {isEdit
               ? 'Update the settings for this metric configuration.'
               : 'Define the identity and context for your data stream.'}
           </p>
@@ -302,11 +307,7 @@ function MetricConfigForm({ isEdit = false }) {
                       )}
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    className="add-label-btn"
-                    onClick={handleAddLabel}
-                  >
+                  <button type="button" className="add-label-btn" onClick={handleAddLabel}>
                     <AddCircleIcon size={18} />
                     Add Label
                   </button>

@@ -6,8 +6,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000
 const client = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Request interceptor to add auth token
@@ -24,24 +24,38 @@ client.interceptors.request.use(
   }
 );
 
+// Auth endpoints that should not trigger token refresh on 401
+const AUTH_ENDPOINTS = ['/auth/signin', '/auth/signup', '/auth/refresh'];
+
+// Check if the request URL is an auth endpoint
+const isAuthEndpoint = (url) => {
+  return AUTH_ENDPOINTS.some((endpoint) => url?.includes(endpoint));
+};
+
 // Response interceptor for token refresh
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
+    // Skip token refresh logic for auth endpoints (login/signup/refresh)
+    // These should just return the error so the form can display it
+    if (isAuthEndpoint(originalRequest?.url)) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
         const { refreshToken, updateToken } = useAuthStore.getState();
-        
+
         if (!refreshToken) {
           throw new Error('No refresh token');
         }
 
         const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
-          refreshToken
+          refreshToken,
         });
 
         const { accessToken } = response.data.data;

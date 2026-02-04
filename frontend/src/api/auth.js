@@ -5,7 +5,7 @@ export const authAPI = {
     const response = await client.post('/auth/signup', {
       email,
       password,
-      name
+      name,
     });
     return response.data;
   },
@@ -13,8 +13,8 @@ export const authAPI = {
   signin: async (email, password) => {
     const response = await client.post('/auth/signin', {
       email,
-      password
+      password,
     });
     return response.data;
-  }
+  },
 };

@@ -1,0 +1,13 @@
+{
+  "name": "vizme",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write \"**/*.{js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,json,css,md}\"",
+    "format:frontend": "prettier --write \"frontend/src/**/*.{js,jsx,css}\"",
+    "format:backend": "prettier --write \"backend/**/*.js\""
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5"
+  }
+}

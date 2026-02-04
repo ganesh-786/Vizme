@@ -2,13 +2,7 @@ import { defaultSvgProps } from './constants';
 
 export function CopyIcon({ size = 20, ...props }) {
   return (
-    <svg
-      {...defaultSvgProps}
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      {...props}
-    >
+    <svg {...defaultSvgProps} viewBox="0 0 24 24" width={size} height={size} {...props}>
       <rect
         x="9"
         y="9"
