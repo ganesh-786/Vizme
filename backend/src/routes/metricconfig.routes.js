@@ -7,52 +7,6 @@ import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
-router.use(apiLimiter);
-
-const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
-
-// Get all metric configs for user
-router.get('/', async (req, res, next) => {
-  try {
-    const result = await query(
-      'SELECT id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at FROM metric_configs WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.user.id]
-    );
-
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get single metric config
-router.get('/:id', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const result = await query(
-      'SELECT id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at FROM metric_configs WHERE id = $1 AND user_id = $2',
-      [id, req.user.id]
-    );
-
-    if (result.rows.length === 0) {
-      throw new NotFoundError('Metric config not found');
-    }
-
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Get metric configs by API key (for client library)
 // This allows the library to automatically fetch configs
 router.get('/by-api-key',
@@ -120,6 +74,53 @@ router.get('/by-api-key',
     }
   }
 );
+
+// All routes require authentication
+router.use(authenticate);
+router.use(apiLimiter);
+
+const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
+
+// Get all metric configs for user
+router.get('/', async (req, res, next) => {
+  try {
+    const result = await query(
+      'SELECT id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at FROM metric_configs WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get single metric config
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      'SELECT id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at FROM metric_configs WHERE id = $1 AND user_id = $2',
+      [id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Metric config not found');
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 // Create metric config
 router.post('/',
