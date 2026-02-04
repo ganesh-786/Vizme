@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import Logo from '@/components/Logo';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import { BellIcon, MoonIcon, SunIcon } from '@/assets/icons';
 import Footer from './Footer';
 import './Layout.css';
@@ -93,6 +94,7 @@ function Layout() {
       </nav>
       <main className="main-content">
         <div className="container">
+          <Breadcrumbs />
           <Outlet />
         </div>
       </main>
