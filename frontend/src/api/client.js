@@ -24,11 +24,25 @@ client.interceptors.request.use(
   }
 );
 
+// Auth endpoints that should not trigger token refresh on 401
+const AUTH_ENDPOINTS = ['/auth/signin', '/auth/signup', '/auth/refresh'];
+
+// Check if the request URL is an auth endpoint
+const isAuthEndpoint = (url) => {
+  return AUTH_ENDPOINTS.some((endpoint) => url?.includes(endpoint));
+};
+
 // Response interceptor for token refresh
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Skip token refresh logic for auth endpoints (login/signup/refresh)
+    // These should just return the error so the form can display it
+    if (isAuthEndpoint(originalRequest?.url)) {
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;

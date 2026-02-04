@@ -30,7 +30,24 @@ function Login() {
       showToast('Welcome back! Redirecting...', 'success', 2000);
       setTimeout(() => navigate('/'), 500);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Login failed. Please try again.';
+      // Handle various error response formats from backend
+      const responseData = err.response?.data;
+      let errorMsg = 'Login failed. Please try again.';
+
+      if (responseData) {
+        // Try common error message locations
+        errorMsg =
+          responseData.error ||
+          responseData.message ||
+          responseData.msg ||
+          (typeof responseData === 'string' ? responseData : errorMsg);
+      }
+
+      // Map generic "Unauthorized" to user-friendly message
+      if (err.response?.status === 401 || errorMsg.toLowerCase() === 'unauthorized') {
+        errorMsg = 'Invalid email or password. Please try again.';
+      }
+
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {

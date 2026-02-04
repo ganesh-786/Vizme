@@ -31,7 +31,26 @@ function Signup() {
       showToast('Account created successfully! Redirecting...', 'success', 2000);
       setTimeout(() => navigate('/'), 500);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Signup failed. Please try again.';
+      // Handle various error response formats from backend
+      const responseData = err.response?.data;
+      let errorMsg = 'Signup failed. Please try again.';
+
+      if (responseData) {
+        // Try common error message locations
+        errorMsg =
+          responseData.error ||
+          responseData.message ||
+          responseData.msg ||
+          (typeof responseData === 'string' ? responseData : errorMsg);
+      }
+
+      // Map generic status messages to user-friendly messages
+      if (err.response?.status === 401 || errorMsg.toLowerCase() === 'unauthorized') {
+        errorMsg = 'Invalid credentials. Please try again.';
+      } else if (err.response?.status === 409 || errorMsg.toLowerCase().includes('exists')) {
+        errorMsg = 'An account with this email already exists.';
+      }
+
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {

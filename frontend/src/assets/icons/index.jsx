@@ -30,6 +30,7 @@ export { CopyIcon } from './CopyIcon';
 export { ArchiveIcon } from './ArchiveIcon';
 export { ChevronLeftIcon } from './ChevronLeftIcon';
 export { ChevronRightIcon } from './ChevronRightIcon';
+export { HomeIcon } from './HomeIcon';
 export { RefreshIcon } from './RefreshIcon';
 export { ShieldIcon } from './ShieldIcon';
 export { LockIcon } from './LockIcon';
