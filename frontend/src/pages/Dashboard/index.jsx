@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
 import { AnalyticsIcon, DocumentIcon, KeyIcon, PlusIcon, TrendUpIcon } from '@/assets/icons';
+import { Skeleton } from '@/components/Skeleton';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -50,7 +51,13 @@ function Dashboard() {
           <div>
             <p className="overview-label">Metric Configurations</p>
             <div className="overview-metric">
-              <span className="overview-number">{stats.loading ? '…' : stats.metricConfigs}</span>
+              <span className="overview-number">
+                {stats.loading ? (
+                  <Skeleton inline width="48px" height="2.5rem" />
+                ) : (
+                  stats.metricConfigs
+                )}
+              </span>
               <span className="overview-status">Active</span>
             </div>
             <div className="overview-note">
@@ -68,7 +75,13 @@ function Dashboard() {
           <div>
             <p className="overview-label">API Keys</p>
             <div className="overview-metric">
-              <span className="overview-number">{stats.loading ? '…' : stats.apiKeys}</span>
+              <span className="overview-number">
+                {stats.loading ? (
+                  <Skeleton inline width="48px" height="2.5rem" />
+                ) : (
+                  stats.apiKeys
+                )}
+              </span>
               <span className="overview-status">Active</span>
             </div>
             <div className="overview-note overview-note--muted">

@@ -1,0 +1,125 @@
+/* ===========================
+   Skeleton Loading Component
+   Synced with project design system
+   =========================== */
+
+/* Skeleton CSS Variables - Using existing project variables */
+:root {
+  --skeleton-base: var(--gray-200);
+  --skeleton-highlight: var(--gray-100);
+}
+
+[data-theme='dark'] {
+  --skeleton-base: #2d2d2d;
+  --skeleton-highlight: #3a3a3a;
+}
+
+/* Base Skeleton Styles */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-highlight) 50%,
+    var(--skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.375rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Skeleton Variants */
+.skeleton--text {
+  height: 1rem;
+  width: 100%;
+}
+
+.skeleton--title {
+  height: 1.75rem;
+  width: 60%;
+}
+
+.skeleton--subtitle {
+  height: 1.125rem;
+  width: 40%;
+}
+
+.skeleton--circle {
+  border-radius: 50%;
+}
+
+.skeleton--button {
+  height: 2.75rem;
+  border-radius: 0.75rem;
+}
+
+.skeleton--card {
+  border-radius: 1rem;
+}
+
+.skeleton--badge {
+  border-radius: 9999px;
+}
+
+/* Stagger animation for multiple skeletons - creates wave effect */
+.skeleton--stagger-1 { animation-delay: 0s; }
+.skeleton--stagger-2 { animation-delay: 0.1s; }
+.skeleton--stagger-3 { animation-delay: 0.2s; }
+.skeleton--stagger-4 { animation-delay: 0.3s; }
+.skeleton--stagger-5 { animation-delay: 0.4s; }
+
+/* Pulse variant - alternative to shimmer for simpler elements */
+.skeleton--pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: var(--skeleton-base);
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Dark panel skeleton - for dark backgrounds like secret-key-panel */
+.skeleton--dark {
+  --skeleton-base: rgba(255, 255, 255, 0.08);
+  --skeleton-highlight: rgba(255, 255, 255, 0.12);
+}
+
+/* Skeleton wrapper for table rows */
+.skeleton-row {
+  display: contents;
+}
+
+/* Content reveal animation - apply to content after loading */
+.skeleton-fade-in {
+  animation: skeletonFadeIn 0.3s ease-out;
+}
+
+@keyframes skeletonFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Inline skeleton for numbers/stats */
+.skeleton--inline {
+  display: inline-block;
+  vertical-align: middle;
+}

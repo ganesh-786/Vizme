@@ -18,6 +18,7 @@ import {
   HubIcon,
   EyeOffIcon,
 } from '@/assets/icons';
+import ApiKeysSkeleton from './ApiKeysSkeleton';
 import './ApiKeys.css';
 
 function ApiKeys() {
@@ -136,15 +137,7 @@ function ApiKeys() {
   };
 
   if (loading) {
-    return (
-      <div className="apikeys-page">
-        <ProgressStepper currentStep={2} />
-        <div className="loading-state">
-          <div className="spinner"></div>
-          <p>Loading API keys...</p>
-        </div>
-      </div>
-    );
+    return <ApiKeysSkeleton />;
   }
 
   return (

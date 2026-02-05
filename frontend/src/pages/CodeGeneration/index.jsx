@@ -6,6 +6,7 @@ import { metricConfigsAPI } from '@/api/metricConfigs';
 import { useToast } from '@/components/ToastContainer';
 import ProgressStepper from '@/components/ProgressStepper';
 import { CheckIcon, RefreshIcon, CopyIcon, ArrowBackIcon, RocketIcon } from '@/assets/icons';
+import CodeGenerationSkeleton from './CodeGenerationSkeleton';
 import './CodeGeneration.css';
 
 const FRAMEWORKS = [
@@ -255,14 +256,7 @@ export class VizmeService {
   };
 
   if (loading) {
-    return (
-      <div className="code-generation-page">
-        <div className="cg-loading">
-          <div className="cg-spinner"></div>
-          <p>Loading configuration...</p>
-        </div>
-      </div>
-    );
+    return <CodeGenerationSkeleton />;
   }
 
   return (
