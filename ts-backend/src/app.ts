@@ -1,6 +1,7 @@
 import express, { type RequestHandler } from "express";
 import helmet from "helmet";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { healthRoutes } from "./routes/health.routes.js";
@@ -26,6 +27,7 @@ const corsOptions =
       : { origin: false };
 
 app.use(cors(corsOptions));
+app.use(cookieParser());
 
 app.use(
   rateLimit({

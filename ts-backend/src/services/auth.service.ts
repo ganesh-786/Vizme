@@ -109,7 +109,7 @@ export const authService = {
     // Generate tokens
     const tokens = generateTokens(user);
 
-    // Save refresh token
+    // Save refresh token (starts a new token family)
     const refreshExpiry = new Date(
       Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY),
     );
@@ -117,6 +117,7 @@ export const authService = {
       user.id,
       tokens.refreshToken,
       refreshExpiry,
+      // No familyId = new family for new signup
     );
 
     return {
@@ -148,7 +149,7 @@ export const authService = {
     // Generate tokens
     const tokens = generateTokens(user);
 
-    // Save refresh token
+    // Save refresh token (starts a new token family for new login)
     const refreshExpiry = new Date(
       Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY),
     );
@@ -156,6 +157,7 @@ export const authService = {
       user.id,
       tokens.refreshToken,
       refreshExpiry,
+      // No familyId = new family for new signin
     );
 
     return {
@@ -170,10 +172,22 @@ export const authService = {
   },
 
   async refresh(refreshToken: string) {
-    // Find valid refresh token
+    // Find refresh token (includes revoked tokens for reuse detection)
     const tokenData = await refreshTokenRepository.findByToken(refreshToken);
     if (!tokenData) {
       throw new Error("Invalid or expired refresh token");
+    }
+
+    // SECURITY: Detect refresh token reuse attack
+    // If a token that was already used (revoked) is being used again,
+    // someone may have stolen the token. Revoke the entire family to protect the user.
+    if (tokenData.is_revoked) {
+      logger.warn(
+        { userId: tokenData.user_id, familyId: tokenData.family_id },
+        "Refresh token reuse detected - revoking entire token family",
+      );
+      await refreshTokenRepository.revokeFamily(tokenData.family_id);
+      throw new Error("Token reuse detected. Please login again.");
     }
 
     // Get user
@@ -182,13 +196,13 @@ export const authService = {
       throw new Error("User not found");
     }
 
-    // Delete old refresh token
-    await refreshTokenRepository.deleteByToken(refreshToken);
+    // Mark the old token as revoked (not deleted) to detect reuse
+    await refreshTokenRepository.markRevoked(refreshToken);
 
     // Generate new tokens
     const tokens = generateTokens(user);
 
-    // Save new refresh token
+    // Save new refresh token in the same family
     const refreshExpiry = new Date(
       Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY),
     );
@@ -196,6 +210,7 @@ export const authService = {
       user.id,
       tokens.refreshToken,
       refreshExpiry,
+      tokenData.family_id, // Continue the same token family
     );
 
     return {

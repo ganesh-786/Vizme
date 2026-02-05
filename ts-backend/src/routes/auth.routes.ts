@@ -5,6 +5,7 @@ import {
   signin,
   refresh,
   logout,
+  logoutAll,
   me,
 } from "../controllers/auth.controller.js";
 import { authenticate } from "../middleware/auth.js";
@@ -18,5 +19,6 @@ authRoutes.post("/signin", asyncHandler(signin));
 authRoutes.post("/refresh", asyncHandler(refresh));
 authRoutes.post("/logout", asyncHandler(logout));
 
-// Protected route
+// Protected routes
 authRoutes.get("/me", authenticate, asyncHandler(me));
+authRoutes.post("/logout-all", authenticate, asyncHandler(logoutAll));

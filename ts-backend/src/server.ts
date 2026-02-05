@@ -4,6 +4,7 @@ import { env } from "./config/env.js";
 import { pool } from "./db/pool.js";
 import { runMigrations } from "./db/migrate.js";
 import { logger } from "./utils/logger.js";
+import { startTokenCleanupJob } from "./jobs/tokenCleanup.js";
 
 async function startServer() {
   try {
@@ -16,6 +17,10 @@ async function startServer() {
       logger.info({ port: env.PORT }, "Server listening");
     });
 
+    // Start token cleanup job
+    const cleanupInterval = startTokenCleanupJob();
+
+
     // Shutdown handling
     let isShuttingDown = false;
 
@@ -24,6 +29,9 @@ async function startServer() {
       isShuttingDown = true;
 
       logger.warn({ signal }, "Shutdown initiated");
+
+      // Stop cleanup job
+      clearInterval(cleanupInterval);
 
       server.close(async (err) => {
         if (err) {
