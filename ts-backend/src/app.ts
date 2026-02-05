@@ -3,11 +3,11 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
-import { healthRoutes } from "./routes/health.routes.js";
-import { notFound } from "./middleware/notFound.js";
-import { errorHandler } from "./middleware/errorHandler.js";
-import { env } from "./config/env.js";
-import { logger } from "./utils/logger.js";
+import { healthRoutes } from "@/routes/health.routes.js";
+import { notFound } from "@/middleware/notFound.js";
+import { errorHandler } from "@/middleware/errorHandler.js";
+import { env } from "@/config/env.js";
+import { logger } from "@/utils/logger.js";
 
 export const app = express();
 

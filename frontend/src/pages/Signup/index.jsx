@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { authAPI } from '../../api/auth';
-import { useToast } from '../../components/ToastContainer';
-import Logo from '../../components/Logo';
-import { ArrowRightIcon } from '../../assets/icons';
+import { authAPI } from '@/api/auth';
+import { useToast } from '@/components/ToastContainer';
+import Logo from '@/components/Logo';
+import { ArrowRightIcon } from '@/assets/icons';
 import '../Auth/Auth.css';
 
 function Signup() {

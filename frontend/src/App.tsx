@@ -1,14 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from './store/authStore';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import Callback from './pages/Callback';
-import Dashboard from './pages/Dashboard';
-import MetricConfigs from './pages/MetricConfigs';
-import ApiKeys from './pages/ApiKeys';
-import CodeGeneration from './pages/CodeGeneration';
-import Layout from './components/Layout';
-import { ToastProvider } from './components/ToastContainer';
+import { useAuthStore } from '@/store/authStore';
+import Login from '@/pages/Login';
+import Signup from '@/pages/Signup';
+import Callback from '@/pages/Callback';
+import Dashboard from '@/pages/Dashboard';
+import MetricConfigs from '@/pages/MetricConfigs';
+import ApiKeys from '@/pages/ApiKeys';
+import CodeGeneration from '@/pages/CodeGeneration';
+import Layout from '@/components/Layout';
+import { ToastProvider } from '@/components/ToastContainer';
 import './App.css';
 
 /** If Keycloak redirected to / or /login with ?code=..., send user to /callback so the code is processed. */

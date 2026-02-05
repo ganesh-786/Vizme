@@ -13,7 +13,11 @@
     "noFallthroughCasesInSwitch": true,
     "jsx": "react-jsx",
     "noEmit": true,
-    "allowJs": true
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src"]
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { authAPI } from '../../api/auth';
-import { useToast } from '../../components/ToastContainer';
-import Logo from '../../components/Logo';
+import { authAPI } from '@/api/auth';
+import { useToast } from '@/components/ToastContainer';
+import Logo from '@/components/Logo';
 import '../Auth/Auth.css';
 
 function Login() {

@@ -4,10 +4,12 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
-    "migrate": "node scripts/migrate.js"
-  },
+  "start": "node index.js",
+  "dev": "node --watch index.js",
+  "migrate": "node scripts/migrate.js",
+  "format": "prettier --check \"src/**/*.{js,jsx,json}\"",
+  "format:write": "prettier --write \"src/**/*.{js,jsx,json}\""
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -27,5 +29,8 @@
     "morgan": "^1.10.0",
     "pg": "^8.11.3",
     "prom-client": "^15.1.3"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1"
   }
 }
