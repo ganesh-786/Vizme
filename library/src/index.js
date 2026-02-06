@@ -68,21 +68,36 @@ class VizmeClient {
     }
     
     async increment(name, value = 1, labels = {}) {
-      await this.configReady; //wait forconfig to load first
+      //Try to wait for config, 
+      try{
+        await this.configReady;
+      } catch (error) {
+        console.warn('Vizme: Could not wait for config, using fallback', error);
+      }
       // only use counter as a fallback when no config exists
       const defaultType = this.metricConfigs[name] ? undefined : 'counter';
       return this.track(name, value, { ...labels, _type: defaultType, _operation: 'increment' });
     }
     
     async decrement(name, value = 1, labels = {}) {
-      await this.configReady; //wait forconfig to load first
+      //Try to wait for config, 
+      try{
+        await this.configReady;
+      } catch (error) {
+        console.warn('Vizme: Could not wait for config, using fallback', error);
+      }
       //use gauge as a fallback only when no config exists
       const defaultType = this.metricConfigs[name] ? undefined : 'gauge';
       return this.track(name, -Math.abs(value), { ...labels, _type: defaultType, _operation: 'decrement' });
     }
     
     async set(name, value, labels = {}) {
-      await this.configReady; //wait forconfig to load first
+      //Try to wait for config, 
+      try{
+        await this.configReady;
+      } catch (error) {
+        console.warn('Vizme: Could not wait for config, using fallback', error);
+      }
       // only use gauge as a fallback when no config exists
       const defaultType = this.metricConfigs[name] ? undefined : "gauge";
       return this.track(name, value, { ...labels, _type: defaultType, _operation: 'set' });
