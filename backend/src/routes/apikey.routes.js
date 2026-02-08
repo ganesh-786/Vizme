@@ -8,8 +8,8 @@ import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticate);
+// All routes require Keycloak JWT authentication
+router.use(...authenticate);
 router.use(apiLimiter);
 
 // Generate API key

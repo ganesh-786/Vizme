@@ -1,4 +1,4 @@
-import { pool } from "../db/pool.js";
+import { pool } from "@/db/pool.js";
 
 // Checks if the database connection is healthy by running a simple query.
 export async function checkHealth() {

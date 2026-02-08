@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.min.js
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Generated files
+coverage/
+
+# Binary files
+*.png
+*.jpg
+*.svg

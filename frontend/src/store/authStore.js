@@ -43,6 +43,18 @@ export const useAuthStore = create((set) => {
       set(newState);
       saveAuth(newState);
     },
+
+    /** Set tokens only (e.g. before fetching /me in callback) */
+    setTokens: (accessToken, refreshToken) => {
+      const newState = {
+        ...useAuthStore.getState(),
+        accessToken,
+        refreshToken,
+        isAuthenticated: !!accessToken
+      };
+      set(newState);
+      saveAuth(newState);
+    },
     
     logout: () => {
       const newState = {

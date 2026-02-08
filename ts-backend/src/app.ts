@@ -11,6 +11,7 @@ import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { authRoutes } from "./routes/auth.routes.js";
 
+
 export const app = express();
 
 app.disable("x-powered-by");
