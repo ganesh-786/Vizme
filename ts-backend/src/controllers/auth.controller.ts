@@ -4,13 +4,13 @@ import { z } from "zod";
 import { authService } from "../services/auth.service.js";
 
 const signupSchema = z.object({
-  email: z.email({error:"Invalid email"}),
+  email: z.email({ error: "Invalid email" }),
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().optional(),
 });
 
 const signinSchema = z.object({
-  email: z.email({error:"Invalid email"}),
+  email: z.email({ error: "Invalid email" }),
   password: z.string().min(8, "Password is required"),
 });
 
@@ -89,11 +89,11 @@ export async function refresh(
 ): Promise<void | Response> {
   try {
     const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
-    
+
     if (!refreshToken) {
       return res.status(400).json({ error: "Refresh token is required" });
     }
-    
+
     const result = await authService.refresh(refreshToken);
     res.cookie(REFRESH_TOKEN_COOKIE, result.refreshToken, COOKIE_OPTIONS);
     const { refreshToken: _, ...safeResult } = result;
@@ -122,11 +122,11 @@ export async function logout(
   try {
     // Try cookie first, then body
     const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
-    
+
     if (refreshToken) {
       await authService.logout(refreshToken);
     }
-    
+
     // Clear the cookie
     res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/api/v1/auth" });
     res.json({ message: "Logged out successfully" });
@@ -145,9 +145,9 @@ export async function logoutAll(
     if (!req.user?.sub) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     await authService.logoutAll(req.user.sub);
-    
+
     // Clear the current session cookie
     res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/api/v1/auth" });
     res.json({ message: "Logged out from all devices successfully" });

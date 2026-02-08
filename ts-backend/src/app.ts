@@ -10,6 +10,9 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { authRoutes } from "./routes/auth.routes.js";
+import { apiKeyRoutes } from "./routes/apiKey.routes.js";
+import { metricsRoutes } from "./routes/metrics.routes.js";
+import { metricConfigRoutes } from "./routes/metricConfig.routes.js";
 
 export const app = express();
 
@@ -42,6 +45,9 @@ app.use(express.json() as RequestHandler);
 
 app.use("/health", healthRoutes);
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/metric-configs", metricConfigRoutes);
+app.use("/api/v1/api-keys", apiKeyRoutes);
+app.use("/api/v1", metricsRoutes); // SDK endpoints
 
 app.use(notFound);
 app.use(errorHandler);

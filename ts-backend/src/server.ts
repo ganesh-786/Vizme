@@ -20,7 +20,6 @@ async function startServer() {
     // Start token cleanup job
     const cleanupInterval = startTokenCleanupJob();
 
-
     // Shutdown handling
     let isShuttingDown = false;
 
@@ -66,7 +65,6 @@ async function startServer() {
       logger.error({ err }, "Uncaught exception");
       shutdown("uncaughtException");
     });
-
   } catch (error) {
     logger.error({ error }, "Failed to start server");
     process.exit(1);

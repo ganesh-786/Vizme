@@ -5,7 +5,7 @@ const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 export function startTokenCleanupJob(): NodeJS.Timeout {
   logger.info("Starting token cleanup job");
-  
+
   const cleanup = async () => {
     try {
       await refreshTokenRepository.deleteExpired();
@@ -17,7 +17,7 @@ export function startTokenCleanupJob(): NodeJS.Timeout {
 
   // Run immediately on startup
   cleanup();
-  
+
   // Then run periodically
   return setInterval(cleanup, CLEANUP_INTERVAL_MS);
 }
