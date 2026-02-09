@@ -54,7 +54,7 @@ const adminFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 // Custom CORS middleware that handles metrics endpoint differently
 app.use((req, res, next) => {
   // For metrics endpoint, allow any origin (with credentials if browser sends them)
-  if (req.path.startsWith('/api/v1/metrics')) {
+  if (req.path.startsWith('/api/v1/metrics') || req.path === '/api/v1/metric-configs/by-api-key') {
     const origin = req.headers.origin;
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -78,8 +78,8 @@ app.use((req, res, next) => {
 
 // Apply CORS for non-metrics routes
 app.use((req, res, next) => {
-  // Skip if already handled (metrics endpoint)
-  if (req.path.startsWith('/api/v1/metrics')) {
+  // Skip if already handled (metrics endpoint or metric-configs/by-api-key)
+  if (req.path.startsWith('/api/v1/metrics') || req.path === '/api/v1/metric-configs/by-api-key') {
     return next();
   }
   
