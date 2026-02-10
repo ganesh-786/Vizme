@@ -4,6 +4,7 @@ import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
 import { AnalyticsIcon, DocumentIcon, KeyIcon, PlusIcon, TrendUpIcon } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
+import { GrafanaEmbed } from '@/components/GrafanaEmbed';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -173,6 +174,42 @@ function Dashboard() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Live Metrics Visualization Section */}
+      <section className="metrics-visualization">
+        <div className="metrics-visualization__header">
+          <div>
+            <h2>Live Metrics</h2>
+            <p className="metrics-visualization__subtitle">
+              Real-time telemetry data from your connected applications
+            </p>
+          </div>
+          <a
+            href={grafanaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="metrics-visualization__link"
+          >
+            Open Full Dashboard →
+          </a>
+        </div>
+
+        <div className="metrics-visualization__container">
+          <GrafanaEmbed
+            dashboardUid="metrics"
+            from="now-1h"
+            to="now"
+            refresh="10s"
+            height={450}
+            title="Vizme Metrics Dashboard"
+            kiosk={true}
+          />
+        </div>
+
+        <p className="metrics-visualization__hint">
+          Not seeing data? Make sure you have configured metrics and integrated the tracking code.
+        </p>
       </section>
 
       <footer className="dashboard-footer">
