@@ -1,11 +1,11 @@
 // src/services/auth.service.ts
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import { env } from "../config/env.js";
-import { userRepository, User } from "../repositories/user.repository.js";
-import { refreshTokenRepository } from "../repositories/refreshToken.repository.js";
-import { logger } from "../utils/logger.js";
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import { env } from '../config/env.js';
+import { userRepository, User } from '../repositories/user.repository.js';
+import { refreshTokenRepository } from '../repositories/refreshToken.repository.js';
+import { logger } from '../utils/logger.js';
 
 const SALT_ROUNDS = 12;
 
@@ -35,10 +35,10 @@ export interface SigninParams {
 // Generate unique tenant ID
 function generateTenantId(email: string): string {
   const emailPrefix = email
-    .split("@")[0]
+    .split('@')[0]
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const randomSuffix = crypto.randomBytes(4).toString("hex");
+    .replace(/[^a-z0-9]/g, '');
+  const randomSuffix = crypto.randomBytes(4).toString('hex');
   return `${emailPrefix}-${randomSuffix}`.substring(0, 50);
 }
 
@@ -52,11 +52,11 @@ function generateTokens(user: User): AuthTokens {
   };
 
   const accessToken = jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_ACCESS_EXPIRY as jwt.SignOptions["expiresIn"],
+    expiresIn: env.JWT_ACCESS_EXPIRY as jwt.SignOptions['expiresIn'],
   });
 
   // Refresh token is a random string (not JWT)
-  const refreshToken = crypto.randomBytes(64).toString("hex");
+  const refreshToken = crypto.randomBytes(64).toString('hex');
 
   return { accessToken, refreshToken };
 }
@@ -70,13 +70,13 @@ function parseExpiry(expiry: string): number {
   const unit = match[2];
 
   switch (unit) {
-    case "s":
+    case 's':
       return value * 1000;
-    case "m":
+    case 'm':
       return value * 60 * 1000;
-    case "h":
+    case 'h':
       return value * 60 * 60 * 1000;
-    case "d":
+    case 'd':
       return value * 24 * 60 * 60 * 1000;
     default:
       return 7 * 24 * 60 * 60 * 1000;
@@ -87,7 +87,7 @@ export const authService = {
   async signup(params: SignupParams) {
     // Check if email exists
     if (await userRepository.emailExists(params.email)) {
-      throw new Error("Email already registered");
+      throw new Error('Email already registered');
     }
 
     // Hash password
@@ -104,19 +104,19 @@ export const authService = {
       tenantId,
     });
 
-    logger.info({ userId: user.id, tenantId }, "User created");
+    logger.info({ userId: user.id, tenantId }, 'User created');
 
     // Generate tokens
     const tokens = generateTokens(user);
 
     // Save refresh token (starts a new token family)
     const refreshExpiry = new Date(
-      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY),
+      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY)
     );
     await refreshTokenRepository.save(
       user.id,
       tokens.refreshToken,
-      refreshExpiry,
+      refreshExpiry
       // No familyId = new family for new signup
     );
 
@@ -135,28 +135,28 @@ export const authService = {
     // Find user
     const user = await userRepository.findByEmail(params.email);
     if (!user) {
-      throw new Error("Invalid email or password");
+      throw new Error('Invalid email or password');
     }
 
     // Verify password
     const isValid = await bcrypt.compare(params.password, user.password_hash);
     if (!isValid) {
-      throw new Error("Invalid email or password");
+      throw new Error('Invalid email or password');
     }
 
-    logger.info({ userId: user.id }, "User signed in");
+    logger.info({ userId: user.id }, 'User signed in');
 
     // Generate tokens
     const tokens = generateTokens(user);
 
     // Save refresh token (starts a new token family for new login)
     const refreshExpiry = new Date(
-      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY),
+      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY)
     );
     await refreshTokenRepository.save(
       user.id,
       tokens.refreshToken,
-      refreshExpiry,
+      refreshExpiry
       // No familyId = new family for new signin
     );
 
@@ -175,7 +175,7 @@ export const authService = {
     // Find refresh token (includes revoked tokens for reuse detection)
     const tokenData = await refreshTokenRepository.findByToken(refreshToken);
     if (!tokenData) {
-      throw new Error("Invalid or expired refresh token");
+      throw new Error('Invalid or expired refresh token');
     }
 
     // SECURITY: Detect refresh token reuse attack
@@ -184,16 +184,16 @@ export const authService = {
     if (tokenData.is_revoked) {
       logger.warn(
         { userId: tokenData.user_id, familyId: tokenData.family_id },
-        "Refresh token reuse detected - revoking entire token family",
+        'Refresh token reuse detected - revoking entire token family'
       );
       await refreshTokenRepository.revokeFamily(tokenData.family_id);
-      throw new Error("Token reuse detected. Please login again.");
+      throw new Error('Token reuse detected. Please login again.');
     }
 
     // Get user
     const user = await userRepository.findById(tokenData.user_id);
     if (!user) {
-      throw new Error("User not found");
+      throw new Error('User not found');
     }
 
     // Mark the old token as revoked (not deleted) to detect reuse
@@ -204,13 +204,13 @@ export const authService = {
 
     // Save new refresh token in the same family
     const refreshExpiry = new Date(
-      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY),
+      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY)
     );
     await refreshTokenRepository.save(
       user.id,
       tokens.refreshToken,
       refreshExpiry,
-      tokenData.family_id, // Continue the same token family
+      tokenData.family_id // Continue the same token family
     );
 
     return {

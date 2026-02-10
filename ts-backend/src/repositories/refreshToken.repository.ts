@@ -1,6 +1,6 @@
 // src/repositories/refreshToken.repository.ts
-import { pool } from "../db/pool.js";
-import crypto from "crypto";
+import { pool } from '../db/pool.js';
+import crypto from 'crypto';
 
 export interface RefreshTokenData {
   user_id: string;
@@ -12,7 +12,7 @@ export interface RefreshTokenData {
 export const refreshTokenRepository = {
   // Hash token before storing (security best practice)
   hashToken(token: string): string {
-    return crypto.createHash("sha256").update(token).digest("hex");
+    return crypto.createHash('sha256').update(token).digest('hex');
   },
 
   /**
@@ -25,14 +25,14 @@ export const refreshTokenRepository = {
     userId: string,
     token: string,
     expiresAt: Date,
-    familyId?: string,
+    familyId?: string
   ): Promise<string> {
     const tokenHash = this.hashToken(token);
     const family = familyId || crypto.randomUUID();
     await pool.query(
       `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id, is_revoked)
        VALUES ($1, $2, $3, $4, FALSE)`,
-      [userId, tokenHash, expiresAt, family],
+      [userId, tokenHash, expiresAt, family]
     );
     return family;
   },
@@ -45,7 +45,7 @@ export const refreshTokenRepository = {
     const result = await pool.query(
       `SELECT user_id, expires_at, family_id, is_revoked FROM refresh_tokens
        WHERE token_hash = $1 AND expires_at > NOW()`,
-      [tokenHash],
+      [tokenHash]
     );
     return result.rows[0] || null;
   },
@@ -57,8 +57,8 @@ export const refreshTokenRepository = {
   async markRevoked(token: string): Promise<void> {
     const tokenHash = this.hashToken(token);
     await pool.query(
-      "UPDATE refresh_tokens SET is_revoked = TRUE WHERE token_hash = $1",
-      [tokenHash],
+      'UPDATE refresh_tokens SET is_revoked = TRUE WHERE token_hash = $1',
+      [tokenHash]
     );
   },
 
@@ -67,7 +67,7 @@ export const refreshTokenRepository = {
    */
   async deleteByToken(token: string): Promise<void> {
     const tokenHash = this.hashToken(token);
-    await pool.query("DELETE FROM refresh_tokens WHERE token_hash = $1", [
+    await pool.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [
       tokenHash,
     ]);
   },
@@ -77,7 +77,7 @@ export const refreshTokenRepository = {
    * This invalidates all tokens in the refresh chain
    */
   async revokeFamily(familyId: string): Promise<void> {
-    await pool.query("DELETE FROM refresh_tokens WHERE family_id = $1", [
+    await pool.query('DELETE FROM refresh_tokens WHERE family_id = $1', [
       familyId,
     ]);
   },
@@ -86,13 +86,13 @@ export const refreshTokenRepository = {
    * Delete all tokens for a user (logout from all devices)
    */
   async deleteAllForUser(userId: string): Promise<void> {
-    await pool.query("DELETE FROM refresh_tokens WHERE user_id = $1", [userId]);
+    await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
   },
 
   /**
    * Cleanup expired tokens (run periodically)
    */
   async deleteExpired(): Promise<void> {
-    await pool.query("DELETE FROM refresh_tokens WHERE expires_at < NOW()");
+    await pool.query('DELETE FROM refresh_tokens WHERE expires_at < NOW()');
   },
 };

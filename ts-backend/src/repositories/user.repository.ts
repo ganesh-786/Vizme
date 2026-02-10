@@ -1,5 +1,5 @@
 // src/repositories/user.repository.ts
-import { pool } from "../db/pool.js";
+import { pool } from '../db/pool.js';
 
 export interface User {
   id: string;
@@ -20,14 +20,14 @@ export interface CreateUserParams {
 
 export const userRepository = {
   async findByEmail(email: string): Promise<User | null> {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [
       email.toLowerCase(),
     ]);
     return result.rows[0] || null;
   },
 
   async findById(id: string): Promise<User | null> {
-    const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
     return result.rows[0] || null;
   },
 
@@ -41,13 +41,13 @@ export const userRepository = {
         params.passwordHash,
         params.name,
         params.tenantId,
-      ],
+      ]
     );
     return result.rows[0];
   },
 
   async emailExists(email: string): Promise<boolean> {
-    const result = await pool.query("SELECT 1 FROM users WHERE email = $1", [
+    const result = await pool.query('SELECT 1 FROM users WHERE email = $1', [
       email.toLowerCase(),
     ]);
     return result.rows.length > 0;

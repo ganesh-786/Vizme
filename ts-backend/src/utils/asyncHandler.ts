@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from 'express';
 
 /**
  * asyncHandler is a higher-order function that wraps an async Express route handler,
@@ -14,8 +14,8 @@ export const asyncHandler =
     fn: (
       req: Request,
       res: Response,
-      next: NextFunction,
-    ) => Promise<void | Response | undefined>,
+      next: NextFunction
+    ) => Promise<void | Response | undefined>
   ) =>
   (req: Request, res: Response, next: NextFunction) =>
     fn(req, res, next).catch(next);

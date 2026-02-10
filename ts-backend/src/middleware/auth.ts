@@ -1,7 +1,7 @@
 // src/middleware/auth.ts
-import { Request, Response, NextFunction } from "express";
-import { authService, TokenPayload } from "../services/auth.service.js";
-import { logger } from "../utils/logger.js";
+import { Request, Response, NextFunction } from 'express';
+import { authService, TokenPayload } from '../services/auth.service.js';
+import { logger } from '../utils/logger.js';
 
 // Extend Express Request
 declare global {
@@ -16,15 +16,15 @@ declare global {
 export async function authenticate(
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res
         .status(401)
-        .json({ error: "Missing or invalid authorization header" });
+        .json({ error: 'Missing or invalid authorization header' });
       return;
     }
 
@@ -36,15 +36,15 @@ export async function authenticate(
 
     next();
   } catch (error: any) {
-    if (error.name === "TokenExpiredError") {
-      res.status(401).json({ error: "Token expired" });
+    if (error.name === 'TokenExpiredError') {
+      res.status(401).json({ error: 'Token expired' });
       return;
     }
-    if (error.name === "JsonWebTokenError") {
-      res.status(401).json({ error: "Invalid token" });
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({ error: 'Invalid token' });
       return;
     }
-    logger.error({ error }, "Authentication error");
-    res.status(401).json({ error: "Authentication failed" });
+    logger.error({ error }, 'Authentication error');
+    res.status(401).json({ error: 'Authentication failed' });
   }
 }
