@@ -43,8 +43,12 @@ function MetricConfigForm({ isEdit = false }) {
   const fetchConfigData = async () => {
     try {
       setFetchingData(true);
-      const response = await metricConfigsAPI.getById(id);
-      const config = response.data;
+      const config = await metricConfigsAPI.getById(id);
+      if (!config) {
+        showToast('Configuration not found', 'error');
+        navigate('/metric-configs');
+        return;
+      }
 
       setFormData({
         name: config.name || '',
@@ -55,16 +59,18 @@ function MetricConfigForm({ isEdit = false }) {
         help_text: config.help_text || '',
       });
 
-      if (config.labels && config.labels.length > 0) {
+      if (config.labels && Array.isArray(config.labels) && config.labels.length > 0) {
         setLabels(
           config.labels.map((l) => ({
             key: l.name || l.key || '',
             value: l.value || '',
           }))
         );
+      } else {
+        setLabels([{ key: 'env', value: 'prod' }]);
       }
     } catch (err) {
-      showToast('Failed to load configuration', 'error');
+      showToast(err.response?.data?.error || 'Failed to load configuration', 'error');
       navigate('/metric-configs');
     } finally {
       setFetchingData(false);

@@ -153,10 +153,18 @@ const runMigrations = async () => {
       metric_name VARCHAR(255) NOT NULL,
       labels JSONB DEFAULT '[]'::jsonb,
       help_text TEXT,
+      status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'paused', 'draft')),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, metric_name)
     )`,
+
+    // Add status column to existing metric_configs (idempotent)
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'metric_configs' AND column_name = 'status') THEN
+        ALTER TABLE metric_configs ADD COLUMN status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'paused', 'draft'));
+      END IF;
+    END $$`,
 
     // Indexes
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,

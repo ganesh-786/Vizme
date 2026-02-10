@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { useToast } from '@/components/ToastContainer';
-import { PlusIcon, EditIcon, CopyIcon, ArchiveIcon } from '@/assets/icons';
+import { useConfirm } from '@/components/ConfirmModal';
+import { PlusIcon, EditIcon, CopyIcon, ArchiveIcon, DeleteIcon } from '@/assets/icons';
 import MetricConfigsListSkeleton from './MetricConfigsListSkeleton';
 import './MetricConfigsList.css';
 
@@ -48,11 +49,12 @@ const getLabelText = (label) => {
 
 // Status badge component
 const StatusBadge = ({ status }) => {
-  const isActive = status === 'active';
+  const normalized = status === 'active' ? 'active' : status === 'draft' ? 'draft' : 'paused';
+  const label = normalized === 'active' ? 'Active' : normalized === 'draft' ? 'Draft' : 'Paused';
   return (
-    <span className={`status-badge ${isActive ? 'status-active' : 'status-paused'}`}>
+    <span className={`status-badge status-${normalized}`}>
       <span className="status-dot" />
-      {isActive ? 'Active' : 'Paused'}
+      {label}
     </span>
   );
 };
@@ -60,6 +62,7 @@ const StatusBadge = ({ status }) => {
 function MetricConfigsList() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -72,8 +75,8 @@ function MetricConfigsList() {
   const fetchConfigs = async () => {
     try {
       setLoading(true);
-      const response = await metricConfigsAPI.getAll();
-      setConfigs(response.data || []);
+      const data = await metricConfigsAPI.getAll();
+      setConfigs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch configs:', err);
       showToast('Failed to load configurations', 'error');
@@ -115,6 +118,24 @@ function MetricConfigsList() {
       fetchConfigs();
     } catch (err) {
       showToast('Failed to archive configuration', 'error');
+    }
+  };
+
+  const handleDelete = async (config) => {
+    const confirmed = await confirm({
+      title: 'Delete configuration',
+      message: `Are you sure you want to permanently delete "${config.name}"? This cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+    });
+    if (!confirmed) return;
+    try {
+      await metricConfigsAPI.delete(config.id);
+      showToast('Configuration deleted successfully.', 'success');
+      fetchConfigs();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to delete configuration', 'error');
     }
   };
 
@@ -211,25 +232,40 @@ function MetricConfigsList() {
                       <td className="config-actions-cell">
                         <div className="actions-wrapper">
                           <button
+                            type="button"
                             className="action-btn"
                             onClick={() => handleEdit(config.id)}
                             title="Edit"
+                            aria-label="Edit configuration"
                           >
                             <EditIcon size={18} />
                           </button>
                           <button
+                            type="button"
                             className="action-btn"
                             onClick={() => handleClone(config)}
                             title="Clone"
+                            aria-label="Clone configuration"
                           >
                             <CopyIcon size={18} />
                           </button>
                           <button
-                            className="action-btn action-btn-danger"
+                            type="button"
+                            className="action-btn"
                             onClick={() => handleArchive(config.id)}
                             title="Archive"
+                            aria-label="Archive configuration"
                           >
                             <ArchiveIcon size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            className="action-btn action-btn-danger"
+                            onClick={() => handleDelete(config)}
+                            title="Delete"
+                            aria-label="Delete configuration"
+                          >
+                            <DeleteIcon size={18} />
                           </button>
                         </div>
                       </td>
