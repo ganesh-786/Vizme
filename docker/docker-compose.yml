@@ -56,6 +56,7 @@ services:
       - metrics_network
     depends_on:
       - minio
+
   # ============================================================
   # One-shot init container — creates the "keycloak" schema in
   # the cloud PostgreSQL if it doesn't already exist.
