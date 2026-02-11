@@ -362,7 +362,7 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 - `docs/keycloak-auth-step-4.md` (detailed migration + verification guide)
 
 **Notes**:
-- Existing JWT auth remains available in `legacy` or `both` modes via `AUTH_PROVIDER`.
+- During Steps 2–4, existing JWT auth was available in `legacy` or `both` modes via `AUTH_PROVIDER` (removed after Step 5).
 - API key–based flows and Prometheus scraping remain unchanged.
 - User migration is **lazy**: mappings are created the first time a user signs in via Keycloak, so there is no risky one-time bulk migration.
 
@@ -404,8 +404,9 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 
 ## 8. Rollback Strategy
 
-- **Steps 1–4**: Rollback by env/config only (e.g. set `AUTH_PROVIDER=legacy`, `VITE_AUTH_PROVIDER=legacy`) or by removing Keycloak from docker-compose. No code changes needed.
-- **After Step 5**: Legacy code and env flags have been removed. Rollback requires reverting the Step 5 code changes and reinstalling backend dependencies (`bcryptjs`, `jsonwebtoken`). See `docs/keycloak-auth-step-5.md` for details.
+- **Step 1** (Infrastructure): Remove Keycloak containers from docker-compose. Zero code impact (or minimal if the app already depends on Keycloak for login).
+- **Steps 2–4** (historical): Rollback was possible by env/config only (e.g. `AUTH_PROVIDER=legacy`, `VITE_AUTH_PROVIDER=legacy`) or by removing Keycloak from docker-compose, without code changes — **these flags are no longer present after Step 5**.
+- **After Step 5**: Legacy code and env flags have been removed. Rollback requires reverting the Step 5 (and related) code changes and reinstalling backend dependencies (`bcryptjs`, `jsonwebtoken`). See `docs/keycloak-auth-step-5.md` for details.
 
 **Emergency rollback**: Revert to the commit before the change. After Step 5, restore legacy auth code and dependencies from version control.
 

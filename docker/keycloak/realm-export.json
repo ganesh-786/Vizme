@@ -89,6 +89,8 @@
         "client.session.idle.timeout": "1800"
       },
       "defaultClientScopes": [
+        "web-origins",
+        "acr",
         "openid",
         "profile",
         "email",
@@ -96,9 +98,10 @@
         "backend-roles"
       ],
       "optionalClientScopes": [
-        "offline_access",
         "address",
-        "phone"
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
       ]
     },
     {
@@ -118,6 +121,8 @@
         "use.refresh.tokens": "true"
       },
       "defaultClientScopes": [
+        "web-origins",
+        "acr",
         "openid",
         "profile",
         "email",
