@@ -166,6 +166,16 @@ const runMigrations = async () => {
       END IF;
     END $$`,
 
+    // Add metric_config_id column to api_keys (idempotent) — links key to a specific metric configuration
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_keys' AND column_name = 'metric_config_id') THEN
+        ALTER TABLE api_keys ADD COLUMN metric_config_id INTEGER REFERENCES metric_configs(id) ON DELETE SET NULL;
+      END IF;
+    END $$`,
+
+    // Unique partial index: one auto-generated key per (user, metric_config) pair
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_user_metric_config ON api_keys (user_id, metric_config_id) WHERE metric_config_id IS NOT NULL`,
+
     // Indexes
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`,

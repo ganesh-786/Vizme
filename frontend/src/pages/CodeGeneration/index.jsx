@@ -53,7 +53,8 @@ function CodeGeneration() {
       ]);
 
       const keys = keysRes.data || [];
-      const configs = configsRes.data || [];
+      // metricConfigsAPI.getAll() returns an unwrapped array, not { data: [] }
+      const configs = Array.isArray(configsRes) ? configsRes : (configsRes?.data || []);
 
       setApiKeys(keys);
       setMetricConfigs(configs);
@@ -112,7 +113,7 @@ function CodeGeneration() {
 
   // Fallback snippet template if backend is unavailable
   const getFallbackSnippet = () => {
-    const appId = selectedApiKey?.api_key?.substring(0, 20) || 'vz_your_api_key';
+    const appId = selectedApiKey?.masked_key || 'vz_your_api_key';
     return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=${encodeURIComponent(appId)}&a=${autoPageViews ? '1' : '0'}&c=1';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
   };
 

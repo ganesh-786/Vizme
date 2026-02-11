@@ -12,32 +12,177 @@ const router = express.Router();
 router.use(authenticate);
 router.use(apiLimiter);
 
-// Generate API key
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Generate a cryptographically-random API key prefixed with `mk_`. */
 const generateApiKey = () => {
   return `mk_${crypto.randomBytes(32).toString('hex')}`;
 };
 
-// Get all API keys for user
+/**
+ * Return a masked representation of an API key suitable for display.
+ * Only the first 7 characters are kept; the rest is replaced with dots.
+ */
+const maskApiKey = (key) => {
+  if (!key) return '';
+  return `${key.substring(0, 7)}${'••••••••••••'}`;
+};
+
+// ---------------------------------------------------------------------------
+// GET / — List all API keys for the authenticated user (masked, never raw)
+// ---------------------------------------------------------------------------
 router.get('/', async (req, res, next) => {
   try {
     const result = await query(
-      'SELECT id, key_name, api_key, is_active, created_at, updated_at FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC',
+      `SELECT id, key_name, metric_config_id, is_active, created_at, updated_at
+       FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user.id]
     );
 
+    // Attach a masked representation; raw key is never returned in list.
+    const data = result.rows.map((row) => ({
+      ...row,
+      masked_key: 'mk_••••••••••••', // constant mask — no partial leak
+    }));
+
     res.json({
       success: true,
-      data: result.rows
+      data,
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Create new API key
-router.post('/',
+// ---------------------------------------------------------------------------
+// POST /ensure — Idempotent: return existing key or create one for a given
+//                metric configuration.  Raw key is returned ONLY on creation.
+// ---------------------------------------------------------------------------
+router.post(
+  '/ensure',
   [
-    body('key_name').trim().isLength({ min: 1, max: 255 }).withMessage('Key name is required')
+    body('metric_config_id')
+      .optional({ nullable: true })
+      .isInt()
+      .withMessage('metric_config_id must be an integer'),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new BadRequestError('Validation failed', errors.array());
+      }
+
+      const metricConfigId = req.body.metric_config_id ?? null;
+
+      // If metric_config_id supplied, verify ownership
+      let configName = 'Default Key';
+      if (metricConfigId) {
+        const configCheck = await query(
+          'SELECT id, name FROM metric_configs WHERE id = $1 AND user_id = $2',
+          [metricConfigId, req.user.id]
+        );
+        if (configCheck.rows.length === 0) {
+          throw new NotFoundError('Metric config not found');
+        }
+        configName = configCheck.rows[0].name;
+      }
+
+      // Look for an existing active key for this (user, metric_config) pair.
+      // `IS NOT DISTINCT FROM` handles both NULL and non-NULL correctly.
+      const existing = await query(
+        `SELECT id, key_name, metric_config_id, is_active, created_at, updated_at
+         FROM api_keys
+         WHERE user_id = $1
+           AND (metric_config_id IS NOT DISTINCT FROM $2)
+           AND is_active = true
+         LIMIT 1`,
+        [req.user.id, metricConfigId]
+      );
+
+      if (existing.rows.length > 0) {
+        return res.json({
+          success: true,
+          data: {
+            ...existing.rows[0],
+            masked_key: 'mk_••••••••••••',
+          },
+          is_new: false,
+        });
+      }
+
+      // ---- No existing key — generate one --------------------------------
+      const apiKey = generateApiKey();
+      const keyName = metricConfigId ? configName : 'Default Key';
+
+      let result;
+      try {
+        result = await query(
+          `INSERT INTO api_keys (user_id, key_name, api_key, metric_config_id)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, key_name, api_key, metric_config_id, is_active, created_at`,
+          [req.user.id, keyName, apiKey, metricConfigId]
+        );
+      } catch (err) {
+        // Handle race condition: unique constraint violation means another
+        // concurrent request already created the key — just return it.
+        if (err.code === '23505') {
+          const retry = await query(
+            `SELECT id, key_name, metric_config_id, is_active, created_at, updated_at
+             FROM api_keys
+             WHERE user_id = $1
+               AND (metric_config_id IS NOT DISTINCT FROM $2)
+               AND is_active = true
+             LIMIT 1`,
+            [req.user.id, metricConfigId]
+          );
+          return res.json({
+            success: true,
+            data: {
+              ...retry.rows[0],
+              masked_key: 'mk_••••••••••••',
+            },
+            is_new: false,
+          });
+        }
+        throw err;
+      }
+
+      const newRow = result.rows[0];
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: newRow.id,
+          key_name: newRow.key_name,
+          api_key: newRow.api_key, // returned ONLY this one time
+          masked_key: maskApiKey(newRow.api_key),
+          metric_config_id: newRow.metric_config_id,
+          is_active: newRow.is_active,
+          created_at: newRow.created_at,
+        },
+        is_new: true,
+        message:
+          'API key created and copied to your clipboard. It will be masked from now on.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// POST / — Manual key creation (existing flow, now also returns masked_key)
+// ---------------------------------------------------------------------------
+router.post(
+  '/',
+  [
+    body('key_name')
+      .trim()
+      .isLength({ min: 1, max: 255 })
+      .withMessage('Key name is required'),
   ],
   async (req, res, next) => {
     try {
@@ -54,10 +199,16 @@ router.post('/',
         [req.user.id, key_name, apiKey]
       );
 
+      const newRow = result.rows[0];
+
       res.status(201).json({
         success: true,
-        data: result.rows[0],
-        message: 'API key created successfully. Store it securely - it will not be shown again.'
+        data: {
+          ...newRow,
+          masked_key: maskApiKey(newRow.api_key),
+        },
+        message:
+          'API key created successfully. Store it securely — it will not be shown again.',
       });
     } catch (error) {
       next(error);
@@ -65,11 +216,40 @@ router.post('/',
   }
 );
 
-// Update API key (name or active status)
-router.patch('/:id',
+// ---------------------------------------------------------------------------
+// POST /:id/copy — Return the raw API key for clipboard copy only.
+//                   The frontend must NEVER render this value in the DOM.
+// ---------------------------------------------------------------------------
+router.post('/:id/copy', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      'SELECT api_key FROM api_keys WHERE id = $1 AND user_id = $2 AND is_active = true',
+      [id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError('API key not found or inactive');
+    }
+
+    res.json({
+      success: true,
+      data: { api_key: result.rows[0].api_key },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /:id — Update API key (name or active status)
+// ---------------------------------------------------------------------------
+router.patch(
+  '/:id',
   [
     body('key_name').optional().trim().isLength({ min: 1, max: 255 }),
-    body('is_active').optional().isBoolean()
+    body('is_active').optional().isBoolean(),
   ],
   async (req, res, next) => {
     try {
@@ -121,7 +301,7 @@ router.patch('/:id',
 
       res.json({
         success: true,
-        data: result.rows[0]
+        data: result.rows[0],
       });
     } catch (error) {
       next(error);
@@ -129,7 +309,9 @@ router.patch('/:id',
   }
 );
 
-// Delete API key
+// ---------------------------------------------------------------------------
+// DELETE /:id — Revoke / delete API key
+// ---------------------------------------------------------------------------
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -145,7 +327,7 @@ router.delete('/:id', async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'API key deleted successfully'
+      message: 'API key deleted successfully',
     });
   } catch (error) {
     next(error);

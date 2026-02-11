@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiKeysAPI } from '@/api/apiKeys';
+import { metricConfigsAPI } from '@/api/metricConfigs';
 import { useToast } from '@/components/ToastContainer';
 import { useConfirm } from '@/components/ConfirmModal';
 import ProgressStepper from '@/components/ProgressStepper';
 import {
   AddCircleIcon,
   CopyIcon,
-  RefreshIcon,
+  CheckIcon,
   KeyIcon,
   LockIcon,
   ShieldIcon,
@@ -23,7 +24,10 @@ import './ApiKeys.css';
 
 function ApiKeys() {
   const navigate = useNavigate();
+
+  // ---- State ---------------------------------------------------------------
   const [keys, setKeys] = useState([]);
+  const [metricConfigs, setMetricConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [keyName, setKeyName] = useState('Main Analytics Feed');
   const [environment, setEnvironment] = useState('production');
@@ -33,27 +37,94 @@ function ApiKeys() {
     adminAccess: false,
     webhooks: true,
   });
-  const [newKey, setNewKey] = useState(null);
+  const [activeKey, setActiveKey] = useState(null); // key displayed in the hero panel (masked)
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [copiedKeyId, setCopiedKeyId] = useState(null); // flash "Copied!" per-row
+
   const { showToast } = useToast();
   const { confirm } = useConfirm();
 
+  // ---- Bootstrap -----------------------------------------------------------
   useEffect(() => {
-    fetchKeys();
+    fetchInitialData();
   }, []);
 
-  const fetchKeys = async () => {
+  /** Fetch keys + metric configs, then auto-ensure if configs exist. */
+  const fetchInitialData = async () => {
     try {
-      const response = await apiKeysAPI.getAll();
-      setKeys(response.data || []);
+      const [keysRes, configsRes] = await Promise.all([
+        apiKeysAPI.getAll(),
+        metricConfigsAPI.getAll(),
+      ]);
+
+      const fetchedKeys = keysRes.data || [];
+      const fetchedConfigs = Array.isArray(configsRes) ? configsRes : [];
+
+      setKeys(fetchedKeys);
+      setMetricConfigs(fetchedConfigs);
+
+      // Auto-ensure an API key when the user already has metric configurations
+      if (fetchedConfigs.length > 0) {
+        await autoEnsureKey(fetchedConfigs[0].id);
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to fetch API keys');
+      setError(err.response?.data?.error || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
+  /** Refresh the keys list (used after mutations). */
+  const fetchKeys = async () => {
+    try {
+      const response = await apiKeysAPI.getAll();
+      setKeys(response.data || []);
+    } catch {
+      /* silent — non-critical refresh */
+    }
+  };
+
+  // ---- Auto-ensure ---------------------------------------------------------
+  /**
+   * Idempotent: creates a new key for the given metric config (or returns the
+   * existing one).  When newly created the raw key is auto-copied to the
+   * clipboard — it is never stored in React state or rendered in the DOM.
+   */
+  const autoEnsureKey = async (metricConfigId) => {
+    try {
+      const response = await apiKeysAPI.ensure(metricConfigId);
+      const { data, is_new } = response;
+
+      if (is_new && data.api_key) {
+        // One-time clipboard copy — raw key never enters display state
+        try {
+          await navigator.clipboard.writeText(data.api_key);
+          showToast('API key auto-generated and copied to clipboard!', 'success', 4000);
+        } catch {
+          showToast('API key auto-generated. Use the Copy button to copy it.', 'info', 4000);
+        }
+      }
+
+      // Store only masked / safe fields
+      setActiveKey({
+        id: data.id,
+        key_name: data.key_name,
+        masked_key: data.masked_key,
+        metric_config_id: data.metric_config_id,
+        is_active: data.is_active,
+        created_at: data.created_at,
+        is_new,
+      });
+
+      // Refresh the keys list so the table is up-to-date
+      await fetchKeys();
+    } catch (err) {
+      console.error('Auto-ensure failed:', err);
+    }
+  };
+
+  // ---- Manual key creation -------------------------------------------------
   const handleGenerateKey = async () => {
     if (!keyName.trim()) {
       showToast('Please enter a key name', 'error');
@@ -65,8 +136,28 @@ function ApiKeys() {
 
     try {
       const response = await apiKeysAPI.create(keyName);
-      setNewKey(response.data);
-      showToast('API key generated successfully!', 'success');
+      const data = response.data;
+
+      // Auto-copy raw key to clipboard (never display it)
+      if (data.api_key) {
+        try {
+          await navigator.clipboard.writeText(data.api_key);
+          showToast('API key generated and copied to clipboard!', 'success', 4000);
+        } catch {
+          showToast('API key generated. Use the Copy button to copy it.', 'info', 4000);
+        }
+      }
+
+      // Display only masked info in the hero panel
+      setActiveKey({
+        id: data.id,
+        key_name: data.key_name,
+        masked_key: data.masked_key || 'mk_••••••••••••',
+        is_active: data.is_active,
+        created_at: data.created_at,
+        is_new: true,
+      });
+
       await fetchKeys();
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to generate API key';
@@ -77,6 +168,21 @@ function ApiKeys() {
     }
   };
 
+  // ---- Re-copy (secure) ----------------------------------------------------
+  /** Fetch the raw key via a dedicated endpoint and write it to the clipboard. */
+  const handleCopyKey = async (id) => {
+    try {
+      const response = await apiKeysAPI.copy(id);
+      await navigator.clipboard.writeText(response.data.api_key);
+      setCopiedKeyId(id);
+      showToast('Copied to clipboard!', 'success', 2000);
+      setTimeout(() => setCopiedKeyId(null), 2000);
+    } catch (err) {
+      showToast('Failed to copy key', 'error');
+    }
+  };
+
+  // ---- Revoke --------------------------------------------------------------
   const handleRevoke = async (id) => {
     const confirmed = await confirm({
       title: 'Revoke API Key',
@@ -87,13 +193,14 @@ function ApiKeys() {
       cancelText: 'Cancel',
     });
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       await apiKeysAPI.delete(id);
       showToast('API key revoked successfully!', 'success');
+
+      // Clear the hero panel if the revoked key was active
+      if (activeKey?.id === id) setActiveKey(null);
       await fetchKeys();
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to revoke API key';
@@ -101,11 +208,7 @@ function ApiKeys() {
     }
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    showToast('Copied to clipboard!', 'success', 2000);
-  };
-
+  // ---- Helpers -------------------------------------------------------------
   const handlePermissionChange = (permission) => {
     setPermissions((prev) => ({
       ...prev,
@@ -124,18 +227,13 @@ function ApiKeys() {
     return `Created ${diffDays} days ago`;
   };
 
-  const maskKey = (key) => {
-    if (!key) return '';
-    const prefix = key.substring(0, 8);
-    return `${prefix}••••_••••_••••`;
-  };
-
   const getEnvironmentFromKey = (key) => {
-    if (key.api_key?.includes('live')) return 'production';
-    if (key.api_key?.includes('test')) return 'staging';
+    if (key.key_name?.toLowerCase().includes('prod')) return 'production';
+    if (key.key_name?.toLowerCase().includes('stag')) return 'staging';
     return 'development';
   };
 
+  // ---- Render --------------------------------------------------------------
   if (loading) {
     return <ApiKeysSkeleton />;
   }
@@ -161,7 +259,7 @@ function ApiKeys() {
         {/* Content */}
         <div className="apikeys-content">
           <div className="apikeys-grid">
-            {/* Left Column - Key Configuration */}
+            {/* Left Column — Key Configuration */}
             <div className="key-configuration">
               <h3 className="section-title">Key Configuration</h3>
 
@@ -235,50 +333,60 @@ function ApiKeys() {
               </button>
             </div>
 
-            {/* Right Column - Secret Key Display */}
+            {/* Right Column — Secret Key Display (always masked) */}
             <div className="secret-key-panel">
               <div className="secret-key-header">
                 <span className="secret-key-label">Your Secret Key</span>
-                {newKey && (
+                {activeKey && (
                   <span className="live-badge">
                     <span className="live-dot"></span>
-                    Live
+                    {activeKey.is_new ? 'New' : 'Live'}
                   </span>
                 )}
               </div>
 
               <div className="secret-key-display">
                 <div className="key-value">
-                  {newKey ? newKey.api_key : 'vz_live_••••_••••_••••_••••'}
+                  {activeKey ? activeKey.masked_key : 'mk_••••••••••••'}
                 </div>
                 <div className="key-actions-inline">
                   <button
                     className="key-action-btn"
-                    onClick={() => newKey && copyToClipboard(newKey.api_key)}
+                    onClick={() => activeKey && handleCopyKey(activeKey.id)}
                     title="Copy to clipboard"
-                    disabled={!newKey}
+                    disabled={!activeKey}
                   >
-                    <CopyIcon size={20} />
-                  </button>
-                  <button
-                    className="key-action-btn"
-                    onClick={handleGenerateKey}
-                    title="Regenerate"
-                    disabled={generating}
-                  >
-                    <RefreshIcon size={20} />
+                    {copiedKeyId === activeKey?.id ? (
+                      <CheckIcon size={20} />
+                    ) : (
+                      <CopyIcon size={20} />
+                    )}
                   </button>
                 </div>
               </div>
 
-              {newKey && (
+              {activeKey?.is_new && (
                 <div className="security-warning">
                   <WarningIcon size={20} />
                   <div className="warning-content">
-                    <p className="warning-title">Security Warning</p>
+                    <p className="warning-title">Copied to Clipboard</p>
                     <p className="warning-text">
-                      For your security, we only show this key once. Please store it in a secure
-                      password manager immediately.
+                      For your security, the key is never displayed. It has been copied to your
+                      clipboard — store it in a secure password manager now. You can re-copy
+                      anytime using the copy button.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeKey && !activeKey.is_new && (
+                <div className="security-warning">
+                  <LockIcon size={20} />
+                  <div className="warning-content">
+                    <p className="warning-title">Key Secured</p>
+                    <p className="warning-text">
+                      This key is never shown for security. Use the copy button above to copy it
+                      to your clipboard whenever you need it.
                     </p>
                   </div>
                 </div>
@@ -338,11 +446,30 @@ function ApiKeys() {
                                   : 'Development'}
                             </span>
                           </td>
-                          <td className="key-masked">{maskKey(key.api_key)}</td>
+                          <td className="key-masked">{key.masked_key}</td>
                           <td className="text-right">
-                            <button className="btn-revoke" onClick={() => handleRevoke(key.id)}>
-                              Revoke
-                            </button>
+                            <div className="key-row-actions">
+                              <button
+                                className="btn-copy-inline"
+                                onClick={() => handleCopyKey(key.id)}
+                                title="Copy to clipboard"
+                              >
+                                {copiedKeyId === key.id ? (
+                                  <>
+                                    <CheckIcon size={14} />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <CopyIcon size={14} />
+                                    Copy
+                                  </>
+                                )}
+                              </button>
+                              <button className="btn-revoke" onClick={() => handleRevoke(key.id)}>
+                                Revoke
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

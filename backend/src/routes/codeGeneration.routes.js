@@ -20,7 +20,7 @@ router.use(apiLimiter);
  */
 router.post('/',
   [
-    body('metric_config_id').optional().isInt(),
+    body('metric_config_id').optional({ nullable: true }).isInt().withMessage('metric_config_id must be an integer'),
     body('api_key_id').isInt().withMessage('API key ID is required'),
     body('auto_track').optional().isBoolean(),
     body('custom_events').optional().isBoolean()
