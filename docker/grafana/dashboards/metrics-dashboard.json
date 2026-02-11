@@ -5,7 +5,7 @@
     "timezone": "browser",
     "schemaVersion": 16,
     "version": 1,
-    "refresh": "10s",
+    "refresh": "3s",
     "panels": [
       {
         "id": 1,
@@ -14,7 +14,7 @@
         "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
         "targets": [
           {
-            "expr": "count({__name__=~\".+\"})",
+            "expr": "count({app=\"unified-visibility-platform\"})",
             "refId": "A"
           }
         ]
@@ -26,7 +26,7 @@
         "gridPos": {"h": 8, "w": 18, "x": 6, "y": 0},
         "targets": [
           {
-            "expr": "rate({__name__=~\".+\"}[5m])",
+            "expr": "rate({app=\"unified-visibility-platform\"}[1m])",
             "refId": "A",
             "legendFormat": "{{__name__}}"
           }

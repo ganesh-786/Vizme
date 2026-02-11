@@ -111,18 +111,21 @@ app.use("/health", healthRoutes);
  */
 app.get("/metrics", async (req, res) => {
   try {
-    console.log('📊 Metrics endpoint accessed');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Metrics endpoint accessed');
+    }
     res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
     const metrics = await getMetrics();
     if (!metrics || metrics.length === 0) {
       res.end('# No metrics available yet\n# Send metrics via POST /api/v1/metrics first\n');
     } else {
-      console.log('📊 Metrics generated, length:', metrics.length);
-      res.end(metrics);  // ✅ Send the actual metrics
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📊 Metrics generated, length:', metrics.length);
+      }
+      res.end(metrics);
     }
   } catch (error) {
     console.error('Error generating metrics:', error);
-    console.error('Error stack:', error.stack);
     res.status(500).end(`# Error generating metrics: ${error.message}\n`);
   }
 });

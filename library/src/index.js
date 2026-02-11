@@ -6,8 +6,8 @@ class VizmeClient {
       this.configReady = Promise.resolve()
       this.apiKey = config.apiKey;
       this.endpoint = config.endpoint || 'http://localhost:3000/api/v1/metrics';
-      this.batchSize = config.batchSize || 10;
-      this.flushInterval = config.flushInterval || 5000;
+      this.batchSize = config.batchSize || 5;
+      this.flushInterval = config.flushInterval || 1000;
 
       //store metric configurations (metric name -> type mapping )
       this.metricConfigs = config.metricConfigs || {};
@@ -546,8 +546,8 @@ class VizmeClient {
         apiKey: config.apiKey,
         endpoint: config.endpoint || 'http://localhost:3000/api/v1/metrics',
         autoTrack: config.autoTrack !== false, // Default: true
-        batchSize: config.batchSize || 10,
-        flushInterval: config.flushInterval || 5000,
+        batchSize: config.batchSize || 5,
+        flushInterval: config.flushInterval || 1000,
         metricConfigs: config.metricConfigs || {}, //store metric configurations
         autofetchConfigs: config.autofetchConfigs !== false, // Default: true
         ...config
