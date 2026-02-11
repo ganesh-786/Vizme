@@ -1,5 +1,5 @@
 // src/repositories/user.repository.ts
-import { pool } from '../db/pool.js';
+import { pool } from '@/db/pool.js';
 
 export interface User {
   id: string;

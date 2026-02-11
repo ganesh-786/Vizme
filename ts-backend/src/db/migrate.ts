@@ -1,6 +1,6 @@
 // src/db/migrate.ts
-import { pool } from './pool.js';
-import { logger } from '../utils/logger.js';
+import { pool } from '@/db/pool.js';
+import { logger } from '@/utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';

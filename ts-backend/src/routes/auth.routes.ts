@@ -7,9 +7,9 @@ import {
   logout,
   logoutAll,
   me,
-} from '../controllers/auth.controller.js';
-import { authenticate } from '../middleware/auth.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
+} from '@/controllers/auth.controller.js';
+import { authenticate } from '@/middleware/auth.js';
+import { asyncHandler } from '@/utils/asyncHandler.js';
 
 export const authRoutes = Router();
 

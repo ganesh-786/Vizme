@@ -1,7 +1,7 @@
 // src/controllers/auth.controller.ts
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { authService } from '../services/auth.service.js';
+import { authService } from '@/services/auth.service.js';
 
 const signupSchema = z.object({
   email: z.email({ error: 'Invalid email' }),

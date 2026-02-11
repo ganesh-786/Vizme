@@ -2,10 +2,10 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { env } from '../config/env.js';
-import { userRepository, User } from '../repositories/user.repository.js';
-import { refreshTokenRepository } from '../repositories/refreshToken.repository.js';
-import { logger } from '../utils/logger.js';
+import { env } from '@/config/env.js';
+import { userRepository, User } from '@/repositories/user.repository.js';
+import { refreshTokenRepository } from '@/repositories/refreshToken.repository.js';
+import { logger } from '@/utils/logger.js';
 
 const SALT_ROUNDS = 12;
 

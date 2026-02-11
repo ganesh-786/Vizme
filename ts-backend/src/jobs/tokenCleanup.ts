@@ -1,5 +1,5 @@
-import { refreshTokenRepository } from '../repositories/refreshToken.repository.js';
-import { logger } from '../utils/logger.js';
+import { refreshTokenRepository } from '@/repositories/refreshToken.repository.js';
+import { logger } from '@/utils/logger.js';
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 

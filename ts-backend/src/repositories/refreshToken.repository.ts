@@ -1,5 +1,5 @@
 // src/repositories/refreshToken.repository.ts
-import { pool } from '../db/pool.js';
+import { pool } from '@/db/pool.js';
 import crypto from 'crypto';
 
 export interface RefreshTokenData {

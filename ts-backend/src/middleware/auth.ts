@@ -1,7 +1,7 @@
 // src/middleware/auth.ts
 import { Request, Response, NextFunction } from 'express';
-import { authService, TokenPayload } from '../services/auth.service.js';
-import { logger } from '../utils/logger.js';
+import { authService, TokenPayload } from '@/services/auth.service.js';
+import { logger } from '@/utils/logger.js';
 
 // Extend Express Request
 declare global {
