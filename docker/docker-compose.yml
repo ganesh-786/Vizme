@@ -56,6 +56,67 @@ services:
       - metrics_network
     depends_on:
       - minio
+  # ============================================================
+  # One-shot init container — creates the "keycloak" schema in
+  # the cloud PostgreSQL if it doesn't already exist.
+  # ============================================================
+  keycloak-db-init:
+    image: postgres:15-alpine
+    container_name: metrics_keycloak_db_init
+    command: >
+      sh -c "PGPASSWORD=$$DB_PASSWORD psql
+      -h $$DB_HOST -p $${DB_PORT:-5432} -U $$DB_USER -d $$DB_NAME
+      -c 'CREATE SCHEMA IF NOT EXISTS keycloak;'"
+    env_file:
+      - .env
+    networks:
+      - metrics_network
+    restart: "no"
+
+  # ============================================================
+  # Keycloak AAA — Identity Provider
+  # Uses the same cloud PostgreSQL as the app, but in a separate
+  # schema ("keycloak") to keep tables isolated from app tables.
+  # ============================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: metrics_keycloak
+    command: start-dev --import-realm
+    environment:
+      # Keycloak admin credentials
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Database connection — same cloud PostgreSQL, separate schema
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}?sslmode=require
+      KC_DB_USERNAME: ${DB_USER}
+      KC_DB_PASSWORD: ${DB_PASSWORD}
+      KC_DB_SCHEMA: keycloak
+      # Server config
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      # Health
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      keycloak-db-init:
+        condition: service_completed_successfully
+    networks:
+      - metrics_network
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
@@ -182,6 +243,12 @@ services:
       - METRICS_SCRAPE_PASSWORD=${METRICS_SCRAPE_PASSWORD:-}
       # Dashboard fallback path for tenant setup (resilient after grafana volume reset)
       - DASHBOARD_JSON_PATH=/app/dashboards/metrics-dashboard.json
+      # Keycloak config (for future backend token validation)
+      - AUTH_PROVIDER=${AUTH_PROVIDER:-legacy}
+      - KEYCLOAK_URL=${KEYCLOAK_URL:-http://keycloak:8080}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-unified-visibility}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-uv-backend}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
     volumes:
       - ../backend:/app
       # Dashboard JSON for tenant setup fallback (when Grafana org 1 provisioning is slow after volume reset)
