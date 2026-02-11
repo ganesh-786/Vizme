@@ -292,6 +292,26 @@
   background: var(--text-tertiary);
 }
 
+.status-draft {
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-draft .status-dot {
+  background: #f59e0b;
+}
+
+[data-theme='dark'] .status-draft {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme='dark'] .status-draft .status-dot {
+  background: #fbbf24;
+}
+
 /* Actions */
 .config-actions-cell {
   text-align: right;

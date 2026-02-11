@@ -85,7 +85,7 @@ const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
 router.get('/', async (req, res, next) => {
   try {
     const result = await query(
-      'SELECT id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at FROM metric_configs WHERE user_id = $1 ORDER BY created_at DESC',
+      'SELECT id, name, description, metric_type, metric_name, labels, help_text, status, created_at, updated_at FROM metric_configs WHERE user_id = $1 ORDER BY created_at DESC',
       [req.user.id]
     );
 
@@ -104,7 +104,7 @@ router.get('/:id', async (req, res, next) => {
     const { id } = req.params;
 
     const result = await query(
-      'SELECT id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at FROM metric_configs WHERE id = $1 AND user_id = $2',
+      'SELECT id, name, description, metric_type, metric_name, labels, help_text, status, created_at, updated_at FROM metric_configs WHERE id = $1 AND user_id = $2',
       [id, req.user.id]
     );
 
@@ -132,7 +132,8 @@ router.post('/',
     body('help_text').optional().trim(),
     body('labels').optional().isArray().withMessage('Labels must be an array'),
     body('labels.*.name').optional().trim().isLength({ min: 1 }),
-    body('labels.*.value').optional().trim()
+    body('labels.*.value').optional().trim(),
+    body('status').optional().isIn(['active', 'paused', 'draft'])
   ],
   async (req, res, next) => {
     try {
@@ -141,7 +142,8 @@ router.post('/',
         throw new BadRequestError('Validation failed', errors.array());
       }
 
-      const { name, description, metric_type, metric_name, labels, help_text } = req.body;
+      const { name, description, metric_type, metric_name, labels, help_text, status } = req.body;
+      const statusValue = status && ['active', 'paused', 'draft'].includes(status) ? status : 'active';
 
       // Validate metric name format (Prometheus naming convention)
       if (!/^[a-zA-Z_:][a-zA-Z0-9_:]*$/.test(metric_name)) {
@@ -149,10 +151,10 @@ router.post('/',
       }
 
       const result = await query(
-        `INSERT INTO metric_configs (user_id, name, description, metric_type, metric_name, labels, help_text)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at`,
-        [req.user.id, name, description || null, metric_type, metric_name, JSON.stringify(labels || []), help_text || null]
+        `INSERT INTO metric_configs (user_id, name, description, metric_type, metric_name, labels, help_text, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, name, description, metric_type, metric_name, labels, help_text, status, created_at, updated_at`,
+        [req.user.id, name, description || null, metric_type, metric_name, JSON.stringify(labels || []), help_text || null, statusValue]
       );
 
       res.status(201).json({
@@ -169,6 +171,7 @@ router.post('/',
 );
 
 // Update metric config
+const STATUS_VALUES = ['active', 'paused', 'draft'];
 router.patch('/:id',
   [
     body('name').optional().trim().isLength({ min: 1, max: 255 }),
@@ -176,7 +179,10 @@ router.patch('/:id',
     body('help_text').optional().trim(),
     body('labels').optional().isArray(),
     body('labels.*.name').optional().trim().isLength({ min: 1 }),
-    body('labels.*.value').optional().trim()
+    body('labels.*.value').optional().trim(),
+    body('metric_type').optional().trim().toLowerCase().isIn(METRIC_TYPES).withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
+    body('metric_name').optional().trim().isLength({ min: 1, max: 255 }).matches(/^[a-zA-Z_:][a-zA-Z0-9_:]*$/).withMessage('Metric name must be valid (alphanumeric, underscore, colon)'),
+    body('status').optional().isIn(STATUS_VALUES).withMessage(`Status must be one of: ${STATUS_VALUES.join(', ')}`)
   ],
   async (req, res, next) => {
     try {
@@ -186,7 +192,15 @@ router.patch('/:id',
       }
 
       const { id } = req.params;
-      const { name, description, help_text, labels } = req.body;
+      let { name, description, help_text, labels, metric_type, metric_name, status } = req.body;
+
+      // Normalize metric_type to lowercase for DB (frontend may send "Counter" etc.)
+      if (metric_type !== undefined && typeof metric_type === 'string') {
+        metric_type = metric_type.toLowerCase().trim();
+        if (!METRIC_TYPES.includes(metric_type)) {
+          throw new BadRequestError(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`);
+        }
+      }
 
       // Verify ownership
       const existing = await query(
@@ -198,6 +212,10 @@ router.patch('/:id',
         throw new NotFoundError('Metric config not found');
       }
 
+      if (metric_name !== undefined && !/^[a-zA-Z_:][a-zA-Z0-9_:]*$/.test(String(metric_name).trim())) {
+        throw new BadRequestError('Invalid metric name format');
+      }
+
       // Build update query
       const updates = [];
       const values = [];
@@ -205,22 +223,37 @@ router.patch('/:id',
 
       if (name !== undefined) {
         updates.push(`name = $${paramCount++}`);
-        values.push(name);
+        values.push(typeof name === 'string' ? name.trim() : name);
       }
 
       if (description !== undefined) {
         updates.push(`description = $${paramCount++}`);
-        values.push(description);
+        values.push(description === '' || description === null ? null : description);
       }
 
       if (help_text !== undefined) {
         updates.push(`help_text = $${paramCount++}`);
-        values.push(help_text);
+        values.push(help_text === '' || help_text === null ? null : help_text);
       }
 
       if (labels !== undefined) {
         updates.push(`labels = $${paramCount++}`);
-        values.push(JSON.stringify(labels));
+        values.push(JSON.stringify(Array.isArray(labels) ? labels : []));
+      }
+
+      if (metric_type !== undefined) {
+        updates.push(`metric_type = $${paramCount++}`);
+        values.push(metric_type);
+      }
+
+      if (metric_name !== undefined) {
+        updates.push(`metric_name = $${paramCount++}`);
+        values.push(typeof metric_name === 'string' ? metric_name.trim() : metric_name);
+      }
+
+      if (status !== undefined) {
+        updates.push(`status = $${paramCount++}`);
+        values.push(status);
       }
 
       if (updates.length === 0) {
@@ -232,7 +265,7 @@ router.patch('/:id',
 
       const whereClause = `WHERE id = $${paramCount++} AND user_id = $${paramCount++}`;
       const result = await query(
-        `UPDATE metric_configs SET ${updates.join(', ')} ${whereClause} RETURNING id, name, description, metric_type, metric_name, labels, help_text, created_at, updated_at`,
+        `UPDATE metric_configs SET ${updates.join(', ')} ${whereClause} RETURNING id, name, description, metric_type, metric_name, labels, help_text, status, created_at, updated_at`,
         values
       );
 

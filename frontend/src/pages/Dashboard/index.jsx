@@ -23,8 +23,8 @@ function Dashboard() {
         ]);
 
         setStats({
-          metricConfigs: configsRes.data?.length || 0,
-          apiKeys: keysRes.data?.length || 0,
+          metricConfigs: Array.isArray(configsRes) ? configsRes.length : (configsRes?.data?.length ?? 0),
+          apiKeys: Array.isArray(keysRes) ? keysRes.length : (keysRes?.data?.length ?? 0),
           loading: false,
         });
       } catch (error) {
