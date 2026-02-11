@@ -22,40 +22,6 @@ services:
     profiles:
       - local-db # Only start with: docker compose --profile local-db up
 
-  # MinIO - S3-compatible storage for Mimir (required for Mimir)
-  minio:
-    image: minio/minio:latest
-    container_name: metrics_minio
-    command: server --quiet /data
-    environment:
-      MINIO_ROOT_USER: mimir
-      MINIO_ROOT_PASSWORD: supersecret
-    volumes:
-      - minio_data:/data
-    networks:
-      - metrics_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  # Grafana Mimir - multi-tenant metrics backend with hard isolation (X-Scope-OrgID = user_id)
-  mimir:
-    image: grafana/mimir:latest
-    container_name: metrics_mimir
-    command: ["-config.file=/etc/mimir/mimir.yaml"]
-    ports:
-      - "9009:8080"
-    volumes:
-      - ./mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
-      - ./mimir/alertmanager-fallback-config.yaml:/etc/alertmanager-fallback-config.yaml:ro
-      - mimir_data:/data
-    networks:
-      - metrics_network
-    depends_on:
-      - minio
   # ============================================================
   # One-shot init container — creates the "keycloak" schema in
   # the cloud PostgreSQL if it doesn't already exist.
@@ -118,6 +84,7 @@ services:
       - metrics_network
     restart: unless-stopped
 
+  # ... (prometheus, pushgateway, grafana stay the same) ...
   prometheus:
     image: prom/prometheus:latest
     container_name: metrics_prometheus
@@ -239,18 +206,12 @@ services:
       - GRAFANA_INTERNAL_URL=http://grafana:3000
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
-      - METRICS_SCRAPE_USER=${METRICS_SCRAPE_USER:-}
-      - METRICS_SCRAPE_PASSWORD=${METRICS_SCRAPE_PASSWORD:-}
-      # Dashboard fallback path for tenant setup (resilient after grafana volume reset)
-      - DASHBOARD_JSON_PATH=/app/dashboards/metrics-dashboard.json
-      # Keycloak config (for backend token validation)
+      # Keycloak config (for future backend token validation)
       - AUTH_PROVIDER=${AUTH_PROVIDER:-legacy}
       - KEYCLOAK_URL=${KEYCLOAK_URL:-http://keycloak:8080}
-      - KEYCLOAK_ISSUER_URL=${KEYCLOAK_ISSUER_URL:-http://localhost:8080}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-unified-visibility}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-uv-backend}
-      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-uv-backend-dev-secret}
-      - KEYCLOAK_FRONTEND_CLIENT_ID=${KEYCLOAK_FRONTEND_CLIENT_ID:-uv-frontend}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
     volumes:
       - ../backend:/app
       # Dashboard JSON for tenant setup fallback (when Grafana org 1 provisioning is slow after volume reset)
@@ -277,9 +238,7 @@ volumes:
   postgres_data:
   prometheus_data:
   pushgateway_data:
-  grafana_data:
-  minio_data:
-  mimir_data:
+  grafana_data: 
 
 networks:
   metrics_network:
