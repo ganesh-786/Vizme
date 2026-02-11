@@ -20,7 +20,7 @@ function GrafanaEmbed({
   panelId,
   from = 'now-1h',
   to = 'now',
-  refresh = '10s',
+  refresh = '3s',
   theme,
   height = 400,
   title = 'Metrics Dashboard',

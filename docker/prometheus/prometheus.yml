@@ -1,6 +1,6 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 3s
+  evaluation_interval: 3s
   external_labels:
     monitor: 'metrics-monitor'
 
@@ -9,15 +9,16 @@ scrape_configs:
   # Scrape metrics from backend application
   # The backend exposes metrics at /metrics endpoint
   - job_name: 'backend'
-    scrape_interval: 15s
-    scrape_timeout: 10s
+    scrape_interval: 3s
+    scrape_timeout: 2s
     static_configs:
       - targets: ['backend:3000']
         labels:
           service: 'unified-visibility-platform'
           environment: 'production'
 
-  # Scrape Prometheus itself
+  # Scrape Prometheus itself (doesn't need to be fast)
   - job_name: 'prometheus'
+    scrape_interval: 10s
     static_configs:
       - targets: ['localhost:9090']

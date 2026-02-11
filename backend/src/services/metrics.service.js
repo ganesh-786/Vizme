@@ -143,7 +143,9 @@ const getOrCreateMetric = (userId, metricName, metricType, labels) => {
  */
 export const recordMetric = (metricData, userId) => {
   const { name, type, value, labels = {} } = metricData;
-  console.log(`🔵🔵🔵🔵[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
+  }
 
   // Validate value
   const numValue = typeof value === 'number' ? value : parseFloat(value);
