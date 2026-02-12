@@ -243,12 +243,14 @@ services:
       - METRICS_SCRAPE_PASSWORD=${METRICS_SCRAPE_PASSWORD:-}
       # Dashboard fallback path for tenant setup (resilient after grafana volume reset)
       - DASHBOARD_JSON_PATH=/app/dashboards/metrics-dashboard.json
-      # Keycloak config (for future backend token validation)
+      # Keycloak config (for backend token validation)
       - AUTH_PROVIDER=${AUTH_PROVIDER:-legacy}
       - KEYCLOAK_URL=${KEYCLOAK_URL:-http://keycloak:8080}
+      - KEYCLOAK_ISSUER_URL=${KEYCLOAK_ISSUER_URL:-http://localhost:8080}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-unified-visibility}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-uv-backend}
-      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-uv-backend-dev-secret}
+      - KEYCLOAK_FRONTEND_CLIENT_ID=${KEYCLOAK_FRONTEND_CLIENT_ID:-uv-frontend}
     volumes:
       - ../backend:/app
       # Dashboard JSON for tenant setup fallback (when Grafana org 1 provisioning is slow after volume reset)
