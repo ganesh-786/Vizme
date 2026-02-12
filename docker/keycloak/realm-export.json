@@ -98,10 +98,9 @@
         "backend-roles"
       ],
       "optionalClientScopes": [
-        "address",
-        "phone",
         "offline_access",
-        "microprofile-jwt"
+        "address",
+        "phone"
       ]
     },
     {
