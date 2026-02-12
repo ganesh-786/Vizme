@@ -1,6 +1,12 @@
 /**
  * Authentication middleware — Keycloak and/or legacy JWT (see AUTH_PROVIDER).
- * API key auth is independent of AUTH_PROVIDER.
+ *
+ * AUTH_PROVIDER:
+ *   "legacy"   – (default) JWT via Bearer header and/or httpOnly cookie session
+ *   "keycloak" – Keycloak OIDC token validation only
+ *   "both"     – try Keycloak first; if it fails, fall back to legacy JWT/cookies
+ *
+ * API key auth (`authenticateApiKey`) is independent of AUTH_PROVIDER.
  */
 
 import { query } from '../database/connection.js';
@@ -14,7 +20,7 @@ import {
 } from '../services/authSession.service.js';
 import { authenticateKeycloak } from './keycloak.middleware.js';
 
-const AUTH_PROVIDER = process.env.AUTH_PROVIDER || 'legacy';
+const AUTH_PROVIDER = (process.env.AUTH_PROVIDER || 'legacy').toLowerCase();
 
 console.log(`🔐 Auth provider: ${AUTH_PROVIDER}`);
 
@@ -82,6 +88,10 @@ const authenticateLegacy = async (req, res, next) => {
   }
 };
 
+/**
+ * When AUTH_PROVIDER=both, try Keycloak first; on failure fall back to legacy
+ * (Bearer or cookie session) so old and new tokens work during migration.
+ */
 const authenticateBoth = async (req, res, next) => {
   authenticateKeycloak(req, res, (keycloakError) => {
     if (!keycloakError) {
@@ -95,6 +105,9 @@ const authenticateBoth = async (req, res, next) => {
   });
 };
 
+/**
+ * Main middleware for protected routes; behavior follows AUTH_PROVIDER.
+ */
 export const authenticate = async (req, res, next) => {
   switch (AUTH_PROVIDER) {
     case 'keycloak':
