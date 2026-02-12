@@ -54,80 +54,57 @@ const hashLabels = (labels) => {
  * @param {Object} labels - Metric labels
  * @returns {Counter|Gauge|Histogram|Summary} - Prometheus metric instance
  */
-const getOrCreateMetric = (userId, metricName, metricType, labels) => {
-    // Create labels with user_id included
-    const metricLabels = {
-      ...labels,
-      user_id: userId.toString()
-    };
+const getOrCreateMetric = (metricName, metricType, labelKeys) => {
+  // Cache by metric name + sorted label key names (not values, not userId)
+  const allLabelNames = [...labelKeys, 'user_id'].sort();
+  const key = `${metricName}_${allLabelNames.join(',')}`;
 
-  const labelHash = hashLabels(metricLabels);
-  const key = `${userId}_${metricName}_${labelHash}`;
-
-  // Return existing instance if available
   if (metricInstances.has(key)) {
     return metricInstances.get(key);
   }
 
-  const fullMetricName = `user_metric_${metricName}`;
-  
-  // Check if metric already exists in registry
-  const existingMetric = register.getSingleMetric(fullMetricName);
-  
-  if (existingMetric) {
-    // Metric exists - reuse it (prom-client allows different label combinations on same metric)
-    // Just cache this instance for this label combination
-    metricInstances.set(key, existingMetric);
-    return existingMetric;
-  }
-  // Create appropriate metric type
   let metric;
-  const labelNames = Object.keys(metricLabels).sort(); // Sort for consistency
+  const fullMetricName = `user_metric_${metricName}`;
 
   switch (metricType.toLowerCase()) {
     case 'counter':
       metric = new Counter({
         name: fullMetricName,
         help: `Counter metric: ${metricName}`,
-        labelNames: labelNames,
+        labelNames: allLabelNames,
         registers: [register]
       });
       break;
-
     case 'gauge':
       metric = new Gauge({
         name: fullMetricName,
         help: `Gauge metric: ${metricName}`,
-        labelNames: labelNames,
+        labelNames: allLabelNames,
         registers: [register]
       });
       break;
-
     case 'histogram':
       metric = new Histogram({
         name: fullMetricName,
         help: `Histogram metric: ${metricName}`,
-        labelNames: Object.keys(metricLabels),
-        buckets: [0.1, 0.5, 1, 2.5, 5, 10, 25, 50, 100], // Default buckets
+        labelNames: allLabelNames,
+        buckets: [0.1, 0.5, 1, 2.5, 5, 10, 25, 50, 100],
         registers: [register]
       });
       break;
-
     case 'summary':
       metric = new Summary({
         name: fullMetricName,
         help: `Summary metric: ${metricName}`,
-        labelNames: Object.keys(metricLabels),
-        percentiles: [0.01, 0.1, 0.5, 0.9, 0.99], // Default percentiles
+        labelNames: allLabelNames,
+        percentiles: [0.01, 0.1, 0.5, 0.9, 0.99],
         registers: [register]
       });
       break;
-
     default:
       throw new Error(`Unsupported metric type: ${metricType}`);
   }
 
-  // Cache the instance
   metricInstances.set(key, metric);
   return metric;
 };
@@ -159,7 +136,7 @@ export const recordMetric = (metricData, userId) => {
   }
 
   // Get or create the metric instance
-  const metric = getOrCreateMetric(userId, name, type, labels);
+  const metric = getOrCreateMetric(name, type, Object.keys(labels));
 
   // Prepare labels with user_id
   const metricLabels = {
