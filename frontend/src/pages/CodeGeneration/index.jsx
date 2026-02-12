@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { codeGenerationAPI } from '@/api/codeGeneration';
 import { apiKeysAPI } from '@/api/apiKeys';
 import { metricConfigsAPI } from '@/api/metricConfigs';
+import { onboardingAPI } from '@/api/onboarding';
 import { useToast } from '@/components/ToastContainer';
 import ProgressStepper from '@/components/ProgressStepper';
 import { CheckIcon, RefreshIcon, CopyIcon, ArrowBackIcon, RocketIcon } from '@/assets/icons';
@@ -28,11 +29,9 @@ function CodeGeneration() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
-  // Data states
-  const [apiKeys, setApiKeys] = useState([]);
-  const [metricConfigs, setMetricConfigs] = useState([]);
+  // Data states — simplified: one API key covers all metrics
   const [selectedApiKey, setSelectedApiKey] = useState(null);
-  const [selectedMetricConfig, setSelectedMetricConfig] = useState(null);
+  const [metricConfigs, setMetricConfigs] = useState([]);
   const [generatedCode, setGeneratedCode] = useState('');
   const [error, setError] = useState('');
 
@@ -53,21 +52,14 @@ function CodeGeneration() {
       ]);
 
       const keys = keysRes.data || [];
-      // metricConfigsAPI.getAll() returns an unwrapped array, not { data: [] }
       const configs = Array.isArray(configsRes) ? configsRes : (configsRes?.data || []);
 
-      setApiKeys(keys);
       setMetricConfigs(configs);
 
-      // Auto-select first active API key
+      // Auto-select the user's primary (user-level) key
       const activeKey = keys.find((k) => k.is_active);
       if (activeKey) {
         setSelectedApiKey(activeKey);
-      }
-
-      // Auto-select first metric config (current metric)
-      if (configs.length > 0) {
-        setSelectedMetricConfig(configs[0]);
       }
     } catch (err) {
       setError('Failed to fetch configuration data');
@@ -77,7 +69,11 @@ function CodeGeneration() {
     }
   };
 
-  // Generate code automatically when selections change
+  /**
+   * Generate the tracking snippet. Uses the user's primary API key — the
+   * backend auto-resolves it if no api_key_id is passed. The snippet covers
+   * ALL metric configurations automatically.
+   */
   const generateCode = useCallback(async () => {
     if (!selectedApiKey) {
       return;
@@ -89,7 +85,6 @@ function CodeGeneration() {
     try {
       const response = await codeGenerationAPI.generate(
         selectedApiKey.id,
-        selectedMetricConfig?.id || null,
         { autoTrack: autoPageViews, customEvents: true }
       );
 
@@ -102,14 +97,14 @@ function CodeGeneration() {
     } finally {
       setGenerating(false);
     }
-  }, [selectedApiKey, selectedMetricConfig, autoPageViews]);
+  }, [selectedApiKey, autoPageViews]);
 
-  // Auto-generate code when API key or metric config is selected
+  // Auto-generate code when API key or tracking config changes
   useEffect(() => {
     if (selectedApiKey) {
       generateCode();
     }
-  }, [selectedApiKey, selectedMetricConfig, autoPageViews, generateCode]);
+  }, [selectedApiKey, autoPageViews, generateCode]);
 
   // Fallback snippet template if backend is unavailable
   const getFallbackSnippet = () => {
@@ -120,7 +115,7 @@ function CodeGeneration() {
   // Get framework-specific wrapper for the generated code
   const getFrameworkCode = () => {
     const snippet = generatedCode || getFallbackSnippet();
-    const metricName = selectedMetricConfig?.name || 'All Metrics';
+    const metricName = 'All Metrics';
 
     const wrappers = {
       javascript: `// VIZME Analytics - ${metricName}
@@ -218,8 +213,13 @@ export class VizmeService {
     }, 1500);
   };
 
-  const handleCompleteSetup = () => {
-    showToast('Setup completed successfully!', 'success');
+  const handleCompleteSetup = async () => {
+    try {
+      await onboardingAPI.markComplete();
+    } catch {
+      // Non-critical — the code generation endpoint already marks it
+    }
+    showToast('Setup completed successfully! Your tracking snippet covers all metrics.', 'success');
     navigate('/');
   };
 
@@ -274,35 +274,13 @@ export class VizmeService {
       {/* Progress Stepper */}
       <ProgressStepper currentStep={3} />
 
-      {/* Current Configuration Info */}
-      {selectedMetricConfig && (
-        <div className="cg-config-info">
-          <span className="cg-config-badge">
-            <CheckIcon size={14} />
-            Configured for: <strong>{selectedMetricConfig.name}</strong>
-            {selectedMetricConfig.metric_name && (
-              <span className="cg-metric-name">({selectedMetricConfig.metric_name})</span>
-            )}
-          </span>
-          {metricConfigs.length > 1 && (
-            <select
-              className="cg-config-select"
-              value={selectedMetricConfig?.id || ''}
-              onChange={(e) => {
-                const config = metricConfigs.find((c) => c.id === parseInt(e.target.value));
-                setSelectedMetricConfig(config || null);
-              }}
-            >
-              <option value="">All Configurations</option>
-              {metricConfigs.map((config) => (
-                <option key={config.id} value={config.id}>
-                  {config.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
+      {/* Configuration Info — single key covers all metrics */}
+      <div className="cg-config-info">
+        <span className="cg-config-badge">
+          <CheckIcon size={14} />
+          Covers all {metricConfigs.length} metric configuration{metricConfigs.length !== 1 ? 's' : ''} automatically
+        </span>
+      </div>
 
       {error && <div className="cg-error">{error}</div>}
 

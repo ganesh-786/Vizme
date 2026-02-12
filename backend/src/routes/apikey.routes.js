@@ -57,121 +57,135 @@ router.get('/', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /ensure — Idempotent: return existing key or create one for a given
-//                metric configuration.  Raw key is returned ONLY on creation.
+// GET /user-key — Return the authenticated user's primary (user-level) API
+//                 key.  This is the single key that covers ALL metric configs.
+//                 Returns masked key; use POST /:id/copy for raw clipboard copy.
 // ---------------------------------------------------------------------------
-router.post(
-  '/ensure',
-  [
-    body('metric_config_id')
-      .optional({ nullable: true })
-      .isInt()
-      .withMessage('metric_config_id must be an integer'),
-  ],
-  async (req, res, next) => {
+router.get('/user-key', async (req, res, next) => {
+  try {
+    // Look for an existing active user-level key (metric_config_id IS NULL)
+    const existing = await query(
+      `SELECT id, key_name, is_active, created_at, updated_at
+       FROM api_keys
+       WHERE user_id = $1
+         AND metric_config_id IS NULL
+         AND is_active = true
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [req.user.id]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.json({
+        success: true,
+        data: {
+          ...existing.rows[0],
+          masked_key: 'mk_••••••••••••',
+        },
+        has_key: true,
+      });
+    }
+
+    // No user-level key found
+    res.json({
+      success: true,
+      data: null,
+      has_key: false,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /ensure — Idempotent: return existing user-level key or create one.
+//                Raw key is returned ONLY on creation.
+//
+//                Industry-standard model: ONE key per user that covers all
+//                current and future metric configurations automatically.
+// ---------------------------------------------------------------------------
+router.post('/ensure', async (req, res, next) => {
+  try {
+    // Look for an existing active user-level key (metric_config_id IS NULL).
+    const existing = await query(
+      `SELECT id, key_name, is_active, created_at, updated_at
+       FROM api_keys
+       WHERE user_id = $1
+         AND metric_config_id IS NULL
+         AND is_active = true
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [req.user.id]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.json({
+        success: true,
+        data: {
+          ...existing.rows[0],
+          masked_key: 'mk_••••••••••••',
+        },
+        is_new: false,
+      });
+    }
+
+    // ---- No existing key — generate a user-level key ---------------------
+    const apiKey = generateApiKey();
+    const keyName = 'Account API Key';
+
+    let result;
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const metricConfigId = req.body.metric_config_id ?? null;
-
-      // If metric_config_id supplied, verify ownership
-      let configName = 'Default Key';
-      if (metricConfigId) {
-        const configCheck = await query(
-          'SELECT id, name FROM metric_configs WHERE id = $1 AND user_id = $2',
-          [metricConfigId, req.user.id]
-        );
-        if (configCheck.rows.length === 0) {
-          throw new NotFoundError('Metric config not found');
-        }
-        configName = configCheck.rows[0].name;
-      }
-
-      // Look for an existing active key for this (user, metric_config) pair.
-      // `IS NOT DISTINCT FROM` handles both NULL and non-NULL correctly.
-      const existing = await query(
-        `SELECT id, key_name, metric_config_id, is_active, created_at, updated_at
-         FROM api_keys
-         WHERE user_id = $1
-           AND (metric_config_id IS NOT DISTINCT FROM $2)
-           AND is_active = true
-         LIMIT 1`,
-        [req.user.id, metricConfigId]
+      result = await query(
+        `INSERT INTO api_keys (user_id, key_name, api_key, metric_config_id)
+         VALUES ($1, $2, $3, NULL)
+         RETURNING id, key_name, api_key, is_active, created_at`,
+        [req.user.id, keyName, apiKey]
       );
-
-      if (existing.rows.length > 0) {
+    } catch (err) {
+      // Handle race condition: another concurrent request already created it.
+      if (err.code === '23505') {
+        const retry = await query(
+          `SELECT id, key_name, is_active, created_at, updated_at
+           FROM api_keys
+           WHERE user_id = $1
+             AND metric_config_id IS NULL
+             AND is_active = true
+           ORDER BY created_at ASC
+           LIMIT 1`,
+          [req.user.id]
+        );
         return res.json({
           success: true,
           data: {
-            ...existing.rows[0],
+            ...retry.rows[0],
             masked_key: 'mk_••••••••••••',
           },
           is_new: false,
         });
       }
-
-      // ---- No existing key — generate one --------------------------------
-      const apiKey = generateApiKey();
-      const keyName = metricConfigId ? configName : 'Default Key';
-
-      let result;
-      try {
-        result = await query(
-          `INSERT INTO api_keys (user_id, key_name, api_key, metric_config_id)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id, key_name, api_key, metric_config_id, is_active, created_at`,
-          [req.user.id, keyName, apiKey, metricConfigId]
-        );
-      } catch (err) {
-        // Handle race condition: unique constraint violation means another
-        // concurrent request already created the key — just return it.
-        if (err.code === '23505') {
-          const retry = await query(
-            `SELECT id, key_name, metric_config_id, is_active, created_at, updated_at
-             FROM api_keys
-             WHERE user_id = $1
-               AND (metric_config_id IS NOT DISTINCT FROM $2)
-               AND is_active = true
-             LIMIT 1`,
-            [req.user.id, metricConfigId]
-          );
-          return res.json({
-            success: true,
-            data: {
-              ...retry.rows[0],
-              masked_key: 'mk_••••••••••••',
-            },
-            is_new: false,
-          });
-        }
-        throw err;
-      }
-
-      const newRow = result.rows[0];
-
-      res.status(201).json({
-        success: true,
-        data: {
-          id: newRow.id,
-          key_name: newRow.key_name,
-          api_key: newRow.api_key, // returned ONLY this one time
-          masked_key: maskApiKey(newRow.api_key),
-          metric_config_id: newRow.metric_config_id,
-          is_active: newRow.is_active,
-          created_at: newRow.created_at,
-        },
-        is_new: true,
-        message:
-          'API key created and copied to your clipboard. It will be masked from now on.',
-      });
-    } catch (error) {
-      next(error);
+      throw err;
     }
+
+    const newRow = result.rows[0];
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: newRow.id,
+        key_name: newRow.key_name,
+        api_key: newRow.api_key, // returned ONLY this one time
+        masked_key: maskApiKey(newRow.api_key),
+        is_active: newRow.is_active,
+        created_at: newRow.created_at,
+      },
+      is_new: true,
+      message:
+        'API key created and copied to your clipboard. This single key covers all your metrics — current and future.',
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // ---------------------------------------------------------------------------
 // POST / — Manual key creation (existing flow, now also returns masked_key)

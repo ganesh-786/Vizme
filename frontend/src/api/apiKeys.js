@@ -7,6 +7,15 @@ export const apiKeysAPI = {
     return response.data;
   },
 
+  /**
+   * Get the user's primary (user-level) API key.
+   * Returns { has_key, data } — data is null when no key exists yet.
+   */
+  getUserKey: async () => {
+    const response = await client.get('/api-keys/user-key');
+    return response.data;
+  },
+
   /** Manually create a new API key. Raw key is in the response for one-time clipboard copy. */
   create: async (keyName) => {
     const response = await client.post('/api-keys', {
@@ -16,15 +25,12 @@ export const apiKeysAPI = {
   },
 
   /**
-   * Idempotent ensure — returns the existing key (masked) or creates a new one.
+   * Idempotent ensure — returns the existing user-level key (masked) or creates one.
    * When `is_new` is true the response contains `data.api_key` for one-time copy.
-   *
-   * @param {number|null} metricConfigId - optional metric config to scope the key to
+   * One key per user — covers all current and future metric configurations.
    */
-  ensure: async (metricConfigId = null) => {
-    const response = await client.post('/api-keys/ensure', {
-      metric_config_id: metricConfigId,
-    });
+  ensure: async () => {
+    const response = await client.post('/api-keys/ensure');
     return response.data;
   },
 

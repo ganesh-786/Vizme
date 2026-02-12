@@ -1,17 +1,21 @@
 import client from './client';
 
 export const codeGenerationAPI = {
-  generate: async (apiKeyId, metricConfigId, options = {}) => {
+  /**
+   * Generate the tracking code snippet.
+   *
+   * `apiKeyId` is optional — when omitted the backend auto-resolves the
+   * user's primary API key.  The generated snippet covers ALL metric
+   * configurations for the user.
+   */
+  generate: async (apiKeyId = null, options = {}) => {
     const body = {
-      api_key_id: apiKeyId,
       auto_track: options.autoTrack !== false,
       custom_events: options.customEvents !== false,
     };
 
-    // Only include metric_config_id when it is a real integer — avoids
-    // sending `null` which express-validator's optional() can reject.
-    if (metricConfigId != null) {
-      body.metric_config_id = metricConfigId;
+    if (apiKeyId != null) {
+      body.api_key_id = apiKeyId;
     }
 
     const response = await client.post('/code-generation', body);

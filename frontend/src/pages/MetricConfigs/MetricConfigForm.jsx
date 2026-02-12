@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
+import { onboardingAPI } from '@/api/onboarding';
 import { useToast } from '@/components/ToastContainer';
 import ProgressStepper from '@/components/ProgressStepper';
 import {
@@ -168,6 +169,39 @@ function MetricConfigForm({ isEdit = false }) {
         navigate('/metric-configs');
       } else {
         await metricConfigsAPI.create(payload);
+
+        // ── Smart redirect ──────────────────────────────────────────
+        // If the user already has an API key and completed onboarding,
+        // go straight to the dashboard — the existing key + snippet
+        // already covers this new metric automatically.
+        try {
+          const statusRes = await onboardingAPI.getStatus();
+          const { has_api_key, is_setup_complete } = statusRes.data || {};
+
+          if (is_setup_complete) {
+            showToast(
+              'Metric created! Your existing API key & snippet already cover it automatically.',
+              'success',
+              5000
+            );
+            navigate('/');
+            return;
+          }
+
+          if (has_api_key) {
+            showToast(
+              'Metric created! Continue to generate your tracking snippet.',
+              'success',
+              4000
+            );
+            navigate('/code-generation');
+            return;
+          }
+        } catch {
+          // Fall through to default redirect if status check fails
+        }
+
+        // Default for brand-new users: go to API Keys step
         showToast('Metric configuration created successfully!', 'success');
         navigate('/api-keys');
       }
@@ -385,7 +419,7 @@ function MetricConfigForm({ isEdit = false }) {
                 {isEdit ? 'Save as Draft' : 'Save as Draft'}
               </button>
               <button type="submit" className="btn-primary" disabled={loading}>
-                {isEdit ? 'Save Changes' : 'Continue to API Keys'}
+                {isEdit ? 'Save Changes' : 'Save & Continue'}
                 {!isEdit && <ArrowRightIcon size={20} />}
               </button>
             </div>
