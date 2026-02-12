@@ -32,6 +32,22 @@ const isAuthEndpoint = (url) => {
   return AUTH_ENDPOINTS.some((endpoint) => url?.includes(endpoint));
 };
 
+// Token refresh queue to prevent race conditions
+// When multiple requests get 401 simultaneously, only one refresh happens
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 // Response interceptor for token refresh
 client.interceptors.response.use(
   (response) => response,
@@ -47,8 +63,20 @@ client.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      // If a refresh is already in progress, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return client(originalRequest);
+        });
+      }
+
+      isRefreshing = true;
+
       try {
-        const { refreshToken, updateToken } = useAuthStore.getState();
+        const { refreshToken } = useAuthStore.getState();
 
         if (!refreshToken) {
           throw new Error('No refresh token');
@@ -58,15 +86,20 @@ client.interceptors.response.use(
           refreshToken,
         });
 
-        const { accessToken } = response.data.data;
-        updateToken(accessToken);
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+        useAuthStore.getState().updateTokens(accessToken, newRefreshToken);
+
+        processQueue(null, accessToken);
 
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return client(originalRequest);
       } catch (refreshError) {
+        processQueue(refreshError, null);
         useAuthStore.getState().logout();
         window.location.href = '/login';
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

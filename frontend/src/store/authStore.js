@@ -64,5 +64,12 @@ export const useAuthStore = create((set) => {
       set(newState);
       saveAuth(newState);
     },
+
+    updateTokens: (accessToken, refreshToken) => {
+      const currentState = useAuthStore.getState();
+      const newState = { ...currentState, accessToken, refreshToken };
+      set(newState);
+      saveAuth(newState);
+    },
   };
 });
