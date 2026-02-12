@@ -159,12 +159,14 @@ services:
       - GRAFANA_URL=${GRAFANA_URL:-http://localhost:3001}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
-      # Keycloak config (for future backend token validation)
+      # Keycloak config (for backend token validation)
       - AUTH_PROVIDER=${AUTH_PROVIDER:-legacy}
       - KEYCLOAK_URL=${KEYCLOAK_URL:-http://keycloak:8080}
+      - KEYCLOAK_ISSUER_URL=${KEYCLOAK_ISSUER_URL:-http://localhost:8080}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM:-unified-visibility}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-uv-backend}
-      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-uv-backend-dev-secret}
+      - KEYCLOAK_FRONTEND_CLIENT_ID=${KEYCLOAK_FRONTEND_CLIENT_ID:-uv-frontend}
     volumes:
       - ../backend:/app
       - /app/node_modules
