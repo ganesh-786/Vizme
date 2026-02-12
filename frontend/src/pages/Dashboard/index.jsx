@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
-import { AnalyticsIcon, DocumentIcon, KeyIcon, PlusIcon, TrendUpIcon } from '@/assets/icons';
+import { onboardingAPI } from '@/api/onboarding';
+import {
+  AnalyticsIcon,
+  CheckIcon,
+  DocumentIcon,
+  KeyIcon,
+  PlusIcon,
+  RocketIcon,
+  ShieldIcon,
+  TrendUpIcon,
+} from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
 import { GrafanaEmbed } from '@/components/GrafanaEmbed';
 import './Dashboard.css';
@@ -13,13 +23,21 @@ function Dashboard() {
     apiKeys: 0,
     loading: true,
   });
+  const [onboarding, setOnboarding] = useState({
+    loading: true,
+    is_setup_complete: false,
+    has_metric_configs: false,
+    has_api_key: false,
+    onboarding_completed_at: null,
+  });
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
-        const [configsRes, keysRes] = await Promise.all([
+        const [configsRes, keysRes, onboardingRes] = await Promise.all([
           metricConfigsAPI.getAll(),
           apiKeysAPI.getAll(),
+          onboardingAPI.getStatus(),
         ]);
 
         setStats({
@@ -27,16 +45,28 @@ function Dashboard() {
           apiKeys: Array.isArray(keysRes) ? keysRes.length : (keysRes?.data?.length ?? 0),
           loading: false,
         });
+
+        setOnboarding({
+          loading: false,
+          ...(onboardingRes.data || {}),
+        });
       } catch (error) {
-        console.error('Failed to fetch stats:', error);
+        console.error('Failed to fetch dashboard data:', error);
         setStats((prev) => ({ ...prev, loading: false }));
+        setOnboarding((prev) => ({ ...prev, loading: false }));
       }
     };
 
-    fetchStats();
+    fetchData();
   }, []);
 
   const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3001';
+
+  // Determine which Quick-Start steps are completed
+  const step1Done = onboarding.has_metric_configs;
+  const step2Done = onboarding.has_api_key;
+  const step3Done = onboarding.onboarding_completed_at !== null;
+  const allDone = onboarding.is_setup_complete;
 
   return (
     <div className="dashboard">
@@ -46,6 +76,26 @@ function Dashboard() {
           Manage your enterprise telemetry and observability configurations.
         </p>
       </div>
+
+      {/* ── Setup Complete Banner ────────────────────────────────────── */}
+      {!onboarding.loading && allDone && (
+        <div className="setup-complete-banner">
+          <div className="setup-complete-icon">
+            <ShieldIcon size={28} />
+          </div>
+          <div className="setup-complete-content">
+            <h3 className="setup-complete-title">Setup Complete</h3>
+            <p className="setup-complete-text">
+              Your API key and tracking snippet are active. All metrics — current and future — are
+              automatically covered by your single API key. No additional setup needed when you create
+              new metric configurations.
+            </p>
+          </div>
+          <Link to="/api-keys" className="setup-complete-link">
+            View API Key →
+          </Link>
+        </div>
+      )}
 
       <div className="overview-grid">
         <div className="overview-card">
@@ -63,103 +113,127 @@ function Dashboard() {
             </div>
             <div className="overview-note">
               <span className="status-dot status-dot--good" aria-hidden="true" />
-              <p>+2 Draft configurations pending</p>
+              <p>All covered by your API key</p>
             </div>
           </div>
           <div className="overview-icon" aria-hidden="true">
-            {/* analytics icon */}
             <AnalyticsIcon size={30} />
           </div>
         </div>
 
         <div className="overview-card">
           <div>
-            <p className="overview-label">API Keys</p>
+            <p className="overview-label">API Key</p>
             <div className="overview-metric">
               <span className="overview-number">
                 {stats.loading ? (
                   <Skeleton inline width="48px" height="2.5rem" />
+                ) : step2Done ? (
+                  '1'
                 ) : (
-                  stats.apiKeys
+                  '0'
                 )}
               </span>
-              <span className="overview-status">Active</span>
+              <span className="overview-status">{step2Done ? 'Active' : 'Not Created'}</span>
             </div>
-            <div className="overview-note overview-note--muted">
-              <span className="status-dot" aria-hidden="true" />
-              <p>0 Expired keys</p>
+            <div className={`overview-note ${step2Done ? '' : 'overview-note--muted'}`}>
+              <span className={`status-dot ${step2Done ? 'status-dot--good' : ''}`} aria-hidden="true" />
+              <p>{step2Done ? 'Covers all metrics' : 'Generate to get started'}</p>
             </div>
           </div>
           <div className="overview-icon" aria-hidden="true">
-            {/* key icon */}
             <KeyIcon size={30} />
           </div>
         </div>
       </div>
 
+      {/* ── Quick Start Guide (shows progress for returning users) ──── */}
       <section className="quickstart">
         <div className="quickstart-head">
           <h2>Quick Start Guide</h2>
-          <span className="quickstart-pill">Engineering Guided Setup</span>
+          <span className="quickstart-pill">
+            {allDone ? 'Setup Complete' : 'Engineering Guided Setup'}
+          </span>
         </div>
 
         <div className="timeline">
           <div className="timeline-line" aria-hidden="true" />
 
+          {/* Step 1: Create Metric */}
           <div className="timeline-item">
-            <div className="timeline-dot timeline-dot--filled" aria-hidden="true">
-              <PlusIcon size={22} />
+            <div
+              className={`timeline-dot ${step1Done ? 'timeline-dot--filled' : 'timeline-dot--ring'}`}
+              aria-hidden="true"
+            >
+              {step1Done ? <CheckIcon size={22} /> : <PlusIcon size={22} />}
             </div>
             <div className="timeline-content">
-              <h3>Create Metric</h3>
+              <h3>Create Metric {step1Done && <span className="step-done-badge">Done</span>}</h3>
               <p>
                 Define your first data source and aggregation logic to start processing telemetry
                 data in real-time.
               </p>
-              <Link to="/metric-configs" className="primary-inline-btn">
-                Configure Source
-                <span aria-hidden="true">→</span>
+              <Link to="/metric-configs" className={step1Done ? 'text-link' : 'primary-inline-btn'}>
+                {step1Done ? 'Manage Configurations →' : <>Configure Source <span aria-hidden="true">→</span></>}
               </Link>
             </div>
           </div>
 
+          {/* Step 2: Generate Key */}
           <div className="timeline-item">
-            <div className="timeline-dot timeline-dot--ring" aria-hidden="true">
-              <KeyIcon size={22} />
+            <div
+              className={`timeline-dot ${step2Done ? 'timeline-dot--filled' : step1Done ? 'timeline-dot--ring' : 'timeline-dot--muted'}`}
+              aria-hidden="true"
+            >
+              {step2Done ? <CheckIcon size={22} /> : <KeyIcon size={22} />}
             </div>
             <div className="timeline-content">
-              <h3>Generate Key</h3>
+              <h3>Generate Key {step2Done && <span className="step-done-badge">Done</span>}</h3>
               <p>
-                Create a secure API key with scoped permissions for ingestion from your environment.
+                {step2Done
+                  ? 'Your single API key is active and covers all metrics automatically.'
+                  : 'Create a secure API key for ingestion from your environment.'}
               </p>
               <Link to="/api-keys" className="text-link">
-                Manage API access →
+                {step2Done ? 'View API Key →' : 'Generate API Key →'}
               </Link>
             </div>
           </div>
 
+          {/* Step 3: Generate Code */}
           <div className="timeline-item">
-            <div className="timeline-dot timeline-dot--muted" aria-hidden="true">
-              <DocumentIcon size={22} />
+            <div
+              className={`timeline-dot ${step3Done ? 'timeline-dot--filled' : step2Done ? 'timeline-dot--ring' : 'timeline-dot--muted'}`}
+              aria-hidden="true"
+            >
+              {step3Done ? <CheckIcon size={22} /> : <DocumentIcon size={22} />}
             </div>
             <div className="timeline-content">
-              <h3>Generate Code</h3>
+              <h3>Generate Code {step3Done && <span className="step-done-badge">Done</span>}</h3>
               <p>
-                Copy the SDK initialization snippet and integrate it into your application logic.
+                {step3Done
+                  ? 'Your tracking snippet is ready. The same code works for all metrics.'
+                  : 'Copy the SDK initialization snippet and integrate it into your application logic.'}
               </p>
-              <div className="code-snippet">
-                <span className="code-accent">vizme.</span>
-                <span className="code-fn">init</span>({'{'} apiKey:{' '}
-                <span className="code-str">&apos;VZ_LIVE_772...&apos;</span> {'}'})
-              </div>
+              {!step3Done && (
+                <div className="code-snippet">
+                  <span className="code-accent">vizme.</span>
+                  <span className="code-fn">init</span>({'{'} apiKey:{' '}
+                  <span className="code-str">&apos;mk_a4b2...&apos;</span> {'}'})
+                </div>
+              )}
               <Link to="/code-generation" className="text-link">
-                Open code generator →
+                {step3Done ? 'View Snippet →' : 'Open code generator →'}
               </Link>
             </div>
           </div>
 
+          {/* Step 4: View in Grafana */}
           <div className="timeline-item">
-            <div className="timeline-dot timeline-dot--muted" aria-hidden="true">
+            <div
+              className={`timeline-dot ${allDone ? 'timeline-dot--ring' : 'timeline-dot--muted'}`}
+              aria-hidden="true"
+            >
               <TrendUpIcon size={22} />
             </div>
             <div className="timeline-content">

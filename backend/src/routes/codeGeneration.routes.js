@@ -15,13 +15,16 @@ router.use(apiLimiter);
 /**
  * POST /api/v1/code-generation
  * 
- * Generates minimal tracking snippet (Google Analytics style)
- * The snippet is only ~150 bytes and loads the full library from tracker.js
+ * Generates minimal tracking snippet (Google Analytics style).
+ * The snippet is only ~150 bytes and loads the full library from tracker.js.
+ *
+ * `api_key_id` is now optional — when omitted the user's primary
+ * (user-level) API key is resolved automatically.  The generated snippet
+ * covers ALL metric configurations for the user.
  */
 router.post('/',
   [
-    body('metric_config_id').optional({ nullable: true }).isInt().withMessage('metric_config_id must be an integer'),
-    body('api_key_id').isInt().withMessage('API key ID is required'),
+    body('api_key_id').optional({ nullable: true }).isInt().withMessage('api_key_id must be an integer'),
     body('auto_track').optional().isBoolean(),
     body('custom_events').optional().isBoolean()
   ],
@@ -32,41 +35,46 @@ router.post('/',
         throw new BadRequestError('Validation failed', errors.array());
       }
 
-      const { metric_config_id, api_key_id, auto_track = true, custom_events = true } = req.body;
+      const { api_key_id, auto_track = true, custom_events = true } = req.body;
 
-      // Verify API key ownership
-      const apiKeyResult = await query(
-        'SELECT api_key FROM api_keys WHERE id = $1 AND user_id = $2 AND is_active = true',
-        [api_key_id, req.user.id]
-      );
+      // ----- Resolve API key -------------------------------------------------
+      let apiKeyRow;
 
-      if (apiKeyResult.rows.length === 0) {
-        throw new NotFoundError('API key not found or inactive');
-      }
-
-      const apiKey = apiKeyResult.rows[0].api_key;
-
-      // Get metric configs (for response metadata, not used in snippet)
-      let metricConfigs = [];
-      if (metric_config_id) {
-        const configResult = await query(
-          'SELECT * FROM metric_configs WHERE id = $1 AND user_id = $2',
-          [metric_config_id, req.user.id]
+      if (api_key_id) {
+        // Explicit key ID provided — verify ownership
+        const apiKeyResult = await query(
+          'SELECT id, api_key FROM api_keys WHERE id = $1 AND user_id = $2 AND is_active = true',
+          [api_key_id, req.user.id]
         );
-        if (configResult.rows.length === 0) {
-          throw new NotFoundError('Metric config not found');
+        if (apiKeyResult.rows.length === 0) {
+          throw new NotFoundError('API key not found or inactive');
         }
-        metricConfigs = configResult.rows;
+        apiKeyRow = apiKeyResult.rows[0];
       } else {
-        // Get all metric configs for user
-        const allConfigsResult = await query(
-          'SELECT * FROM metric_configs WHERE user_id = $1',
+        // Auto-resolve: pick the user's primary user-level key
+        const apiKeyResult = await query(
+          `SELECT id, api_key FROM api_keys
+           WHERE user_id = $1 AND metric_config_id IS NULL AND is_active = true
+           ORDER BY created_at ASC LIMIT 1`,
           [req.user.id]
         );
-        metricConfigs = allConfigsResult.rows;
+        if (apiKeyResult.rows.length === 0) {
+          throw new NotFoundError(
+            'No active API key found. Please generate an API key first.'
+          );
+        }
+        apiKeyRow = apiKeyResult.rows[0];
       }
 
-      // Generate minimal snippet (not full code anymore)
+      const apiKey = apiKeyRow.api_key;
+
+      // ----- Fetch ALL metric configs (snippet covers everything) -----------
+      const allConfigsResult = await query(
+        'SELECT id, name, metric_name FROM metric_configs WHERE user_id = $1',
+        [req.user.id]
+      );
+
+      // ----- Generate minimal snippet ----------------------------------------
       const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
       const code = generateMinimalSnippet({
         apiKey,
@@ -75,17 +83,24 @@ router.post('/',
         customEvents: custom_events
       });
 
+      // ----- Mark onboarding complete (idempotent) --------------------------
+      await query(
+        `UPDATE users SET onboarding_completed_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND onboarding_completed_at IS NULL`,
+        [req.user.id]
+      );
+
       res.json({
         success: true,
         data: {
           code,
-          apiKeyId: api_key_id,
-          metricConfigs: metricConfigs.map(c => ({
+          apiKeyId: apiKeyRow.id,
+          metricConfigs: allConfigsResult.rows.map(c => ({
             id: c.id,
             name: c.name,
             metric_name: c.metric_name
           })),
-          note: 'This is a minimal snippet. The full library loads automatically from the server.'
+          note: 'This snippet covers ALL your metrics. The full library loads automatically from the server.'
         }
       });
     } catch (error) {

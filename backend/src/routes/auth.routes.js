@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { query } from '../database/connection.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
 
@@ -235,5 +236,70 @@ router.post('/password-reset-request',
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// GET /onboarding-status — Returns the user's setup progress.
+//   Checks: has metric configs, has user-level API key, onboarding completed.
+// ---------------------------------------------------------------------------
+router.get('/onboarding-status', authenticate, async (req, res, next) => {
+  try {
+    // Run all checks in parallel for performance
+    const [configsResult, keyResult, userResult] = await Promise.all([
+      query(
+        'SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1',
+        [req.user.id]
+      ),
+      query(
+        `SELECT id FROM api_keys
+         WHERE user_id = $1 AND metric_config_id IS NULL AND is_active = true
+         LIMIT 1`,
+        [req.user.id]
+      ),
+      query(
+        'SELECT onboarding_completed_at FROM users WHERE id = $1',
+        [req.user.id]
+      ),
+    ]);
+
+    const hasMetricConfigs = configsResult.rows[0].count > 0;
+    const hasApiKey = keyResult.rows.length > 0;
+    const onboardingCompletedAt = userResult.rows[0]?.onboarding_completed_at || null;
+    const isSetupComplete = hasMetricConfigs && hasApiKey && onboardingCompletedAt !== null;
+
+    res.json({
+      success: true,
+      data: {
+        has_metric_configs: hasMetricConfigs,
+        metric_configs_count: configsResult.rows[0].count,
+        has_api_key: hasApiKey,
+        onboarding_completed_at: onboardingCompletedAt,
+        is_setup_complete: isSetupComplete,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /onboarding-complete — Marks the user's onboarding as done.
+//   Called after the user finishes the Code Generation step.
+// ---------------------------------------------------------------------------
+router.post('/onboarding-complete', authenticate, async (req, res, next) => {
+  try {
+    await query(
+      `UPDATE users SET onboarding_completed_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND onboarding_completed_at IS NULL`,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Onboarding marked as complete.',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export { router as authRoutes };

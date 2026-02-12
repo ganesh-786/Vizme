@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiKeysAPI } from '@/api/apiKeys';
-import { metricConfigsAPI } from '@/api/metricConfigs';
 import { useToast } from '@/components/ToastContainer';
 import { useConfirm } from '@/components/ConfirmModal';
 import ProgressStepper from '@/components/ProgressStepper';
@@ -27,9 +26,8 @@ function ApiKeys() {
 
   // ---- State ---------------------------------------------------------------
   const [keys, setKeys] = useState([]);
-  const [metricConfigs, setMetricConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [keyName, setKeyName] = useState('Main Analytics Feed');
+  const [keyName, setKeyName] = useState('Account API Key');
   const [environment, setEnvironment] = useState('production');
   const [permissions, setPermissions] = useState({
     readMetrics: true,
@@ -50,24 +48,18 @@ function ApiKeys() {
     fetchInitialData();
   }, []);
 
-  /** Fetch keys + metric configs, then auto-ensure if configs exist. */
+  /**
+   * Fetch existing keys, then auto-ensure a user-level key.
+   * Industry standard: ONE key per user — covers all metrics (current & future).
+   */
   const fetchInitialData = async () => {
     try {
-      const [keysRes, configsRes] = await Promise.all([
-        apiKeysAPI.getAll(),
-        metricConfigsAPI.getAll(),
-      ]);
-
+      const keysRes = await apiKeysAPI.getAll();
       const fetchedKeys = keysRes.data || [];
-      const fetchedConfigs = Array.isArray(configsRes) ? configsRes : [];
-
       setKeys(fetchedKeys);
-      setMetricConfigs(fetchedConfigs);
 
-      // Auto-ensure an API key when the user already has metric configurations
-      if (fetchedConfigs.length > 0) {
-        await autoEnsureKey(fetchedConfigs[0].id);
-      }
+      // Auto-ensure the user-level API key (no metric_config_id)
+      await autoEnsureKey();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load data');
     } finally {
@@ -85,15 +77,15 @@ function ApiKeys() {
     }
   };
 
-  // ---- Auto-ensure ---------------------------------------------------------
+  // ---- Auto-ensure (user-level key) ----------------------------------------
   /**
-   * Idempotent: creates a new key for the given metric config (or returns the
-   * existing one).  When newly created the raw key is auto-copied to the
-   * clipboard — it is never stored in React state or rendered in the DOM.
+   * Idempotent: creates a new user-level key or returns the existing one.
+   * When newly created the raw key is auto-copied to the clipboard — it is
+   * never stored in React state or rendered in the DOM.
    */
-  const autoEnsureKey = async (metricConfigId) => {
+  const autoEnsureKey = async () => {
     try {
-      const response = await apiKeysAPI.ensure(metricConfigId);
+      const response = await apiKeysAPI.ensure();
       const { data, is_new } = response;
 
       if (is_new && data.api_key) {
@@ -111,7 +103,6 @@ function ApiKeys() {
         id: data.id,
         key_name: data.key_name,
         masked_key: data.masked_key,
-        metric_config_id: data.metric_config_id,
         is_active: data.is_active,
         created_at: data.created_at,
         is_new,
@@ -248,7 +239,9 @@ function ApiKeys() {
         <div className="apikeys-header">
           <div className="apikeys-header-content">
             <h1 className="apikeys-title">Step 2: Generate API Key</h1>
-            <p className="apikeys-subtitle">Establish a secure connection to your data sources.</p>
+            <p className="apikeys-subtitle">
+              One key for your entire account — it covers all current and future metrics automatically.
+            </p>
           </div>
           <button className="btn-docs">
             <DocumentIcon size={18} />
@@ -336,7 +329,7 @@ function ApiKeys() {
             {/* Right Column — Secret Key Display (always masked) */}
             <div className="secret-key-panel">
               <div className="secret-key-header">
-                <span className="secret-key-label">Your Secret Key</span>
+                <span className="secret-key-label">Your Account Key</span>
                 {activeKey && (
                   <span className="live-badge">
                     <span className="live-dot"></span>
@@ -373,7 +366,7 @@ function ApiKeys() {
                     <p className="warning-text">
                       For your security, the key is never displayed. It has been copied to your
                       clipboard — store it in a secure password manager now. You can re-copy
-                      anytime using the copy button.
+                      anytime using the copy button. This single key works for all your metrics.
                     </p>
                   </div>
                 </div>
@@ -386,7 +379,7 @@ function ApiKeys() {
                     <p className="warning-title">Key Secured</p>
                     <p className="warning-text">
                       This key is never shown for security. Use the copy button above to copy it
-                      to your clipboard whenever you need it.
+                      to your clipboard whenever you need it. It covers all metrics automatically.
                     </p>
                   </div>
                 </div>
@@ -405,7 +398,7 @@ function ApiKeys() {
           {/* Existing Keys Table */}
           <div className="existing-keys-section">
             <div className="existing-keys-header">
-              <h3 className="section-title">Existing Project Keys</h3>
+              <h3 className="section-title">Existing Keys</h3>
               <span className="keys-count">Total: {keys.length} Active Keys</span>
             </div>
 
@@ -510,10 +503,10 @@ function ApiKeys() {
         </div>
         <div className="feature-card">
           <HubIcon size={24} className="feature-icon" />
-          <h4 className="feature-title">Multi-Environment</h4>
+          <h4 className="feature-title">Universal Coverage</h4>
           <p className="feature-description">
-            Generate isolated keys for prod, staging, and local development flows to ensure data
-            integrity.
+            A single API key covers all your metric configurations — current and future. No
+            reconfiguration needed.
           </p>
         </div>
         <div className="feature-card">

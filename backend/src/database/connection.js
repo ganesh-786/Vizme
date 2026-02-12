@@ -173,8 +173,16 @@ const runMigrations = async () => {
       END IF;
     END $$`,
 
-    // Unique partial index: one auto-generated key per (user, metric_config) pair
+    // (Legacy) Unique partial index for old per-metric keys — kept for backward
+    // compat but new keys are user-level.
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_user_metric_config ON api_keys (user_id, metric_config_id) WHERE metric_config_id IS NOT NULL`,
+
+    // Add onboarding_completed_at column to users (tracks when the user finished setup)
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'onboarding_completed_at') THEN
+        ALTER TABLE users ADD COLUMN onboarding_completed_at TIMESTAMP DEFAULT NULL;
+      END IF;
+    END $$`,
 
     // Indexes
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
