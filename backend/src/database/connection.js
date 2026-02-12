@@ -165,6 +165,23 @@ const runMigrations = async () => {
     `CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)`,
     `CREATE INDEX IF NOT EXISTS idx_metric_configs_user_id ON metric_configs(user_id)`,
+
+    // ── Keycloak integration (Step 2) ──
+    // Add keycloak_id column to map Keycloak UUID to local integer user ID.
+    // Uses DO block so the migration is idempotent (safe to re-run).
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name   = 'users'
+           AND column_name  = 'keycloak_id'
+       ) THEN
+         ALTER TABLE users ADD COLUMN keycloak_id VARCHAR(255) UNIQUE;
+       END IF;
+     END
+     $$`,
+    `CREATE INDEX IF NOT EXISTS idx_users_keycloak_id ON users(keycloak_id)`,
   ];
 
   for (const migration of migrations) {
