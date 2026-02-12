@@ -1,12 +1,18 @@
+/**
+ * Authentication Middleware — Dual-Auth Support
+ *
+ * Supports three modes controlled by the AUTH_PROVIDER env var:
+ *   "legacy"   – (default) use the existing JWT-secret-based validation only
+ *   "keycloak" – use Keycloak OIDC token validation only
+ *   "both"     – try Keycloak first; if it fails, fall back to legacy JWT
+ *
+ * The `authenticateApiKey` middleware is NOT affected — API key auth remains
+ * completely independent of the auth provider setting.
+ */
+
+import jwt from 'jsonwebtoken';
 import { query } from '../database/connection.js';
 import { UnauthorizedError } from './errorHandler.js';
-import {
-  getAccessTokenFromCookie,
-  getRefreshTokenFromRequest,
-  rotateRefreshSession,
-  setAuthCookies,
-  verifyAccessToken,
-} from '../services/authSession.service.js';
 import { authenticateKeycloak } from './keycloak.middleware.js';
 
 const AUTH_PROVIDER = (process.env.AUTH_PROVIDER || 'legacy').toLowerCase();
@@ -14,61 +20,31 @@ const AUTH_PROVIDER = (process.env.AUTH_PROVIDER || 'legacy').toLowerCase();
 // Log which auth provider is active at startup
 console.log(`🔐 Auth provider: ${AUTH_PROVIDER}`);
 
-const SAFE_COOKIE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+// ─── Legacy JWT Authentication (unchanged logic) ───────────────────────────
 
-async function resolveUser(userId) {
-  const result = await query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
-
-  if (result.rows.length === 0) {
-    throw new UnauthorizedError('User not found');
-  }
-
-  return result.rows[0];
-}
-
-async function authenticateWithCookieSession(req, res) {
-  if (!SAFE_COOKIE_METHODS.has(req.method)) {
-    throw new UnauthorizedError('No token provided');
-  }
-
-  const accessCookie = getAccessTokenFromCookie(req);
-
-  if (accessCookie) {
-    try {
-      return verifyAccessToken(accessCookie);
-    } catch (error) {
-      if (error.name !== 'TokenExpiredError') {
-        throw new UnauthorizedError('Invalid or expired token');
-      }
-    }
-  }
-
-  const refreshToken = getRefreshTokenFromRequest(req);
-  if (!refreshToken) {
-    throw new UnauthorizedError('No token provided');
-  }
-
-  const session = await rotateRefreshSession(refreshToken);
-  setAuthCookies(res, session);
-  return verifyAccessToken(session.accessToken);
-}
-
+/**
+ * Original JWT authentication using the shared JWT_SECRET.
+ * Exactly the same logic that existed before Keycloak integration.
+ */
 const authenticateLegacy = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    let decoded;
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      decoded = verifyAccessToken(token);
-      if (!getAccessTokenFromCookie(req) && SAFE_COOKIE_METHODS.has(req.method)) {
-        setAuthCookies(res, { accessToken: token });
-      }
-    } else {
-      decoded = await authenticateWithCookieSession(req, res);
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedError('No token provided');
     }
 
-    req.user = await resolveUser(decoded.userId);
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+
+    // Verify user still exists
+    const result = await query('SELECT id, email, name FROM users WHERE id = $1', [decoded.userId]);
+
+    if (result.rows.length === 0) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    req.user = result.rows[0];
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
