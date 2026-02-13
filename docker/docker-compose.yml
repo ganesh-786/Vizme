@@ -78,6 +78,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Editor  # Assign Editor role to all users
       # Auth Proxy settings
       - GF_AUTH_PROXY_ENABLED=true
       - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
@@ -91,7 +92,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      # - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - metrics_network
     depends_on:
