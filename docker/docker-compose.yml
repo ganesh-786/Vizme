@@ -100,30 +100,34 @@ services:
     # ports:
     #   - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Editor
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=  # Assign Editor role to all users
-      - GF_EXPLORE_ENABLED=false  # disable Explore panel
-      # Auth Proxy settings
+      # Auth Proxy
       - GF_AUTH_PROXY_ENABLED=true
       - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
       - GF_AUTH_PROXY_HEADER_PROPERTY=email
       - GF_AUTH_PROXY_AUTO_SIGN_UP=true
-      # Disable Grafana's own login (all auth goes through proxy)
       - GF_AUTH_DISABLE_LOGIN_FORM=true
       - GF_AUTH_DISABLE_SIGNOUT_MENU=true
-      # Disable anonymous access
       - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Don't provision a global datasource (each org gets its own via API)
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      # - ./grafana/dashboards:/var/lib/grafana/dashboards
+      # Remove datasource provisioning - handled per-org via API
+      # - ./grafana/provisioning:/etc/grafana/provisioning
     networks:
       - metrics_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
-      - prometheus
+      - prom-label-proxy
 
   backend:
     build:
@@ -184,3 +188,5 @@ volumes:
 networks:
   metrics_network:
     driver: bridge
+
+

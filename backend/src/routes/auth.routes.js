@@ -7,6 +7,7 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { setupUserGrafanaOrg, ADMIN_AUTH, GRAFANA_URL } from '../services/grafana.service.js';
 
 const router = express.Router();
 
@@ -73,6 +74,16 @@ router.post(
       );
 
       const user = result.rows[0];
+
+      // Create isolated Garfana org for this user
+      try {
+        const grafanaOrgId = await setupUserGrafanaOrg(user.id, email, name);
+        await query('UPDATE users SET grafana_org_id = $1 WHERE id = $2', [grafanaOrgId, user.id]);
+      } catch (err) {
+        console.error('Failed to create Grafana org:', err);
+        // Non-fatal: user can still use the app, Grafana setup can be retried
+      }
+
       const { accessToken, refreshToken } = generateTokens(user.id);
       await storeRefreshToken(user.id, refreshToken);
 
@@ -292,9 +303,52 @@ router.post('/onboarding-complete', authenticate, async (req, res, next) => {
 // POST /api/v1/auth/grafana-session
 // Called by frontend before redirecting to Grafana
 // Validates JWT and sets an HttpOnly cookie for Grafana access
-router.post('/grafana-session', authenticate, (req, res) => {
+router.post('/grafana-session', authenticate, async (req, res) => {
+  // Look up the user's Grafana org
+  let userRecord = await query('SELECT grafana_org_id, email, name FROM users WHERE id = $1', [
+    req.user.id,
+  ]);
+  let orgId = userRecord.rows[0].grafana_org_id;
+
+  // Lazy setup: if org was never created (signup failure), create it now
+  if (!orgId) {
+    try {
+      const newOrgId = await setupUserGrafanaOrg(
+        req.user.id,
+        userRecord.rows[0].email,
+        userRecord.rows[0].name
+      );
+      await query('UPDATE users SET grafana_org_id = $1 WHERE id = $2', [newOrgId, req.user.id]);
+      orgId = newOrgId;
+      console.log(`Lazy-created Grafana org ${orgId} for user ${req.user.id}`);
+    } catch (err) {
+      console.error('Failed to lazy-create Grafana org:', err);
+      return res.status(500).json({ error: 'Grafana setup failed' });
+    }
+  }
+
+  // Switch user's active org in Grafana (so UI opens in their org)
+  if (orgId) {
+    try {
+      const lookupRes = await fetch(
+        `${GRAFANA_URL}/api/users/lookup?loginOrEmail=${encodeURIComponent(req.user.email)}`,
+        { headers: { Authorization: ADMIN_AUTH } }
+      );
+      if (lookupRes.ok) {
+        const grafanaUser = await lookupRes.json();
+        await fetch(`${GRAFANA_URL}/api/users/${grafanaUser.id}/using/${orgId}`, {
+          method: 'POST',
+          headers: { Authorization: ADMIN_AUTH },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to switch Grafana org:', err);
+    }
+  }
+
+  // Create the session token (rest stays the same)
   const grafanaToken = jwt.sign(
-    { userId: req.user.id, email: req.user.email, name: req.user.name, type: 'grafana' },
+    { userId: req.user.id, email: req.user.email, name: req.user.name, type: 'grafana', orgId },
     JWT_SECRET,
     { expiresIn: '8h' }
   );
@@ -302,7 +356,7 @@ router.post('/grafana-session', authenticate, (req, res) => {
   res.cookie('vizme_grafana_session', grafanaToken, {
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    maxAge: 8 * 60 * 60 * 1000,
     path: '/',
     domain: 'localhost',
   });
