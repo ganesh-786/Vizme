@@ -328,6 +328,7 @@ router.get('/verify-grafana', (req, res) => {
     // Pass user identity back via response header
     res.set('X-Grafana-User', decoded.email);
     res.set('X-Grafana-Name', decoded.name);
+    res.set('X-Grafana-User-Id', decoded.userId.toString());
     return res.status(200).json({ ok: true });
   } catch (err) {
     return res.status(401).json({ error: 'Invalid session' });
