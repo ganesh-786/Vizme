@@ -4,8 +4,10 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://nginx-prom-proxy:80
     isDefault: true
-    editable: true
+    editable: false     # prevent users from changing the URL
     jsonData:
       timeInterval: "3s"
+      keepCookies:
+        - vizme_grafana_session # forward the session cookie
