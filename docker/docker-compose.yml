@@ -54,20 +54,40 @@ services:
   #     - "--persistence.file=/pushgateway/data"
   #     - "--persistence.interval=5m"
 
+  nginx-grafana:
+    image: nginx:latest
+    container_name: metrics_nginx_grafana
+    ports:
+      - "3002:80" # Grafana now accessed via port 3002
+    volumes:
+      - ./nginx/grafana.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - metrics_network
+    depends_on:
+      - backend
+      - grafana
+
   grafana:
     image: grafana/grafana:latest
     container_name: metrics_grafana
-    ports:
-      - "3001:3000"
+    # removed the ports mapping - no longer exposed directly
+    # ports:
+    #   - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      # Enable iframe embedding in frontend
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      - GF_SECURITY_COOKIE_SAMESITE=disabled
+      # Auth Proxy settings
+      - GF_AUTH_PROXY_ENABLED=true
+      - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
+      - GF_AUTH_PROXY_HEADER_PROPERTY=email
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=true
+      # Disable Grafana's own login (all auth goes through proxy)
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_DISABLE_SIGNOUT_MENU=true
+      # Disable anonymous access
+      - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
