@@ -152,6 +152,17 @@ const runMigrations = async () => {
       UNIQUE(user_id, metric_name)
     )`,
 
+    `CREATE TABLE IF NOT EXISTS metric_values (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      metric_name VARCHAR(255) NOT NULL,
+      metric_type VARCHAR(50) NOT NULL,
+      value DOUBLE PRECISION NOT NULL DEFAULT 0,
+      labels JSONB DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, metric_name, labels)
+    )`,
+
     // Add status column to existing metric_configs (idempotent)
     `DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'metric_configs' AND column_name = 'status') THEN
@@ -193,6 +204,7 @@ const runMigrations = async () => {
     `CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)`,
     `CREATE INDEX IF NOT EXISTS idx_metric_configs_user_id ON metric_configs(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_metric_values_user_metric ON metric_values(user_id, metric_name)`,
   ];
 
   for (const migration of migrations) {
