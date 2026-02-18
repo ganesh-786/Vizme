@@ -17,7 +17,7 @@ const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
  */
 const validateMetricValue = (value, type) => {
   const numValue = typeof value === 'number' ? value : parseFloat(value);
-  
+
   if (isNaN(numValue)) {
     return false;
   }
@@ -32,12 +32,12 @@ const validateMetricValue = (value, type) => {
 
 /**
  * POST /api/v1/metrics
- * 
+ *
  * Metrics ingestion endpoint (requires API key)
- * 
+ *
  * This endpoint accepts metrics from clients and stores them in the Prometheus registry.
  * Prometheus will scrape these metrics from the /metrics endpoint.
- * 
+ *
  * Request body:
  * {
  *   "metrics": [
@@ -51,13 +51,18 @@ const validateMetricValue = (value, type) => {
  * }
  */
 
-router.post('/',
+router.post(
+  '/',
   authenticateApiKey,
   metricsLimiter,
   [
-    body('metrics').isArray({ min: 1, max: 100 }).withMessage('Metrics must be an array with 1-100 items'),
+    body('metrics')
+      .isArray({ min: 1, max: 100 })
+      .withMessage('Metrics must be an array with 1-100 items'),
     body('metrics.*.name').trim().isLength({ min: 1 }).withMessage('Metric name is required'),
-    body('metrics.*.type').isIn(METRIC_TYPES).withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
+    body('metrics.*.type')
+      .isIn(METRIC_TYPES)
+      .withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
     body('metrics.*.value').custom((value) => {
       const numValue = typeof value === 'number' ? value : parseFloat(value);
       if (isNaN(numValue)) {
@@ -65,7 +70,7 @@ router.post('/',
       }
       return true;
     }),
-    body('metrics.*.labels').optional().isObject()
+    body('metrics.*.labels').optional().isObject(),
   ],
   async (req, res, next) => {
     try {
@@ -83,24 +88,27 @@ router.post('/',
 
       for (let i = 0; i < metrics.length; i++) {
         const metric = metrics[i];
-        
+
         // Validate metric value
         if (!validateMetricValue(metric.value, metric.type)) {
           errors_list.push({
             index: i,
-            error: `Invalid value for ${metric.type} metric`
+            error: `Invalid value for ${metric.type} metric`,
           });
           continue;
         }
 
         // Record metric in Prometheus registry
         try {
-          recordMetric({
-            name: metric.name,
-            type: metric.type,
-            value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
-            labels: metric.labels || {}
-          }, userId);
+          await recordMetric(
+            {
+              name: metric.name,
+              type: metric.type,
+              value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
+              labels: metric.labels || {},
+            },
+            userId
+          );
 
           validMetrics.push({
             name: metric.name,
@@ -108,13 +116,13 @@ router.post('/',
             value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
             labels: {
               ...metric.labels,
-              user_id: userId.toString()
-            }
+              user_id: userId.toString(),
+            },
           });
         } catch (error) {
           errors_list.push({
             index: i,
-            error: error.message || 'Failed to record metric'
+            error: error.message || 'Failed to record metric',
           });
         }
       }
@@ -128,8 +136,8 @@ router.post('/',
         data: {
           processed: validMetrics.length,
           total: metrics.length,
-          errors: errors_list.length > 0 ? errors_list : undefined
-        }
+          errors: errors_list.length > 0 ? errors_list : undefined,
+        },
       });
     } catch (error) {
       next(error);
@@ -139,25 +147,22 @@ router.post('/',
 
 /**
  * GET /api/v1/metrics
- * 
+ *
  * Get metrics information (for authenticated users)
  * Note: Actual Prometheus metrics are exposed at /metrics endpoint
  */
-router.get('/',
-  authenticate,
-  async (req, res, next) => {
-    try {
-      res.json({
-        success: true,
-        message: 'View your metrics in Grafana or query Prometheus',
-        prometheusUrl: process.env.PROMETHEUS_URL || 'http://localhost:9090',
-        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001',
-        metricsEndpoint: '/metrics'
-      });
-    } catch (error) {
-      next(error);
-    }
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      message: 'View your metrics in Grafana or query Prometheus',
+      prometheusUrl: process.env.PROMETHEUS_URL || 'http://localhost:9090',
+      grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001',
+      metricsEndpoint: '/metrics',
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 export { router as metricsRoutes };

@@ -62,9 +62,19 @@ export async function setUserOrgRole(orgId, grafanaUserId, role = 'Editor') {
   });
 }
 
-// 4. Create a datasource in the user's org (pointing to prom-label-proxy)
+// 4. Check whether an org still exists in Grafana (handles volume recreation)
+export async function checkOrgExists(orgId) {
+  try {
+    const res = await fetch(`${GRAFANA_URL}/api/orgs/${orgId}`, { headers });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// 5. Create a datasource in the user's org (pointing to prom-label-proxy)
 export async function createDatasourceInOrg(orgId) {
-  await fetch(`${GRAFANA_URL}/api/datasources`, {
+  const res = await fetch(`${GRAFANA_URL}/api/datasources`, {
     method: 'POST',
     headers: { ...headers, 'X-Grafana-Org-Id': orgId.toString() },
     body: JSON.stringify({
@@ -79,9 +89,13 @@ export async function createDatasourceInOrg(orgId) {
       },
     }),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to create datasource in org ${orgId}: ${res.status} ${body}`);
+  }
 }
 
-// 5. Full setup: called once during signup
+// 6. Full setup: called once during signup
 export async function setupUserGrafanaOrg(userId, email, name) {
   const org = await createOrg(`vizme-user-${userId}`);
   const user = await createGrafanaUser(email, name, org.orgId);

@@ -14,7 +14,7 @@ import { metricsRoutes } from './src/routes/metrics.routes.js';
 import { healthRoutes } from './src/routes/health.routes.js';
 import { trackerRoutes } from './src/routes/tracker.routes.js';
 import { initDatabase } from './src/database/connection.js';
-import { getMetrics } from './src/services/metrics.service.js';
+import { getMetrics, restoreMetrics } from './src/services/metrics.service.js';
 
 dotenv.config();
 
@@ -157,6 +157,9 @@ const startDatabaseInit = async () => {
     await initDatabase(5, 5000); // 5 retries, 5 second delay
     dbInitialized = true;
     console.log('✅ Database ready');
+
+    // Restore persisted metric values into prometheus registry
+    await restoreMetrics();
   } catch (error) {
     console.error('❌ Database initialization failed after all retries');
     console.error('⚠️  Server is running but database operations will fail');
