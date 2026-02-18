@@ -7,7 +7,7 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
-import { setupUserGrafanaOrg, ADMIN_AUTH, GRAFANA_URL } from '../services/grafana.service.js';
+import { setupUserGrafanaOrg, checkOrgExists, ADMIN_AUTH, GRAFANA_URL } from '../services/grafana.service.js';
 
 const router = express.Router();
 
@@ -310,7 +310,16 @@ router.post('/grafana-session', authenticate, async (req, res) => {
   ]);
   let orgId = userRecord.rows[0].grafana_org_id;
 
-  // Lazy setup: if org was never created (signup failure), create it now
+  // Validate the stored org still exists in Grafana (handles volume recreation)
+  if (orgId) {
+    const orgExists = await checkOrgExists(orgId);
+    if (!orgExists) {
+      console.log(`Grafana org ${orgId} no longer exists, will re-create for user ${req.user.id}`);
+      orgId = null;
+    }
+  }
+
+  // Lazy setup: org was never created or was lost (e.g. Grafana volume recreated)
   if (!orgId) {
     try {
       const newOrgId = await setupUserGrafanaOrg(
