@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { initKeycloak, userFromKeycloakToken } from '@/lib/keycloak';
+import { initKeycloak, isKeycloakEnabled, userFromKeycloakToken } from '@/lib/keycloak';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
@@ -43,9 +43,13 @@ function GuestRoute({ children }) {
 }
 
 function App() {
-  const [keycloakReady, setKeycloakReady] = useState(false);
+  const [keycloakReady, setKeycloakReady] = useState(!isKeycloakEnabled());
 
   useEffect(() => {
+    if (!isKeycloakEnabled()) {
+      setKeycloakReady(true);
+      return;
+    }
     initKeycloak().then((kc) => {
       setKeycloakReady(true);
       if (kc?.authenticated) {
