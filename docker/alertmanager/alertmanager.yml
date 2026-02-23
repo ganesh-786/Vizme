@@ -1,0 +1,45 @@
+# Production-grade Alertmanager config for Vizme.
+# Configure receivers (email, Slack, PagerDuty) and routing.
+
+global:
+  resolve_timeout: 5m
+
+# Route tree: default receiver and optional grouping by severity
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'warning'
+
+receivers:
+  - name: 'default'
+    # Add webhook or email here, e.g.:
+    # webhook_configs:
+    #   - url: 'http://localhost:5001/webhook'
+    #     send_resolved: true
+
+  - name: 'critical'
+    # Example: Slack, PagerDuty, or email for critical alerts
+    # slack_configs:
+    #   - channel: '#alerts'
+    #     send_resolved: true
+
+  - name: 'warning'
+    # Example: lower-priority channel or email
+
+# Inhibit critical if warning for same alert (optional)
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']

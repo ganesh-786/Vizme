@@ -4,6 +4,7 @@ import { authenticateApiKey, authenticate } from '../middleware/auth.middleware.
 import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
 import { recordMetric, getMetrics } from '../services/metrics.service.js';
+import { config } from '../config.js';
 
 const router = express.Router();
 
@@ -150,8 +151,8 @@ router.get('/',
       res.json({
         success: true,
         message: 'View your metrics in Grafana or query Prometheus',
-        prometheusUrl: process.env.PROMETHEUS_URL || 'http://localhost:9090',
-        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001',
+        prometheusUrl: config.urls.prometheus,
+        grafanaUrl: config.urls.grafana,
         metricsEndpoint: '/metrics'
       });
     } catch (error) {

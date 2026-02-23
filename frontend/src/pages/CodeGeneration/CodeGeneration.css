@@ -222,6 +222,11 @@
   flex-wrap: wrap;
 }
 
+[data-theme='dark'] .cg-code-header {
+  background: var(--bg-tertiary);
+  border-bottom-color: var(--border-color);
+}
+
 .cg-window-controls {
   display: flex;
   gap: 0.375rem;

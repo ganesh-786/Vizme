@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 import { generateMinimalSnippet } from '../services/codeGenerator.service.js';
+import { config } from '../config.js';
 
 const router = express.Router();
 
@@ -75,7 +76,7 @@ router.post('/',
       );
 
       // ----- Generate minimal snippet ----------------------------------------
-      const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+      const baseUrl = config.api.baseUrl || 'http://localhost:3000';
       const code = generateMinimalSnippet({
         apiKey,
         baseUrl,

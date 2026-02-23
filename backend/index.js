@@ -1,9 +1,10 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
 import dotenv from "dotenv";
 import { errorHandler } from "./src/middleware/errorHandler.js";
+import { requestIdMiddleware } from "./src/middleware/requestId.js";
+import { appMetricsMiddleware, getAppMetrics } from "./src/middleware/appMetrics.js";
 import { authRoutes } from "./src/routes/auth.routes.js";
 import { apiKeyRoutes } from "./src/routes/apikey.routes.js";
 import { metricConfigRoutes } from "./src/routes/metricconfig.routes.js";
@@ -13,120 +14,116 @@ import { healthRoutes } from "./src/routes/health.routes.js";
 import { trackerRoutes } from "./src/routes/tracker.routes.js";
 import { initDatabase } from "./src/database/connection.js";
 import { getMetrics } from "./src/services/metrics.service.js";
+import { config, validateConfig } from "./src/config.js";
+import { logger } from "./src/logger.js";
+import pinoHttp from "pino-http";
 
 dotenv.config();
 
+// Fail fast if required env is missing (production requires JWT_SECRET)
+validateConfig();
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
 
-// Log startup configuration (non-sensitive)
-console.log("🔧 Starting backend server...");
-console.log("📋 Configuration:");
-console.log(`   - Port: ${PORT}`);
-console.log(`   - Environment: ${process.env.NODE_ENV || "development"}`);
-console.log(`   - Database Host: ${process.env.DB_HOST || "localhost"}`);
-console.log(`   - Database Port: ${process.env.DB_PORT || "5432"}`);
-console.log(`   - Database Name: ${process.env.DB_NAME || "metrics_db"}`);
-console.log(`   - Database User: ${process.env.DB_USER || "postgres"}`);
-console.log(`   - Database SSL: ${process.env.DB_SSL || "false"}`);
-console.log(`   - Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
+logger.info({
+  port: PORT,
+  env: config.env,
+  dbHost: config.db.host,
+  frontendUrl: config.cors.frontendUrl,
+}, 'Starting backend');
 
-// Validate required environment variables
-const requiredEnvVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+// Security: Helmet with production-safe defaults (CSP only in production)
+let grafanaOrigin = null;
+try {
+  if (config.urls.grafana && config.urls.grafana.startsWith('http')) {
+    grafanaOrigin = new URL(config.urls.grafana).origin;
+  }
+} catch (_) {}
 
-if (missingVars.length > 0) {
-  console.error("❌ Missing required environment variables:");
-  missingVars.forEach(varName => console.error(`   - ${varName}`));
-  console.error("💡 Make sure .env file exists in docker/ directory with all required variables");
-  console.error("💡 Or set them in docker-compose.yml environment section");
-}
-
-// Middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP entirely for testing
+  contentSecurityPolicy: config.isProduction ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      frameSrc: ["'self'", grafanaOrigin].filter(Boolean),
+      frameAncestors: ["'self'", config.cors.frontendUrl].filter(Boolean),
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", config.api.baseUrl].filter(Boolean),
+    },
+  } : false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
-const adminFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+// Request ID and structured request logging
+app.use(requestIdMiddleware);
+app.use(pinoHttp({
+  logger,
+  genReqId: (req) => req.id,
+  customLogLevel: (req, res, err) => {
+    if (res.statusCode >= 500 || err) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+}));
 
-// Custom CORS middleware that handles metrics endpoint differently
+// Application metrics (request count, duration)
+app.use(appMetricsMiddleware);
+
+// CORS: metrics/tracker endpoints allow cross-origin for client sites; use allowlist in production
+const allowedMetricsOrigins = config.cors.allowedMetricsOrigins;
+const isPublicApiPath = (path) =>
+  path.startsWith('/api/v1/metrics') ||
+  path === '/api/v1/metric-configs/by-api-key' ||
+  path === '/api/v1/tracker.js';
+
 app.use((req, res, next) => {
-  // For metrics endpoint, allow any origin (with credentials if browser sends them)
-  if (req.path.startsWith('/api/v1/metrics') || req.path === '/api/v1/metric-configs/by-api-key') {
+  if (isPublicApiPath(req.path)) {
     const origin = req.headers.origin;
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-    // DO NOT set Access-Control-Allow-Credentials
+    const allowOrigin = (allowedMetricsOrigins.includes('*') || !origin)
+      ? '*'
+      : allowedMetricsOrigins.includes(origin)
+        ? origin
+        : null;
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin || allowedMetricsOrigins[0] || '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
-    
-    // Handle preflight OPTIONS request
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
+    if (req.method === 'OPTIONS') return res.status(204).end();
     return next();
   }
-  
-  // For all other routes, use standard CORS
   next();
 });
 
-// Apply CORS for non-metrics routes
 app.use((req, res, next) => {
-  // Skip if already handled (metrics endpoint or metric-configs/by-api-key)
-  if (req.path.startsWith('/api/v1/metrics') || req.path === '/api/v1/metric-configs/by-api-key') {
-    return next();
-  }
-  
+  if (isPublicApiPath(req.path)) return next();
   cors({
-    origin: adminFrontendUrl,
+    origin: config.cors.frontendUrl,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   })(req, res, next);
 });
 
-app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Health (liveness: /health/live, readiness: /health/ready, legacy: /health)
 app.use("/health", healthRoutes);
 
-/**
- * Prometheus Metrics Endpoint
- * 
- * Exposes metrics in Prometheus format for scraping.
- * This endpoint should be accessible by Prometheus server.
- * 
- * Best Practices:
- * - No authentication required (Prometheus needs access)
- * - Returns metrics in Prometheus text format
- * - Fast response time (Prometheus scrapes frequently)
- */
+// Prometheus: expose app + user metrics
 app.get("/metrics", async (req, res) => {
   try {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Metrics endpoint accessed');
-    }
+    const [appMetricsText, userMetricsText] = await Promise.all([
+      getAppMetrics(),
+      getMetrics(),
+    ]);
     res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
-    const metrics = await getMetrics();
-    if (!metrics || metrics.length === 0) {
-      res.end('# No metrics available yet\n# Send metrics via POST /api/v1/metrics first\n');
-    } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('📊 Metrics generated, length:', metrics.length);
-      }
-      res.end(metrics);
-    }
+    const combined = [appMetricsText, userMetricsText].filter(Boolean).join('\n');
+    res.end(combined || '# No metrics yet\n');
   } catch (error) {
-    console.error('Error generating metrics:', error);
-    res.status(500).end(`# Error generating metrics: ${error.message}\n`);
+    logger.error({ err: error, requestId: req.id }, 'Metrics endpoint error');
+    res.status(500).set('Content-Type', 'text/plain').end(`# Error: ${error.message}\n`);
   }
 });
 
@@ -138,40 +135,31 @@ app.use("/api/v1/code-generation", codeGenerationRoutes);
 app.use("/api/v1/metrics", metricsRoutes);
 app.use("/api/v1", trackerRoutes);
 
-// Error handling
 app.use(errorHandler);
 
-// Start server immediately, initialize database in background with retries
 let dbInitialized = false;
 let dbInitPromise = null;
 
-// Initialize database with retry logic
 const startDatabaseInit = async () => {
   try {
-    await initDatabase(5, 5000); // 5 retries, 5 second delay
+    await initDatabase(5, 5000);
     dbInitialized = true;
-    console.log("✅ Database ready");
+    logger.info('Database ready');
   } catch (error) {
-    console.error("❌ Database initialization failed after all retries");
-    console.error("⚠️  Server is running but database operations will fail");
-    console.error("💡 Check your .env file and database connectivity");
+    logger.error({ err: error }, 'Database initialization failed');
     dbInitialized = false;
   }
 };
 
-// Start database initialization in background
 dbInitPromise = startDatabaseInit();
 
-// Start server immediately (don't wait for DB)
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🌐 API available at http://localhost:${PORT}/api/v1`);
-  console.log(`🏥 Health check at http://localhost:${PORT}/health`);
-  console.log(`⏳ Database initialization in progress...`);
+  logger.info({
+    port: PORT,
+    api: `http://localhost:${PORT}/api/v1`,
+    health: `http://localhost:${PORT}/health`,
+  }, 'Server listening');
 });
 
-// Export db status for health checks
 export { dbInitialized, dbInitPromise };
-
 export default app;

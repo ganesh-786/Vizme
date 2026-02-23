@@ -3,23 +3,46 @@ import { query } from '../database/connection.js';
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+const healthy = (req, res) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+};
+
+/** Liveness: process is running. No dependencies. */
+router.get('/live', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+/** Readiness: DB is reachable. Use for load balancer / k8s readiness probe. */
+router.get('/ready', async (req, res) => {
   try {
-    // Check database connection
-    await query('SELECT NOW()');
-    
-    res.json({
-      success: true,
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime()
-    });
+    await query('SELECT 1');
+    healthy(req, res);
   } catch (error) {
     res.status(503).json({
       success: false,
       status: 'unhealthy',
       error: 'Database connection failed',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/** Combined health (backward compatible): same as ready. */
+router.get('/', async (req, res) => {
+  try {
+    await query('SELECT NOW()');
+    healthy(req, res);
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      status: 'unhealthy',
+      error: 'Database connection failed',
+      timestamp: new Date().toISOString(),
     });
   }
 });

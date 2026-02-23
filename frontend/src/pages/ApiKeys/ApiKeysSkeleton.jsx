@@ -30,37 +30,6 @@ function ApiKeysSkeleton() {
         {/* Content */}
         <div className="apikeys-content">
           <div className="apikeys-grid">
-            {/* Left Column - Key Configuration */}
-            <div className="key-configuration">
-              <Skeleton width="140px" height="1.125rem" />
-
-              <div className="form-fields">
-                <div className="form-field">
-                  <Skeleton width="70px" height="12px" style={{ marginBottom: '0.5rem' }} />
-                  <Skeleton width="100%" height="48px" style={{ borderRadius: '0.5rem' }} />
-                </div>
-                <div className="form-field">
-                  <Skeleton width="90px" height="12px" style={{ marginBottom: '0.5rem' }} />
-                  <Skeleton width="100%" height="48px" style={{ borderRadius: '0.5rem' }} />
-                </div>
-              </div>
-
-              <div className="permissions-section">
-                <Skeleton width="130px" height="12px" />
-                <div className="permissions-grid" style={{ marginTop: '0.75rem' }}>
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="permission-item" style={{ pointerEvents: 'none' }}>
-                      <Skeleton variant="circle" width="16px" height="16px" />
-                      <Skeleton width="90px" height="14px" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Skeleton variant="button" width="100%" height="48px" />
-            </div>
-
-            {/* Right Column - Secret Key Panel */}
             <div className="secret-key-panel">
               <div className="secret-key-header">
                 <Skeleton dark width="100px" height="12px" />
@@ -88,7 +57,10 @@ function ApiKeysSkeleton() {
           <div className="existing-keys-section">
             <div className="existing-keys-header">
               <Skeleton width="160px" height="1.125rem" />
-              <Skeleton width="130px" height="20px" style={{ borderRadius: '0.25rem' }} />
+              <div className="existing-keys-header-actions">
+                <Skeleton width="130px" height="20px" style={{ borderRadius: '0.25rem' }} />
+                <Skeleton width="140px" height="40px" style={{ borderRadius: '0.5rem' }} />
+              </div>
             </div>
 
             <div className="keys-table-container">
@@ -96,7 +68,6 @@ function ApiKeysSkeleton() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Environment</th>
                     <th>Key (Masked)</th>
                     <th className="text-right">Actions</th>
                   </tr>
@@ -114,9 +85,6 @@ function ApiKeysSkeleton() {
                             style={{ marginTop: '0.25rem' }}
                           />
                         </div>
-                      </td>
-                      <td>
-                        <Skeleton variant="badge" width="85px" height="22px" stagger={i + 1} />
                       </td>
                       <td>
                         <Skeleton width="150px" height="14px" stagger={i + 1} />

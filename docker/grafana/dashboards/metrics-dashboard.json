@@ -1,36 +1,80 @@
 {
   "dashboard": {
-    "title": "Metrics Dashboard",
-    "tags": ["metrics"],
+    "title": "Vizme Metrics",
+    "tags": ["vizme", "metrics"],
     "timezone": "browser",
-    "schemaVersion": 16,
+    "schemaVersion": 38,
     "version": 1,
-    "refresh": "3s",
+    "refresh": "10s",
+    "templating": {
+      "list": [
+        {
+          "name": "user_id",
+          "type": "query",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "query": "label_values(user_metric_*, user_id)",
+          "multi": true,
+          "includeAll": true,
+          "allValue": ".*",
+          "current": { "selected": true, "text": "All", "value": "$__all" }
+        }
+      ]
+    },
     "panels": [
       {
         "id": 1,
-        "title": "Total Metrics",
-        "type": "stat",
-        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+        "title": "HTTP request rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
         "targets": [
           {
-            "expr": "count({app=\"unified-visibility-platform\"})",
-            "refId": "A"
+            "expr": "sum(rate(http_requests_total{service=\"vizme-backend\"}[5m])) by (method, route, status)",
+            "refId": "A",
+            "legendFormat": "{{method}} {{route}} {{status}}"
           }
-        ]
+        ],
+        "description": "Backend request rate (PromQL)"
       },
       {
         "id": 2,
-        "title": "Metrics Over Time",
-        "type": "graph",
-        "gridPos": {"h": 8, "w": 18, "x": 6, "y": 0},
+        "title": "HTTP p99 latency (s)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
         "targets": [
           {
-            "expr": "rate({app=\"unified-visibility-platform\"}[1m])",
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"vizme-backend\"}[5m])) by (le, route))",
             "refId": "A",
-            "legendFormat": "{{__name__}}"
+            "legendFormat": "{{route}}"
           }
-        ]
+        ],
+        "description": "99th percentile request duration"
+      },
+      {
+        "id": 3,
+        "title": "User metric series count",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "count(user_metric_*)",
+            "refId": "A"
+          }
+        ],
+        "description": "Total user-defined metric series (all users)"
+      },
+      {
+        "id": 4,
+        "title": "User metrics by user_id",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 18, "x": 6, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum by (user_id, __name__) (rate(user_metric_*{user_id=~\"$user_id\"}[5m]))",
+            "refId": "A",
+            "legendFormat": "{{user_id}} {{__name__}}"
+          }
+        ],
+        "description": "Rate of user metrics (counters) per user. Select user_id in the variable dropdown."
       }
     ]
   }

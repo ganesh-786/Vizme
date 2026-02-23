@@ -7,27 +7,24 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { config } from '../config.js';
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
-
-// Helper: Generate tokens
+// Helper: Generate tokens (uses config so JWT_SECRET is validated at startup in production)
 const generateTokens = (userId) => {
   const accessToken = jwt.sign(
     { userId, type: 'access' },
-    JWT_SECRET,
-    { expiresIn: JWT_ACCESS_EXPIRY }
+    config.jwt.secret,
+    { expiresIn: config.jwt.accessExpiry }
   );
-  
+
   const refreshToken = jwt.sign(
     { userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRY }
+    config.jwt.secret,
+    { expiresIn: config.jwt.refreshExpiry }
   );
-  
+
   return { accessToken, refreshToken };
 };
 
@@ -168,7 +165,7 @@ router.post('/refresh',
       // Verify token
       let decoded;
       try {
-        decoded = jwt.verify(refreshToken, JWT_SECRET);
+        decoded = jwt.verify(refreshToken, config.jwt.secret);
       } catch (error) {
         throw new UnauthorizedError('Invalid refresh token');
       }

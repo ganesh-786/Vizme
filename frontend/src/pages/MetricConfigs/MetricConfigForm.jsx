@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { onboardingAPI } from '@/api/onboarding';
@@ -6,8 +6,6 @@ import { useToast } from '@/components/ToastContainer';
 import ProgressStepper from '@/components/ProgressStepper';
 import {
   SettingsIcon,
-  AddCircleIcon,
-  DeleteIcon,
   ExpandMoreIcon,
   ArrowRightIcon,
   UnfoldMoreIcon,
@@ -26,13 +24,12 @@ function MetricConfigForm({ isEdit = false }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [anonymizeIP, setAnonymizeIP] = useState(true);
   const [realTimeWebhook, setRealTimeWebhook] = useState(false);
-  const [labels, setLabels] = useState([{ key: 'env', value: 'prod' }]);
   const [formData, setFormData] = useState({
     name: '',
     metric_type: 'Counter',
-    description: '',
-    help_text: '',
   });
+  // Optional fields (description, help_text, labels) – stored on edit so we preserve them on update
+  const optionalFieldsRef = useRef({ description: '', help_text: '', labels: [] });
 
   // Fetch existing config data if editing
   useEffect(() => {
@@ -56,20 +53,12 @@ function MetricConfigForm({ isEdit = false }) {
         metric_type: config.metric_type
           ? config.metric_type.charAt(0).toUpperCase() + config.metric_type.slice(1)
           : 'Counter',
+      });
+      optionalFieldsRef.current = {
         description: config.description || '',
         help_text: config.help_text || '',
-      });
-
-      if (config.labels && Array.isArray(config.labels) && config.labels.length > 0) {
-        setLabels(
-          config.labels.map((l) => ({
-            key: l.name || l.key || '',
-            value: l.value || '',
-          }))
-        );
-      } else {
-        setLabels([{ key: 'env', value: 'prod' }]);
-      }
+        labels: Array.isArray(config.labels) ? config.labels : [],
+      };
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to load configuration', 'error');
       navigate('/metric-configs');
@@ -80,28 +69,6 @@ function MetricConfigForm({ isEdit = false }) {
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleAddLabel = () => {
-    setLabels([...labels, { key: '', value: '' }]);
-  };
-
-  const handleRemoveLabel = (index) => {
-    setLabels(labels.filter((_, i) => i !== index));
-  };
-
-  const handleLabelChange = (index, field, value) => {
-    setLabels((prevLabels) => {
-      // Guard against invalid index or missing element (race condition protection)
-      if (index < 0 || index >= prevLabels.length || !prevLabels[index]) {
-        return prevLabels;
-      }
-
-      // Immutable update pattern
-      const updated = [...prevLabels];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
   };
 
   // Generate metric_name from configuration name
@@ -115,18 +82,27 @@ function MetricConfigForm({ isEdit = false }) {
     );
   };
 
+  const getOptionalPayload = () => {
+    if (isEdit) {
+      const o = optionalFieldsRef.current;
+      return {
+        description: o.description || '',
+        help_text: o.help_text || '',
+        labels: Array.isArray(o.labels) ? o.labels : [],
+      };
+    }
+    return { description: '', help_text: '', labels: [] };
+  };
+
   const handleSaveDraft = async () => {
     setLoading(true);
     try {
+      const optional = getOptionalPayload();
       const payload = {
         name: formData.name,
         metric_name: generateMetricName(formData.name),
         metric_type: formData.metric_type.toLowerCase(),
-        description: formData.description,
-        help_text: formData.help_text,
-        labels: labels
-          .filter((l) => l.key && l.value)
-          .map((l) => ({ name: l.key, value: l.value })),
+        ...optional,
         status: 'draft',
       };
 
@@ -151,15 +127,12 @@ function MetricConfigForm({ isEdit = false }) {
     setLoading(true);
 
     try {
+      const optional = getOptionalPayload();
       const payload = {
         name: formData.name,
         metric_name: generateMetricName(formData.name),
         metric_type: formData.metric_type.toLowerCase(),
-        description: formData.description,
-        help_text: formData.help_text,
-        labels: labels
-          .filter((l) => l.key && l.value)
-          .map((l) => ({ name: l.key, value: l.value })),
+        ...optional,
         status: 'active',
       };
 
@@ -284,73 +257,6 @@ function MetricConfigForm({ isEdit = false }) {
                     ))}
                   </select>
                   <UnfoldMoreIcon size={20} className="select-icon" />
-                </div>
-              </div>
-            </div>
-
-            <div className="form-field form-field-full">
-              <label className="form-label">Description</label>
-              <p className="form-helper">
-                Provide detailed context about what this metric tracks and why.
-              </p>
-              <textarea
-                className="form-textarea"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Describe the purpose of this metric..."
-                rows={4}
-              />
-            </div>
-
-            <div className="form-grid">
-              <div className="form-field">
-                <label className="form-label">Help Text</label>
-                <p className="form-helper">Define what users see in UI tooltips.</p>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={formData.help_text}
-                  onChange={(e) => handleInputChange('help_text', e.target.value)}
-                  placeholder="Tooltip content..."
-                />
-              </div>
-
-              <div className="form-field">
-                <label className="form-label">Labels</label>
-                <p className="form-helper">Apply key-value pairs for filtering.</p>
-                <div className="labels-container">
-                  {labels.map((label, index) => (
-                    <div key={index} className="label-row">
-                      <input
-                        type="text"
-                        className="label-input"
-                        placeholder="Key (e.g. env)"
-                        value={label.key}
-                        onChange={(e) => handleLabelChange(index, 'key', e.target.value)}
-                      />
-                      <input
-                        type="text"
-                        className="label-input"
-                        placeholder="Value (e.g. prod)"
-                        value={label.value}
-                        onChange={(e) => handleLabelChange(index, 'value', e.target.value)}
-                      />
-                      {labels.length > 1 && (
-                        <button
-                          type="button"
-                          className="label-delete-btn"
-                          onClick={() => handleRemoveLabel(index)}
-                          aria-label="Remove label"
-                        >
-                          <DeleteIcon size={18} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" className="add-label-btn" onClick={handleAddLabel}>
-                    <AddCircleIcon size={18} />
-                    Add Label
-                  </button>
                 </div>
               </div>
             </div>

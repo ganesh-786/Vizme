@@ -10,8 +10,8 @@
 }
 
 [data-theme='dark'] {
-  --skeleton-base: #2d2d2d;
-  --skeleton-highlight: #3a3a3a;
+  --skeleton-base: var(--bg-tertiary);
+  --skeleton-highlight: #1f1f1f;
 }
 
 /* Base Skeleton Styles */

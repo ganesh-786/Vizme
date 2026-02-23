@@ -1,29 +1,25 @@
 import pg from "pg";
 import dotenv from "dotenv";
+import { config } from "../config.js";
 
 dotenv.config();
 
 const { Pool } = pg;
 
-// SSL configuration for external databases
-const sslConfig =
-  process.env.DB_SSL === "true"
-    ? {
-        rejectUnauthorized: false, // Set to true in production with proper certs
-      }
-    : false;
+const sslConfig = config.db.ssl
+  ? { rejectUnauthorized: config.db.sslRejectUnauthorized }
+  : false;
 
 const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
-  database: process.env.DB_NAME || "metrics_db",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
+  host: config.db.host,
+  port: config.db.port,
+  database: config.db.database,
+  user: config.db.user,
+  password: config.db.password,
   ssl: sslConfig,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased from 2000ms to 10s for external DB
-  // Connection pool settings for external databases
+  connectionTimeoutMillis: 10000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
 });
@@ -58,7 +54,7 @@ export const initDatabase = async (retries = 5, delay = 5000) => {
         `🔄 Attempting database connection (${attempt}/${retries})...`
       );
       console.log(
-        `📡 Connecting to: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
+        `📡 Connecting to: ${config.db.host}:${config.db.port}/${config.db.database}`
       );
 
       // Test connection
@@ -82,7 +78,7 @@ export const initDatabase = async (retries = 5, delay = 5000) => {
         error.message.includes("getaddrinfo")
       ) {
         console.error("🔍 DNS Resolution Error Detected:");
-        console.error(`   - Hostname: ${process.env.DB_HOST}`);
+        console.error(`   - Hostname: ${config.db.host}`);
         console.error("   - This hostname cannot be resolved");
         console.error("💡 Common issues:");
         console.error("   1. Hostname is incomplete (missing domain suffix)");
@@ -100,7 +96,7 @@ export const initDatabase = async (retries = 5, delay = 5000) => {
         console.error("💡 Check your database credentials in .env file");
         console.error("💡 Verify database is accessible from container");
         console.error(
-          "💡 Test DNS resolution: nslookup " + process.env.DB_HOST
+          "💡 Test DNS resolution: nslookup " + config.db.host
         );
         throw error;
       }
