@@ -1,13 +1,9 @@
-import { useEffect, useRef } from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/api/auth';
+import { initKeycloak, isKeycloakEnabled, userFromKeycloakToken } from '@/lib/keycloak';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
@@ -49,11 +45,26 @@ function GuestRoute({ children }) {
 }
 
 function App() {
-  const { isAuthenticated, accessToken, refreshToken } = useAuthStore();
+  const { isAuthenticated, accessToken, refreshToken, authProviderType } = useAuthStore();
   const lastSyncedRef = useRef('');
+  const [keycloakReady, setKeycloakReady] = useState(!isKeycloakEnabled());
 
   useEffect(() => {
-    if (!isAuthenticated || !accessToken) {
+    if (!isKeycloakEnabled()) {
+      setKeycloakReady(true);
+      return;
+    }
+    initKeycloak().then((kc) => {
+      setKeycloakReady(true);
+      if (kc?.authenticated) {
+        const user = userFromKeycloakToken(kc.tokenParsed);
+        if (user) useAuthStore.getState().setKeycloakAuth(user);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (authProviderType !== 'legacy' || !isAuthenticated || !accessToken) {
       lastSyncedRef.current = '';
       return;
     }
@@ -65,7 +76,15 @@ function App() {
     authAPI.syncSession(refreshToken).catch(() => {
       // The normal request pipeline can still refresh/recover the session.
     });
-  }, [isAuthenticated, accessToken, refreshToken]);
+  }, [authProviderType, isAuthenticated, accessToken, refreshToken]);
+
+  if (!keycloakReady) {
+    return (
+      <div className="auth-container" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <p aria-live="polite">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <Router>
