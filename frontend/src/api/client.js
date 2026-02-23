@@ -13,6 +13,7 @@ const client = axios.create({
   },
 });
 
+// Request interceptor: add Bearer token (legacy from store, Keycloak from adapter)
 client.interceptors.request.use(
   async (config) => {
     const { authProviderType, accessToken } = useAuthStore.getState();
@@ -78,7 +79,7 @@ client.interceptors.response.use(
         if (kc?.authenticated) {
           originalRequest._retry = true;
           try {
-            await kc.updateToken(-1);
+            await kc.updateToken(-1); // Force refresh
             const token = kc.token;
             if (token) {
               originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -94,6 +95,7 @@ client.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // Legacy: refresh token flow
       originalRequest._retry = true;
 
       if (isRefreshing) {

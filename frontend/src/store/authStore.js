@@ -7,6 +7,7 @@ const loadAuth = () => {
     const stored = localStorage.getItem('auth-storage');
     if (stored) {
       const parsed = JSON.parse(stored);
+      // Only restore legacy auth from storage; Keycloak state is set after init
       if (parsed.authProviderType === 'keycloak') {
         return { user: null, accessToken: null, refreshToken: null, isAuthenticated: false, authProviderType: 'legacy' };
       }
@@ -18,6 +19,7 @@ const loadAuth = () => {
   return { user: null, accessToken: null, refreshToken: null, isAuthenticated: false, authProviderType: 'legacy' };
 };
 
+// Save to localStorage (legacy auth only; Keycloak does not persist tokens here)
 const saveAuth = (state) => {
   try {
     if (state.authProviderType === 'keycloak') return;
@@ -62,6 +64,7 @@ export const useAuthStore = create((set, get) => {
         isAuthenticated: true,
         authProviderType: 'keycloak',
       });
+      // Keycloak tokens are not stored in our store; client reads from keycloak instance
     },
 
     logout: () => {
@@ -83,7 +86,7 @@ export const useAuthStore = create((set, get) => {
 
     updateToken: (accessToken) => {
       const currentState = get();
-      if (currentState.authProviderType === 'keycloak') return;
+      if (currentState.authProviderType === 'keycloak') return; // Keycloak manages its own token
       const newState = { ...currentState, accessToken };
       set(newState);
       saveAuth(newState);
