@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
-import { getApiBaseUrl } from '@/config/env';
+import { getKeycloak } from '@/lib/keycloak';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -12,18 +12,29 @@ const client = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor: add Bearer token (legacy from store, Keycloak from adapter)
 client.interceptors.request.use(
-  (config) => {
-    const { accessToken } = useAuthStore.getState();
-    if (accessToken) {
+  async (config) => {
+    const { authProviderType, accessToken } = useAuthStore.getState();
+
+    if (authProviderType === 'keycloak') {
+      const kc = getKeycloak();
+      if (kc?.authenticated) {
+        try {
+          await kc.updateToken(30);
+          const token = kc.token;
+          if (token) config.headers.Authorization = `Bearer ${token}`;
+        } catch (e) {
+          if (kc.token) config.headers.Authorization = `Bearer ${kc.token}`;
+        }
+      }
+    } else if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Auth endpoints that should not trigger token refresh on 401
@@ -63,6 +74,30 @@ client.interceptors.response.use(
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      const { authProviderType } = useAuthStore.getState();
+
+      if (authProviderType === 'keycloak') {
+        const kc = getKeycloak();
+        if (kc?.authenticated) {
+          originalRequest._retry = true;
+          try {
+            await kc.updateToken(-1); // Force refresh
+            const token = kc.token;
+            if (token) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              return client(originalRequest);
+            }
+          } catch (e) {
+            useAuthStore.getState().logout();
+            return Promise.reject(error);
+          }
+        }
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      // Legacy: refresh token flow
       originalRequest._retry = true;
 
       // If a refresh is already in progress, queue this request

@@ -1,13 +1,7 @@
-import { useEffect, useRef } from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { authAPI } from '@/api/auth';
+import { initKeycloak, isKeycloakEnabled, userFromKeycloakToken } from '@/lib/keycloak';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
@@ -49,23 +43,29 @@ function GuestRoute({ children }) {
 }
 
 function App() {
-  const { isAuthenticated, accessToken, refreshToken } = useAuthStore();
-  const lastSyncedRef = useRef('');
+  const [keycloakReady, setKeycloakReady] = useState(!isKeycloakEnabled());
 
   useEffect(() => {
-    if (!isAuthenticated || !accessToken) {
-      lastSyncedRef.current = '';
+    if (!isKeycloakEnabled()) {
+      setKeycloakReady(true);
       return;
     }
-
-    const syncKey = `${accessToken}:${refreshToken || ''}`;
-    if (lastSyncedRef.current === syncKey) return;
-    lastSyncedRef.current = syncKey;
-
-    authAPI.syncSession(refreshToken).catch(() => {
-      // The normal request pipeline can still refresh/recover the session.
+    initKeycloak().then((kc) => {
+      setKeycloakReady(true);
+      if (kc?.authenticated) {
+        const user = userFromKeycloakToken(kc.tokenParsed);
+        if (user) useAuthStore.getState().setKeycloakAuth(user);
+      }
     });
-  }, [isAuthenticated, accessToken, refreshToken]);
+  }, []);
+
+  if (!keycloakReady) {
+    return (
+      <div className="auth-container" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <p aria-live="polite">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <Router>
