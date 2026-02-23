@@ -62,14 +62,12 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Response interceptor for token refresh
+// Response interceptor for token refresh (legacy) and 401 handling (Keycloak)
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Skip token refresh logic for auth endpoints (login/signup/refresh)
-    // These should just return the error so the form can display it
     if (isAuthEndpoint(originalRequest?.url)) {
       return Promise.reject(error);
     }
