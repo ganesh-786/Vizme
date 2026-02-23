@@ -259,8 +259,8 @@ Keycloak generates UUID-based user IDs. **We must maintain the existing integer 
 |------|------|------------|--------|
 | 0 | Repository Understanding | Analyze codebase, document current auth | **DONE** |
 | 1 | Keycloak Infrastructure | Add Keycloak to Docker Compose, configure realm | **DONE** |
-| 2 | Backend Token Validation | Add Keycloak token verification alongside existing JWT | Pending |
-| 3 | Frontend OIDC Integration | Add Keycloak JS adapter, parallel auth | Pending |
+| 2 | Backend Token Validation | Add Keycloak token verification alongside existing JWT | **DONE** |
+| 3 | Frontend OIDC Integration | Add Keycloak JS adapter, parallel auth | **DONE** |
 | 4 | User Migration & Mapping | Migrate existing users, establish ID mapping | Pending |
 | 5 | Cutover & Cleanup | Remove old auth code after verification | Pending (needs approval) |
 
