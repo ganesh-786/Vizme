@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/api/auth';
 import { useToast } from '@/components/ToastContainer';
+import { getKeycloak, isKeycloakEnabled } from '@/lib/keycloak';
 import Logo from '@/components/Logo';
 import { ArrowRightIcon, EyeIcon, EyeOffIcon } from '@/assets/icons';
 import '@/pages/Auth/Auth.css';
@@ -15,8 +16,12 @@ function Signup() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
+  const { setAuth, isAuthenticated } = useAuthStore();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (isAuthenticated) navigate('/', { replace: true });
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -139,6 +144,21 @@ function Signup() {
               <ArrowRightIcon size={20} />
             </button>
           </form>
+
+          {isKeycloakEnabled() && (
+            <>
+              <div className="auth-divider" role="separator" aria-label="Or" />
+              <p className="auth-footer">
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => getKeycloak()?.register()}
+                >
+                  Sign up with Keycloak
+                </button>
+              </p>
+            </>
+          )}
 
           <div className="auth-divider" role="separator" />
           <p className="auth-footer">
