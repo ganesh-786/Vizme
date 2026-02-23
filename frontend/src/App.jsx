@@ -43,7 +43,6 @@ function GuestRoute({ children }) {
 }
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
   const [keycloakReady, setKeycloakReady] = useState(!isKeycloakEnabled());
 
   useEffect(() => {
