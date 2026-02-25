@@ -1,11 +1,10 @@
 /**
- * Keycloak JS adapter singleton and initialization.
- * Used when VITE_AUTH_PROVIDER is "keycloak" or "both".
+ * Keycloak JS adapter singleton and initialization (Step 5 Cutover).
+ * Auth is Keycloak-only; no legacy provider checks.
  */
 
 import Keycloak from 'keycloak-js';
 
-const AUTH_PROVIDER = import.meta.env.VITE_AUTH_PROVIDER || 'legacy';
 const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080';
 const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || 'unified-visibility';
 const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'uv-frontend';
@@ -13,36 +12,18 @@ const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'uv-fronte
 let keycloakInstance = null;
 let initPromise = null;
 
-/**
- * Whether Keycloak is enabled (provider is "keycloak" or "both").
- */
 export function isKeycloakEnabled() {
-  return AUTH_PROVIDER === 'keycloak' || AUTH_PROVIDER === 'both';
+  return true;
 }
 
-/**
- * Current auth provider from env.
- */
-export function getAuthProvider() {
-  return AUTH_PROVIDER;
-}
-
-/**
- * Get the Keycloak instance (may be null if not initialized or not enabled).
- */
 export function getKeycloak() {
   return keycloakInstance;
 }
 
 /**
  * Initialize Keycloak. Safe to call multiple times — returns the same promise.
- * Resolves to the Keycloak instance when Keycloak is enabled, or null when legacy-only.
  */
 export function initKeycloak() {
-  if (!isKeycloakEnabled()) {
-    return Promise.resolve(null);
-  }
-
   if (initPromise) {
     return initPromise;
   }
@@ -59,9 +40,7 @@ export function initKeycloak() {
       checkLoginIframe: false,
       pkceMethod: 'S256',
     })
-    .then((authenticated) => {
-      return keycloakInstance;
-    })
+    .then(() => keycloakInstance)
     .catch((err) => {
       console.error('Keycloak init failed', err);
       initPromise = null;
