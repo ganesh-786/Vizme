@@ -33,7 +33,6 @@ client.interceptors.request.use(
         if (kc.token) config.headers.Authorization = `Bearer ${kc.token}`;
       }
     }
-
     return config;
   },
   (error) => Promise.reject(error)
