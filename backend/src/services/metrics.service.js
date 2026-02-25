@@ -24,11 +24,6 @@ register.setDefaultLabels({
   version: '1.0.0'
 });
 
-// In-memory storage for user-submitted metrics
-// Key: `${userId}_${metricName}_${labelHash}`
-// Value: { type, value, labels, timestamp }
-const metricsStore = new Map();
-
 // Track metric instances to avoid duplicates
 // Key: `${userId}_${metricName}_${labelHash}`
 const metricInstances = new Map();
@@ -177,18 +172,7 @@ export const recordMetric = (metricData, userId) => {
         // Summaries observe values
         metric.observe(metricLabels, numValue);
         break;
-    }
-
-    // Store in memory for reference (optional, for debugging/querying)
-    const labelHash = hashLabels(labels);
-    const key = `${userId}_${name}_${labelHash}`;
-    metricsStore.set(key, {
-      name,
-      type,
-      value: numValue,
-      labels: metricLabels,
-      timestamp: Date.now()
-    });
+    }    
 
   } catch (error) {
     console.error(`Error recording metric ${name}:`, error);
@@ -212,33 +196,4 @@ export const getMetrics = async () => {
  */
 export const getRegistry = () => {
   return register;
-};
-
-/**
- * Clear metrics for a specific user (optional cleanup)
- * @param {string} userId - User ID
- */
-export const clearUserMetrics = (userId) => {
-  const keysToDelete = [];
-  for (const [key] of metricsStore) {
-    if (key.startsWith(`${userId}_`)) {
-      keysToDelete.push(key);
-    }
-  }
-  keysToDelete.forEach(key => {
-    metricsStore.delete(key);
-    metricInstances.delete(key);
-  });
-};
-
-/**
- * Get metrics statistics (for debugging/monitoring)
- * @returns {Object} - Statistics about stored metrics
- */
-export const getMetricsStats = () => {
-  return {
-    totalMetrics: metricsStore.size,
-    totalInstances: metricInstances.size,
-    registryMetrics: register.getMetricsAsArray().length
-  };
 };
