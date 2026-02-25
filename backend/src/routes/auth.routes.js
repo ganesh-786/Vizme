@@ -17,6 +17,7 @@ import { BadRequestError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
+// Password reset request — stub: direct users to Keycloak
 router.post(
   '/password-reset-request',
   authLimiter,
@@ -27,9 +28,6 @@ router.post(
       if (!errors.isEmpty()) {
         throw new BadRequestError('Validation failed', errors.array());
       }
-
-      const { email } = req.body;
-      await query('SELECT id FROM users WHERE email = $1', [email]);
 
       res.json({
         success: true,
