@@ -261,16 +261,12 @@ Keycloak generates UUID-based user IDs. **We must maintain the existing integer 
 | 1 | Keycloak Infrastructure | Add Keycloak to Docker Compose, configure realm | **DONE** |
 | 2 | Backend Token Validation | Add Keycloak token verification alongside existing JWT | **DONE** |
 | 3 | Frontend OIDC Integration | Add Keycloak JS adapter, parallel auth | **DONE** |
-| 4 | User Migration & Mapping | Migrate existing users, establish ID mapping | Pending |
-| 5 | Cutover & Cleanup | Remove old auth code after verification | Pending (needs approval) |
+| 4 | User Migration & Mapping | Migrate existing users, establish ID mapping | **DONE** |
+| 5 | Cutover & Cleanup | Remove old auth code after verification | **DONE** |
 
-### 5.2 Parallel Auth Strategy
+### 5.2 Parallel Auth Strategy (Pre–Step 5)
 
-During transition, the backend will support BOTH:
-1. **Existing JWT** (current `authenticate` middleware)
-2. **Keycloak OIDC tokens** (new middleware)
-
-A feature flag (`AUTH_PROVIDER=legacy|keycloak|both`) will control which auth is active.
+During Steps 2–4, the backend supported BOTH legacy JWT and Keycloak OIDC tokens via the `AUTH_PROVIDER` feature flag. **As of Step 5 (Cutover & Cleanup), auth is Keycloak-only;** legacy JWT and the flag have been removed.
 
 ### 5.3 Architecture After Migration
 
@@ -351,6 +347,44 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 
 **Existing login form remains functional.**
 
+### Step 4: User Migration & Mapping
+
+**What changes**:
+- Formalizes how existing users are migrated to Keycloak-backed authentication without a disruptive bulk data migration.
+- Relies on the `keycloak_id` mapping column on the `users` table (added in Step 2).
+- Uses the existing `resolveLocalUser` logic in `backend/src/middleware/keycloak.middleware.js` to:
+  - Link a Keycloak user to an existing local user on first Keycloak login by matching `email` and back-filling `keycloak_id`.
+  - Auto-create a local user row for Keycloak-first users with a placeholder `password_hash = '__keycloak_managed__'`.
+- No new schema changes or routes; this step is primarily about enabling migration flows and documenting how to verify them.
+
+**Files affected**:
+- `backend/src/middleware/keycloak.middleware.js` (migration and mapping behavior defined and used as-is)
+- `docs/keycloak-auth-step-4.md` (detailed migration + verification guide)
+
+**Notes**:
+- Existing JWT auth remains available in `legacy` or `both` modes via `AUTH_PROVIDER`.
+- API key–based flows and Prometheus scraping remain unchanged.
+- User migration is **lazy**: mappings are created the first time a user signs in via Keycloak, so there is no risky one-time bulk migration.
+
+### Step 5: Cutover & Cleanup
+
+**What changes**:
+- Backend accepts **only** Keycloak OIDC tokens for user authentication. Legacy JWT middleware, signin/signup/refresh routes, and the `AUTH_PROVIDER` flag are removed.
+- Frontend uses **only** Keycloak for login and signup. Legacy email/password forms, dual auth store state, and `VITE_AUTH_PROVIDER` are removed.
+- Unused backend dependencies (`jsonwebtoken`, `bcryptjs`) are removed. API key auth, Keycloak middleware (including user mapping), and public endpoints remain unchanged.
+
+**Files affected**:
+- `backend/src/middleware/auth.middleware.js` (Keycloak-only `authenticate`)
+- `backend/src/routes/auth.routes.js` (legacy routes removed; optional password-reset stub kept)
+- `backend/package.json` (bcryptjs, jsonwebtoken removed)
+- `frontend/src/store/authStore.js`, `frontend/src/api/client.js`, `frontend/src/lib/keycloak.js`
+- `frontend/src/pages/Login/index.jsx`, `frontend/src/pages/Signup/index.jsx`, `frontend/src/App.jsx`, `frontend/src/api/auth.js`
+- `docs/keycloak-auth-step-5.md` (detailed cutover & cleanup guide)
+
+**Notes**:
+- Rollback after Step 5 requires reverting code and restoring dependencies; env flags no longer exist.
+- The `refresh_tokens` table and `users.password_hash` column are left in place; they can be dropped in a future migration if desired.
+
 ---
 
 ## 7. Risk Assessment
@@ -370,13 +404,10 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 
 ## 8. Rollback Strategy
 
-At every step, rollback is possible by:
+- **Steps 1–4**: Rollback by env/config only (e.g. set `AUTH_PROVIDER=legacy`, `VITE_AUTH_PROVIDER=legacy`) or by removing Keycloak from docker-compose. No code changes needed.
+- **After Step 5**: Legacy code and env flags have been removed. Rollback requires reverting the Step 5 code changes and reinstalling backend dependencies (`bcryptjs`, `jsonwebtoken`). See `docs/keycloak-auth-step-5.md` for details.
 
-1. **Step 1** (Infrastructure): Remove Keycloak containers from docker-compose. Zero code impact.
-2. **Step 2** (Backend): Set `AUTH_PROVIDER=legacy` env var. Keycloak middleware is bypassed. No code changes needed.
-3. **Step 3** (Frontend): Set `VITE_AUTH_PROVIDER=legacy` env var. Frontend uses existing login form. No code changes needed.
-
-**Emergency rollback**: Revert to the commit before migration changes. All existing auth code is preserved until explicit removal is approved.
+**Emergency rollback**: Revert to the commit before the change. After Step 5, restore legacy auth code and dependencies from version control.
 
 ---
 
