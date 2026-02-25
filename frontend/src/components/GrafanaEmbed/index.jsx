@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/Skeleton';
+import { getEmbedUrl } from '@/api/grafana';
+import { useToast } from '@/components/ToastContainer';
+import { getApiBaseUrl } from '@/config/env';
 import './GrafanaEmbed.css';
 
 /**
- * GrafanaEmbed - Embeds Grafana dashboards or panels via iframe
- * 
+ * GrafanaEmbed - Embeds Grafana dashboards via backend proxy with user isolation.
+ * Fetches a signed embed URL from the API; only the authenticated user's metrics are shown.
+ *
  * @param {string} dashboardUid - The unique identifier of the Grafana dashboard
  * @param {number} panelId - Optional panel ID to embed a specific panel (uses d-solo endpoint)
  * @param {string} from - Time range start (default: 'now-1h')
@@ -24,33 +28,39 @@ function GrafanaEmbed({
   theme,
   height = 400,
   title = 'Metrics Dashboard',
-  kiosk = true,
+  kiosk = false,
 }) {
+  const [embedUrl, setEmbedUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const { showToast } = useToast();
 
-  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3001';
+  useEffect(() => {
+    let cancelled = false;
 
-  // Build the embed URL
-  const buildEmbedUrl = () => {
-    const params = new URLSearchParams({
-      from,
-      to,
-      refresh,
-      ...(theme && { theme }),
-    });
-
-    if (panelId) {
-      // Embed a single panel
-      return `${grafanaUrl}/d-solo/${dashboardUid}?panelId=${panelId}&${params.toString()}`;
+    async function fetchUrl() {
+      try {
+        const url = await getEmbedUrl({
+          dashboard: dashboardUid,
+          panelId,
+          from,
+          to,
+          refresh,
+          theme,
+          kiosk: kiosk ? 'tv' : undefined,
+        });
+        if (!cancelled && url) setEmbedUrl(url);
+        else if (!cancelled) setHasError(true);
+      } catch (err) {
+        if (!cancelled) setHasError(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
 
-    // Embed full dashboard with optional kiosk mode
-    const kioskParam = kiosk ? '&kiosk=tv' : '';
-    return `${grafanaUrl}/d/${dashboardUid}?${params.toString()}${kioskParam}`;
-  };
-
-  const embedUrl = buildEmbedUrl();
+    fetchUrl();
+    return () => { cancelled = true; };
+  }, [dashboardUid, panelId, from, to, refresh, theme, kiosk]);
 
   const handleLoad = () => {
     setIsLoading(false);
@@ -61,15 +71,9 @@ function GrafanaEmbed({
     setHasError(true);
   };
 
-  // Reset loading state when URL changes
-  useEffect(() => {
-    setIsLoading(true);
-    setHasError(false);
-  }, [embedUrl]);
-
   return (
     <div className="grafana-embed">
-      {isLoading && (
+      {isLoading && !embedUrl && (
         <div className="grafana-embed__loading" style={{ height }}>
           <Skeleton width="100%" height="100%" />
         </div>
@@ -90,29 +94,50 @@ function GrafanaEmbed({
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <p>Unable to load Grafana dashboard</p>
-            <a
-              href={grafanaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="grafana-embed__error-link"
+            <button
+              type="button"
+              className="grafana-embed__error-link grafana-embed__error-link--button"
+              onClick={async () => {
+                try {
+                  const url = await getEmbedUrl({
+                    dashboard: dashboardUid,
+                    from,
+                    to,
+                    refresh,
+                    theme,
+                    kiosk: kiosk ? 'tv' : undefined,
+                  });
+                  if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                } catch (err) {
+                  showToast(
+                    err.response?.status === 401
+                      ? 'Session expired. Please log in again.'
+                      : 'Unable to load Grafana. Please try again.',
+                    'error',
+                    4000
+                  );
+                }
+              }}
             >
-              Open Grafana directly →
-            </a>
+              Open Grafana →
+            </button>
           </div>
         </div>
       )}
 
-      <iframe
-        src={embedUrl}
-        width="100%"
-        height={height}
-        frameBorder="0"
-        title={title}
-        onLoad={handleLoad}
-        onError={handleError}
-        className={`grafana-embed__iframe ${isLoading ? 'grafana-embed__iframe--loading' : ''}`}
-        allow="fullscreen"
-      />
+      {embedUrl && (
+        <iframe
+          src={embedUrl}
+          width="100%"
+          height={height}
+          frameBorder="0"
+          title={title}
+          onLoad={handleLoad}
+          onError={handleError}
+          className={`grafana-embed__iframe ${isLoading ? 'grafana-embed__iframe--loading' : ''}`}
+          allow="fullscreen"
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
 import { onboardingAPI } from '@/api/onboarding';
+import { getEmbedUrl } from '@/api/grafana';
 import {
   AnalyticsIcon,
   CheckIcon,
@@ -15,9 +16,11 @@ import {
 } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
 import { GrafanaEmbed } from '@/components/GrafanaEmbed';
+import { useToast } from '@/components/ToastContainer';
 import './Dashboard.css';
 
 function Dashboard() {
+  const { showToast } = useToast();
   const [stats, setStats] = useState({
     metricConfigs: 0,
     apiKeys: 0,
@@ -60,7 +63,21 @@ function Dashboard() {
     fetchData();
   }, []);
 
-  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3001';
+  const handleOpenGrafana = async () => {
+    try {
+      const url = await getEmbedUrl({ dashboard: 'metrics', from: 'now-1h', to: 'now', refresh: '10s', kiosk: 'tv' });
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const isUnauthorized = err.response?.status === 401;
+      showToast(
+        isUnauthorized
+          ? 'Session expired. Please log in again to open Grafana.'
+          : 'Unable to load Grafana. Please try again.',
+        'error',
+        4000
+      );
+    }
+  };
 
   // Determine which Quick-Start steps are completed
   const step1Done = onboarding.has_metric_configs;
@@ -242,9 +259,9 @@ function Dashboard() {
                 Connect your VIZME endpoint to your Grafana dashboard via our native plugin for
                 visualization.
               </p>
-              <a href={grafanaUrl} target="_blank" rel="noopener noreferrer" className="text-link">
+              <button type="button" onClick={handleOpenGrafana} className="text-link button-as-link">
                 Open Grafana →
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -259,14 +276,13 @@ function Dashboard() {
               Real-time telemetry data from your connected applications
             </p>
           </div>
-          <a
-            href={grafanaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="metrics-visualization__link"
+          <button
+            type="button"
+            onClick={handleOpenGrafana}
+            className="metrics-visualization__link button-as-link"
           >
             Open Full Dashboard →
-          </a>
+          </button>
         </div>
 
         <div className="metrics-visualization__container">

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { errorHandler } from "./src/middleware/errorHandler.js";
 import { requestIdMiddleware } from "./src/middleware/requestId.js";
@@ -12,6 +13,7 @@ import { codeGenerationRoutes } from "./src/routes/codeGeneration.routes.js";
 import { metricsRoutes } from "./src/routes/metrics.routes.js";
 import { healthRoutes } from "./src/routes/health.routes.js";
 import { trackerRoutes } from "./src/routes/tracker.routes.js";
+import { grafanaRoutes, grafanaProxyMiddleware } from "./src/routes/grafana.routes.js";
 import { initDatabase } from "./src/database/connection.js";
 import { getMetrics } from "./src/services/metrics.service.js";
 import { config, validateConfig } from "./src/config.js";
@@ -107,6 +109,7 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Health (liveness: /health/live, readiness: /health/ready, legacy: /health)
 app.use("/health", healthRoutes);
@@ -134,6 +137,8 @@ app.use("/api/v1/metric-configs", metricConfigRoutes);
 app.use("/api/v1/code-generation", codeGenerationRoutes);
 app.use("/api/v1/metrics", metricsRoutes);
 app.use("/api/v1", trackerRoutes);
+app.use("/api/v1/grafana", grafanaRoutes);
+app.use("/grafana", grafanaProxyMiddleware);
 
 app.use(errorHandler);
 

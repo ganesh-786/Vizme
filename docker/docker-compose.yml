@@ -77,13 +77,24 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      # Enable iframe embedding in frontend
+      # Enable iframe embedding in frontend (via backend proxy)
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      # Disable anonymous access - Grafana only reachable via backend proxy with user isolation
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Auth proxy: backend adds X-WEBAUTH-USER, Grafana auto-logs in (no manual login)
+      - GF_AUTH_PROXY_ENABLED=true
+      - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
+      - GF_AUTH_PROXY_HEADER_PROPERTY=username
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=true
+      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Editor
+      # Serve from /grafana subpath for backend proxy
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # Root URL must match how users access (via backend proxy at :3000)
+      - GF_SERVER_ROOT_URL=${API_BASE_URL:-http://localhost:3000}/grafana
       - GF_SECURITY_COOKIE_SAMESITE=disabled
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
@@ -114,7 +125,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:-dev-secret-do-not-use-in-production}
       - DB_SSL_REJECT_UNAUTHORIZED=${DB_SSL_REJECT_UNAUTHORIZED:-false}
       - PUSHGATEWAY_URL=${PUSHGATEWAY_URL:-http://pushgateway:9091}
-      - GRAFANA_URL=${GRAFANA_URL:-http://localhost:3001}
+      # Backend must use grafana:3000 from inside Docker (localhost = container itself)
+      - GRAFANA_INTERNAL_URL=http://grafana:3000
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
     volumes:

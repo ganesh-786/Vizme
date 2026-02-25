@@ -1,7 +1,11 @@
 {
   "dashboard": {
+    "uid": "metrics",
     "title": "Vizme Metrics",
-    "tags": ["vizme", "metrics"],
+    "tags": [
+      "vizme",
+      "metrics"
+    ],
     "timezone": "browser",
     "schemaVersion": 38,
     "version": 1,
@@ -11,12 +15,19 @@
         {
           "name": "user_id",
           "type": "query",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "query": "label_values(user_metric_*, user_id)",
-          "multi": true,
-          "includeAll": true,
-          "allValue": ".*",
-          "current": { "selected": true, "text": "All", "value": "$__all" }
+          "multi": false,
+          "includeAll": false,
+          "current": {
+            "selected": true,
+            "text": "",
+            "value": ""
+          },
+          "hide": 2
         }
       ]
     },
@@ -25,7 +36,12 @@
         "id": 1,
         "title": "HTTP request rate",
         "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
         "targets": [
           {
             "expr": "sum(rate(http_requests_total{service=\"vizme-backend\"}[5m])) by (method, route, status)",
@@ -39,7 +55,12 @@
         "id": 2,
         "title": "HTTP p99 latency (s)",
         "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
         "targets": [
           {
             "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"vizme-backend\"}[5m])) by (le, route))",
@@ -53,7 +74,12 @@
         "id": 3,
         "title": "User metric series count",
         "type": "stat",
-        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+        "gridPos": {
+          "h": 6,
+          "w": 6,
+          "x": 0,
+          "y": 8
+        },
         "targets": [
           {
             "expr": "count(user_metric_*)",
@@ -66,7 +92,12 @@
         "id": 4,
         "title": "User metrics by user_id",
         "type": "timeseries",
-        "gridPos": { "h": 8, "w": 18, "x": 6, "y": 8 },
+        "gridPos": {
+          "h": 8,
+          "w": 18,
+          "x": 6,
+          "y": 8
+        },
         "targets": [
           {
             "expr": "sum by (user_id, __name__) (rate(user_metric_*{user_id=~\"$user_id\"}[5m]))",
