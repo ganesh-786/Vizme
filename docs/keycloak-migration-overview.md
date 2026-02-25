@@ -262,11 +262,11 @@ Keycloak generates UUID-based user IDs. **We must maintain the existing integer 
 | 2 | Backend Token Validation | Add Keycloak token verification alongside existing JWT | **DONE** |
 | 3 | Frontend OIDC Integration | Add Keycloak JS adapter, parallel auth | **DONE** |
 | 4 | User Migration & Mapping | Lazy link via `keycloak_id` / email (`resolveLocalUser`) | **DONE** |
-| 5 | Cutover & Cleanup | Remove old auth code after verification | **Pending** |
+| 5 | Cutover & Cleanup | Remove old auth code after verification | **DONE** |
 
-### 5.2 Parallel Auth Strategy (Current vs Step 5)
+### 5.2 Parallel Auth Strategy (Pre–Step 5)
 
-The backend and frontend use `AUTH_PROVIDER` / `VITE_AUTH_PROVIDER` (`legacy`, `keycloak`, or `both`) so Keycloak and legacy JWT can run in parallel. **Step 5** will remove legacy signin/signup/refresh paths and the dual-provider flags once cutover is verified.
+During Steps 2–4, the backend supported BOTH legacy JWT and Keycloak OIDC tokens via the `AUTH_PROVIDER` feature flag. **As of Step 5 (Cutover & Cleanup), auth is Keycloak-only;** legacy JWT and the flag have been removed.
 
 ### 5.3 Architecture After Migration
 
@@ -368,7 +368,7 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 
 ### Step 5: Cutover & Cleanup
 
-**What changes** (planned — not yet applied):
+**What changes**:
 - Backend accepts **only** Keycloak OIDC tokens for user authentication. Legacy JWT middleware, signin/signup/refresh routes, and the `AUTH_PROVIDER` flag are removed.
 - Frontend uses **only** Keycloak for login and signup. Legacy email/password forms, dual auth store state, and `VITE_AUTH_PROVIDER` are removed.
 - Unused backend dependencies (`jsonwebtoken`, `bcryptjs`) are removed. API key auth, Keycloak middleware (including user mapping), and public endpoints remain unchanged.
@@ -378,7 +378,7 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 - `backend/src/routes/auth.routes.js` (legacy routes removed; optional password-reset stub kept)
 - `backend/package.json` (bcryptjs, jsonwebtoken removed)
 - `frontend/src/store/authStore.js`, `frontend/src/api/client.js`, `frontend/src/lib/keycloak.js`
-- `frontend/src/pages/Login/index.jsx`, `frontend/src/pages/Signup/index.jsx`, `frontend/src/App.jsx`, `frontend/src/api/auth.js`
+- `frontend/src/pages/Login/index.jsx`, `frontend/src/pages/Signup/index.jsx`, `frontend/src/App.jsx` (legacy `frontend/src/api/auth.js` removed)
 - `docs/keycloak-auth-step-5.md` (detailed cutover & cleanup guide)
 
 **Notes**:
@@ -404,11 +404,8 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 
 ## 8. Rollback Strategy
 
-1. **Step 1** (Infrastructure): Remove Keycloak containers from docker-compose, or stop them. App tables stay in `public`; Keycloak uses the `keycloak` schema only.
-2. **Step 2** (Backend): Set `AUTH_PROVIDER=legacy`. Keycloak middleware is not used for `authenticate`. No code changes needed.
-3. **Step 3** (Frontend): Set `VITE_AUTH_PROVIDER=legacy`. Frontend uses the existing login form. No code changes needed.
-4. **Steps 2–4 (combined)**: Same as above — env/config only (`AUTH_PROVIDER`, `VITE_AUTH_PROVIDER`) or remove Keycloak from compose; legacy JWT and dual-mode code remain until Step 5.
-5. **After Step 5** (when executed): Legacy code and env flags are removed. Rollback requires reverting those changes and reinstalling backend dependencies (`bcryptjs`, `jsonwebtoken`). See `docs/keycloak-auth-step-5.md`.
+- **Steps 1–4**: Rollback by env/config only (e.g. set `AUTH_PROVIDER=legacy`, `VITE_AUTH_PROVIDER=legacy`) or by removing Keycloak from docker-compose. No code changes needed.
+- **After Step 5**: Legacy code and env flags have been removed. Rollback requires reverting the Step 5 code changes and reinstalling backend dependencies (`bcryptjs`, `jsonwebtoken`). See `docs/keycloak-auth-step-5.md` for details.
 
 **Emergency rollback**: Revert to the commit before the change. After Step 5, restore legacy auth code and dependencies from version control.
 
@@ -438,7 +435,6 @@ User (Browser)         Keycloak              Frontend (React)         Backend (E
 | `frontend/src/App.jsx` | `PrivateRoute` component, route definitions |
 | `frontend/src/store/authStore.js` | Zustand auth state (user, tokens, isAuthenticated) |
 | `frontend/src/api/client.js` | Axios instance with auth interceptors |
-| `frontend/src/api/auth.js` | `authAPI.signup()`, `authAPI.signin()` |
 | `frontend/src/pages/Login/index.jsx` | Login form UI |
 | `frontend/src/pages/Signup/index.jsx` | Signup form UI |
 

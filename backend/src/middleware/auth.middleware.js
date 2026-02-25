@@ -1,129 +1,21 @@
 /**
- * Authentication middleware — Keycloak and/or legacy JWT (see AUTH_PROVIDER).
+ * Authentication Middleware — Keycloak-Only (Step 5 Cutover)
  *
- * AUTH_PROVIDER:
- *   "legacy"   – (default) JWT via Bearer header and/or httpOnly cookie session
- *   "keycloak" – Keycloak OIDC token validation only
- *   "both"     – try Keycloak first; if it fails, fall back to legacy JWT/cookies
+ * All user authentication is via Keycloak OIDC tokens. Legacy JWT and
+ * dual-auth support have been removed.
  *
- * API key auth (`authenticateApiKey`) is independent of AUTH_PROVIDER.
+ * The `authenticateApiKey` middleware is unchanged — API key auth remains
+ * independent (metrics ingestion, tracker.js, by-api-key).
  */
 
 import { query } from '../database/connection.js';
 import { UnauthorizedError } from './errorHandler.js';
-import {
-  getAccessTokenFromCookie,
-  getRefreshTokenFromRequest,
-  rotateRefreshSession,
-  setAuthCookies,
-  verifyAccessToken,
-} from '../services/authSession.service.js';
 import { authenticateKeycloak } from './keycloak.middleware.js';
 
-const AUTH_PROVIDER = (process.env.AUTH_PROVIDER || 'legacy').toLowerCase();
-
-console.log(`🔐 Auth provider: ${AUTH_PROVIDER}`);
-
-const SAFE_COOKIE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-async function resolveUser(userId) {
-  const result = await query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
-
-  if (result.rows.length === 0) {
-    throw new UnauthorizedError('User not found');
-  }
-
-  return result.rows[0];
-}
-
-async function authenticateWithCookieSession(req, res) {
-  if (!SAFE_COOKIE_METHODS.has(req.method)) {
-    throw new UnauthorizedError('No token provided');
-  }
-
-  const accessCookie = getAccessTokenFromCookie(req);
-
-  if (accessCookie) {
-    try {
-      return verifyAccessToken(accessCookie);
-    } catch (error) {
-      if (error.name !== 'TokenExpiredError') {
-        throw new UnauthorizedError('Invalid or expired token');
-      }
-    }
-  }
-
-  const refreshToken = getRefreshTokenFromRequest(req);
-  if (!refreshToken) {
-    throw new UnauthorizedError('No token provided');
-  }
-
-  const session = await rotateRefreshSession(refreshToken);
-  setAuthCookies(res, session);
-  return verifyAccessToken(session.accessToken);
-}
-
-const authenticateLegacy = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    let decoded;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      decoded = verifyAccessToken(token);
-      if (!getAccessTokenFromCookie(req) && SAFE_COOKIE_METHODS.has(req.method)) {
-        setAuthCookies(res, { accessToken: token });
-      }
-    } else {
-      decoded = await authenticateWithCookieSession(req, res);
-    }
-
-    req.user = await resolveUser(decoded.userId);
-    next();
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return next(new UnauthorizedError('Invalid or expired token'));
-    }
-    next(error);
-  }
-};
+export const authenticate = authenticateKeycloak;
 
 /**
- * When AUTH_PROVIDER=both, try Keycloak first; on failure fall back to legacy
- * (Bearer or cookie session) so old and new tokens work during migration.
- */
-const authenticateBoth = async (req, res, next) => {
-  authenticateKeycloak(req, res, (keycloakError) => {
-    if (!keycloakError) {
-      return next();
-    }
-
-    req.user = undefined;
-    req.keycloakPayload = undefined;
-
-    authenticateLegacy(req, res, next);
-  });
-};
-
-/**
- * Main middleware for protected routes; behavior follows AUTH_PROVIDER.
- */
-export const authenticate = async (req, res, next) => {
-  switch (AUTH_PROVIDER) {
-    case 'keycloak':
-      return authenticateKeycloak(req, res, next);
-
-    case 'both':
-      return authenticateBoth(req, res, next);
-
-    case 'legacy':
-    default:
-      return authenticateLegacy(req, res, next);
-  }
-};
-
-/**
- * API key authentication — independent of AUTH_PROVIDER.
+ * API key authentication — independent of user auth.
  * Used for metrics ingestion, tracker.js, and metric-configs/by-api-key.
  */
 export const authenticateApiKey = async (req, res, next) => {

@@ -3,7 +3,7 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useToast } from '@/components/ToastContainer';
-import { authAPI } from '@/api/auth';
+import { getKeycloak } from '@/lib/keycloak';
 import Logo from '@/components/Logo';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { BellIcon, MoonIcon, SunIcon } from '@/assets/icons';
@@ -27,15 +27,11 @@ function Layout() {
     return (first ? first : 'U').toUpperCase();
   }, [user?.email]);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setIsProfileOpen(false);
-    try {
-      await authAPI.logout();
-    } catch (_) {
-      // Clear local auth even if the backend session is already gone.
-    }
+    const kc = getKeycloak();
     logout();
-    navigate('/login');
+    if (!kc) navigate('/login');
   };
 
   const handleComingSoon = useCallback(
