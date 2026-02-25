@@ -48,7 +48,6 @@ router.post(
 // ---------------------------------------------------------------------------
 router.get('/onboarding-status', authenticate, async (req, res, next) => {
   try {
-    // Run all checks in parallel for performance
     const [configsResult, keyResult, userResult] = await Promise.all([
       query('SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1', [req.user.id]),
       query(
@@ -82,7 +81,6 @@ router.get('/onboarding-status', authenticate, async (req, res, next) => {
 
 // ---------------------------------------------------------------------------
 // POST /onboarding-complete — Marks the user's onboarding as done.
-//   Called after the user finishes the Code Generation step.
 // ---------------------------------------------------------------------------
 router.post('/onboarding-complete', authenticate, async (req, res, next) => {
   try {
