@@ -28,7 +28,6 @@ router.post(
       if (!errors.isEmpty()) {
         throw new BadRequestError('Validation failed', errors.array());
       }
-
       res.json({
         success: true,
         message:
