@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/api/auth';
 import { useToast } from '@/components/ToastContainer';
-import { getKeycloak, isKeycloakEnabled } from '@/lib/keycloak';
+import { getKeycloak, getAuthProvider, isKeycloakEnabled } from '@/lib/keycloak';
 import Logo from '@/components/Logo';
 import { ArrowRightIcon, EyeIcon, EyeOffIcon } from '@/assets/icons';
 import '@/pages/Auth/Auth.css';
@@ -19,6 +19,7 @@ function Signup() {
   const location = useLocation();
   const { setAuth, isAuthenticated } = useAuthStore();
   const { showToast } = useToast();
+  const keycloakOnly = getAuthProvider() === 'keycloak';
 
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true });
@@ -43,12 +44,10 @@ function Signup() {
           : '/';
       setTimeout(() => navigate(redirectTo, { replace: true }), 500);
     } catch (err) {
-      // Handle various error response formats from backend
       const responseData = err.response?.data;
       let errorMsg = 'Signup failed. Please try again.';
 
       if (responseData) {
-        // Try common error message locations
         errorMsg =
           responseData.error ||
           responseData.message ||
@@ -56,7 +55,6 @@ function Signup() {
           (typeof responseData === 'string' ? responseData : errorMsg);
       }
 
-      // Map generic status messages to user-friendly messages
       if (err.response?.status === 401 || errorMsg.toLowerCase() === 'unauthorized') {
         errorMsg = 'Invalid credentials. Please try again.';
       } else if (err.response?.status === 409 || errorMsg.toLowerCase().includes('exists')) {
@@ -69,6 +67,55 @@ function Signup() {
       setLoading(false);
     }
   };
+
+  const handleKeycloakRegister = () => {
+    getKeycloak()?.register();
+  };
+
+  if (keycloakOnly) {
+    return (
+      <div className="auth-container">
+        <div className="auth-layout">
+          <main className="auth-card auth-card--signup" aria-label="Create account">
+            <div className="auth-logo">
+              <Logo size="large" />
+            </div>
+
+            <h1 className="auth-title-hero">Sign Up</h1>
+            <p className="auth-subtitle auth-subtitle-lg">
+              Join the next generation of engineering analytics.
+            </p>
+
+            <button
+              type="button"
+              className="btn btn-primary auth-cta"
+              style={{ width: '100%' }}
+              onClick={handleKeycloakRegister}
+            >
+              Sign up with Keycloak
+            </button>
+
+            <div className="auth-divider" role="separator" />
+            <p className="auth-footer">
+              Already have an account? <Link to="/login">Sign in</Link>
+            </p>
+          </main>
+
+          <div className="auth-terms" aria-label="Terms">
+            By clicking &quot;Sign up with Keycloak&quot;, you agree to our{' '}
+            <a href="#" onClick={(e) => e.preventDefault()}>
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="#" onClick={(e) => e.preventDefault()}>
+              Privacy Policy
+            </a>
+            .
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-container">
@@ -156,11 +203,7 @@ function Signup() {
             <>
               <div className="auth-divider" role="separator" aria-label="Or" />
               <p className="auth-footer">
-                <button
-                  type="button"
-                  className="auth-link-button"
-                  onClick={() => getKeycloak()?.register()}
-                >
+                <button type="button" className="auth-link-button" onClick={handleKeycloakRegister}>
                   Sign up with Keycloak
                 </button>
               </p>

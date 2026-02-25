@@ -13,7 +13,6 @@ const client = axios.create({
   },
 });
 
-// Request interceptor: add Bearer token (legacy from store, Keycloak from adapter)
 client.interceptors.request.use(
   async (config) => {
     const { authProviderType, accessToken } = useAuthStore.getState();
@@ -38,16 +37,16 @@ client.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Auth endpoints that should not trigger token refresh on 401
-const AUTH_ENDPOINTS = ['/auth/signin', '/auth/signup', '/auth/refresh', '/auth/logout'];
+const AUTH_ENDPOINTS = [
+  '/auth/signin',
+  '/auth/signup',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/password-reset-request',
+];
 
-// Check if the request URL is an auth endpoint
-const isAuthEndpoint = (url) => {
-  return AUTH_ENDPOINTS.some((endpoint) => url?.includes(endpoint));
-};
+const isAuthEndpoint = (url) => AUTH_ENDPOINTS.some((endpoint) => url?.includes(endpoint));
 
-// Token refresh queue to prevent race conditions
-// When multiple requests get 401 simultaneously, only one refresh happens
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -62,7 +61,6 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Response interceptor for token refresh (legacy) and 401 handling (Keycloak)
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -80,7 +78,7 @@ client.interceptors.response.use(
         if (kc?.authenticated) {
           originalRequest._retry = true;
           try {
-            await kc.updateToken(-1); // Force refresh
+            await kc.updateToken(-1);
             const token = kc.token;
             if (token) {
               originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -96,10 +94,8 @@ client.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // Legacy: refresh token flow
       originalRequest._retry = true;
 
-      // If a refresh is already in progress, queue this request
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -114,11 +110,11 @@ client.interceptors.response.use(
       try {
         const { refreshToken } = useAuthStore.getState();
 
-        const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
-          refreshToken,
-        }, {
-          withCredentials: true,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/api/v1/auth/refresh`,
+          { refreshToken },
+          { withCredentials: true }
+        );
 
         const { accessToken, refreshToken: newRefreshToken } = response.data.data;
         useAuthStore.getState().updateTokens(accessToken, newRefreshToken);

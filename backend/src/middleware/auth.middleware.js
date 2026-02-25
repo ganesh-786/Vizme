@@ -1,3 +1,8 @@
+/**
+ * Authentication middleware — Keycloak and/or legacy JWT (see AUTH_PROVIDER).
+ * API key auth is independent of AUTH_PROVIDER.
+ */
+
 import { query } from '../database/connection.js';
 import { UnauthorizedError } from './errorHandler.js';
 import {
@@ -9,9 +14,8 @@ import {
 } from '../services/authSession.service.js';
 import { authenticateKeycloak } from './keycloak.middleware.js';
 
-const AUTH_PROVIDER = (process.env.AUTH_PROVIDER || 'legacy').toLowerCase();
+const AUTH_PROVIDER = process.env.AUTH_PROVIDER || 'legacy';
 
-// Log which auth provider is active at startup
 console.log(`🔐 Auth provider: ${AUTH_PROVIDER}`);
 
 const SAFE_COOKIE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -78,29 +82,12 @@ const authenticateLegacy = async (req, res, next) => {
   }
 };
 
-// ─── Dual-Auth: Try Keycloak, then fall back to Legacy ─────────────────────
-
-/**
- * When AUTH_PROVIDER=both, try Keycloak validation first.
- * If that fails (e.g. the token was issued by the legacy system), fall back
- * to the legacy JWT middleware.
- *
- * This allows a seamless transition period where both old and new tokens work.
- */
 const authenticateBoth = async (req, res, next) => {
-  // Try Keycloak first.
-  // We pass a custom callback as the `next` parameter to authenticateKeycloak.
-  // If Keycloak succeeds, it calls our callback with no error — we then call
-  // the real Express `next()` to continue to the route handler.
-  // If Keycloak fails, we fall back to legacy JWT.
   authenticateKeycloak(req, res, (keycloakError) => {
     if (!keycloakError) {
-      // Keycloak succeeded — call the real next() to continue to the route handler
       return next();
     }
 
-    // Keycloak failed — try legacy JWT
-    // Reset req.user in case Keycloak partially set it
     req.user = undefined;
     req.keycloakPayload = undefined;
 
@@ -108,12 +95,6 @@ const authenticateBoth = async (req, res, next) => {
   });
 };
 
-// ─── Main Authenticate Export ───────────────────────────────────────────────
-
-/**
- * The main `authenticate` middleware used by all protected routes.
- * Behavior depends on the AUTH_PROVIDER environment variable.
- */
 export const authenticate = async (req, res, next) => {
   switch (AUTH_PROVIDER) {
     case 'keycloak':
@@ -128,10 +109,8 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
-// ─── API Key Authentication (unchanged) ─────────────────────────────────────
-
 /**
- * API key authentication — completely independent of AUTH_PROVIDER.
+ * API key authentication — independent of AUTH_PROVIDER.
  * Used for metrics ingestion, tracker.js, and metric-configs/by-api-key.
  */
 export const authenticateApiKey = async (req, res, next) => {

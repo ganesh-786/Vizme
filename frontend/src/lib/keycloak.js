@@ -13,31 +13,18 @@ const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'uv-fronte
 let keycloakInstance = null;
 let initPromise = null;
 
-/**
- * Whether Keycloak is enabled (provider is "keycloak" or "both").
- */
 export function isKeycloakEnabled() {
   return AUTH_PROVIDER === 'keycloak' || AUTH_PROVIDER === 'both';
 }
 
-/**
- * Current auth provider from env.
- */
 export function getAuthProvider() {
   return AUTH_PROVIDER;
 }
 
-/**
- * Get the Keycloak instance (may be null if not initialized or not enabled).
- */
 export function getKeycloak() {
   return keycloakInstance;
 }
 
-/**
- * Initialize Keycloak. Safe to call multiple times — returns the same promise.
- * Resolves to the Keycloak instance when Keycloak is enabled, or null when legacy-only.
- */
 export function initKeycloak() {
   if (!isKeycloakEnabled()) {
     return Promise.resolve(null);
@@ -59,9 +46,7 @@ export function initKeycloak() {
       checkLoginIframe: false,
       pkceMethod: 'S256',
     })
-    .then((authenticated) => {
-      return keycloakInstance;
-    })
+    .then(() => keycloakInstance)
     .catch((err) => {
       console.error('Keycloak init failed', err);
       initPromise = null;
@@ -72,9 +57,6 @@ export function initKeycloak() {
   return initPromise;
 }
 
-/**
- * Build user object from Keycloak token parsed payload (for auth store).
- */
 export function userFromKeycloakToken(tokenParsed) {
   if (!tokenParsed) return null;
   return {

@@ -72,9 +72,7 @@ function App() {
     if (lastSyncedRef.current === syncKey) return;
     lastSyncedRef.current = syncKey;
 
-    authAPI.syncSession(refreshToken).catch(() => {
-      // The normal request pipeline can still refresh/recover the session.
-    });
+    authAPI.syncSession(refreshToken).catch(() => {});
   }, [authProviderType, isAuthenticated, accessToken, refreshToken]);
 
   if (!keycloakReady) {

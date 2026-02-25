@@ -1,7 +1,12 @@
+/**
+ * Auth routes — legacy session (signup/signin/refresh) plus Keycloak-oriented stubs.
+ * When AUTH_PROVIDER=keycloak, clients typically use Keycloak for credentials;
+ * these routes remain for legacy and transitional setups.
+ */
+
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -19,6 +24,8 @@ import {
 import { clearGrafanaEmbedCookie } from '../services/grafanaEmbedSession.service.js';
 import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
 import { logger } from '../logger.js';
+
+const AUTH_PROVIDER = process.env.AUTH_PROVIDER || 'legacy';
 
 const router = express.Router();
 
@@ -261,12 +268,15 @@ router.post(
 
       const { email } = req.body;
 
-      const result = await query('SELECT id FROM users WHERE email = $1', [email]);
+      await query('SELECT id FROM users WHERE email = $1', [email]);
 
-      // Don't reveal if user exists (security best practice)
+      const keycloakMessage =
+        'Password reset is managed by Keycloak. Use the "Forgot password?" link on the login page or contact your administrator.';
+      const legacyMessage = 'If an account exists with this email, a password reset link has been sent';
+
       res.json({
         success: true,
-        message: 'If an account exists with this email, a password reset link has been sent',
+        message: AUTH_PROVIDER === 'keycloak' ? keycloakMessage : legacyMessage,
       });
     } catch (error) {
       next(error);

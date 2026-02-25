@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/api/auth';
 import { useToast } from '@/components/ToastContainer';
-import { getKeycloak, isKeycloakEnabled } from '@/lib/keycloak';
+import { getKeycloak, getAuthProvider, isKeycloakEnabled } from '@/lib/keycloak';
 import Logo from '@/components/Logo';
 import { EyeIcon, EyeOffIcon } from '@/assets/icons';
 import '@/pages/Auth/Auth.css';
@@ -18,6 +18,7 @@ function Login() {
   const location = useLocation();
   const { setAuth, isAuthenticated } = useAuthStore();
   const { showToast } = useToast();
+  const keycloakOnly = getAuthProvider() === 'keycloak';
 
   useEffect(() => {
     if (isAuthenticated) navigate('/', { replace: true });
@@ -42,12 +43,10 @@ function Login() {
           : '/';
       setTimeout(() => navigate(redirectTo, { replace: true }), 500);
     } catch (err) {
-      // Handle various error response formats from backend
       const responseData = err.response?.data;
       let errorMsg = 'Login failed. Please try again.';
 
       if (responseData) {
-        // Try common error message locations
         errorMsg =
           responseData.error ||
           responseData.message ||
@@ -55,7 +54,6 @@ function Login() {
           (typeof responseData === 'string' ? responseData : errorMsg);
       }
 
-      // Map generic "Unauthorized" to user-friendly message
       if (err.response?.status === 401 || errorMsg.toLowerCase() === 'unauthorized') {
         errorMsg = 'Invalid email or password. Please try again.';
       }
@@ -66,6 +64,52 @@ function Login() {
       setLoading(false);
     }
   };
+
+  const handleKeycloakLogin = () => {
+    getKeycloak()?.login();
+  };
+
+  if (keycloakOnly) {
+    return (
+      <div className="auth-container">
+        <div className="auth-layout">
+          <div className="auth-card">
+            <div className="auth-logo">
+              <Logo size="large" />
+            </div>
+
+            <h1>Sign in to your account</h1>
+            <p className="auth-subtitle">Welcome back to your analytics dashboard</p>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              onClick={handleKeycloakLogin}
+            >
+              Sign in with Keycloak
+            </button>
+
+            <p className="auth-footer">
+              Don&apos;t have an account? <Link to="/signup">Sign up</Link>
+            </p>
+          </div>
+
+          <div className="auth-legal" aria-label="Legal links">
+            <a href="#" onClick={(e) => e.preventDefault()}>
+              Privacy Policy
+            </a>
+            <a href="#" onClick={(e) => e.preventDefault()}>
+              Terms of Service
+            </a>
+            <a href="#" onClick={(e) => e.preventDefault()}>
+              Security
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-container">
@@ -151,7 +195,7 @@ function Login() {
                   className="btn btn-secondary"
                   style={{ width: '100%' }}
                   disabled={loading}
-                  onClick={() => getKeycloak()?.login()}
+                  onClick={handleKeycloakLogin}
                 >
                   Sign in with Keycloak
                 </button>
@@ -160,7 +204,7 @@ function Login() {
           </form>
 
           <p className="auth-footer">
-            Don’t have an account? <Link to="/signup">Sign up</Link>
+            Don&apos;t have an account? <Link to="/signup">Sign up</Link>
           </p>
         </div>
 
