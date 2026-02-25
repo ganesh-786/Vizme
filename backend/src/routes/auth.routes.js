@@ -1,234 +1,35 @@
+/**
+ * Auth routes — Keycloak-only (Step 5 Cutover)
+ *
+ * Legacy signin, signup, and refresh have been removed. Authentication is
+ * handled by Keycloak; the frontend uses the Keycloak JS adapter.
+ *
+ * Optional stub for password-reset-request returns a message directing
+ * users to Keycloak (e.g. self-service reset in Keycloak realm).
+ */
+
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-import { query } from '../database/connection.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
-import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { BadRequestError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
-
-// Helper: Generate tokens
-const generateTokens = (userId) => {
-  const accessToken = jwt.sign(
-    { userId, type: 'access' },
-    JWT_SECRET,
-    { expiresIn: JWT_ACCESS_EXPIRY }
-  );
-  
-  const refreshToken = jwt.sign(
-    { userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRY }
-  );
-  
-  return { accessToken, refreshToken };
-};
-
-// Helper: Store refresh token
-const storeRefreshToken = async (userId, token) => {
-  const decoded = jwt.decode(token);
-  const expiresAt = new Date(decoded.exp * 1000);
-  
-  await query(
-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-    [userId, token, expiresAt]
-  );
-};
-
-// Signup
-router.post('/signup',
+// Password reset request — stub: direct users to Keycloak
+router.post(
+  '/password-reset-request',
   authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('name').optional().trim().isLength({ min: 1 })
-  ],
+  [body('email').isEmail().normalizeEmail()],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         throw new BadRequestError('Validation failed', errors.array());
       }
-
-      const { email, password, name } = req.body;
-
-      // Check if user exists
-      const existingUser = await query('SELECT id FROM users WHERE email = $1', [email]);
-      if (existingUser.rows.length > 0) {
-        throw new BadRequestError('User with this email already exists');
-      }
-
-      // Hash password (12+ rounds)
-      const passwordHash = await bcrypt.hash(password, 12);
-
-      // Create user
-      const result = await query(
-        'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, created_at',
-        [email, passwordHash, name || null]
-      );
-
-      const user = result.rows[0];
-      const { accessToken, refreshToken } = generateTokens(user.id);
-      await storeRefreshToken(user.id, refreshToken);
-
-      res.status(201).json({
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name
-          },
-          accessToken,
-          refreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-// Signin
-router.post('/signin',
-  authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').notEmpty()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { email, password } = req.body;
-
-      // Find user
-      const result = await query('SELECT id, email, password_hash, name FROM users WHERE email = $1', [email]);
-      if (result.rows.length === 0) {
-        throw new UnauthorizedError('Invalid email or password');
-      }
-
-      const user = result.rows[0];
-
-      // Verify password
-      const isValid = await bcrypt.compare(password, user.password_hash);
-      if (!isValid) {
-        throw new UnauthorizedError('Invalid email or password');
-      }
-
-      // Generate tokens
-      const { accessToken, refreshToken } = generateTokens(user.id);
-      
-      // Rotate refresh token (delete old ones for this user)
-      await query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
-      await storeRefreshToken(user.id, refreshToken);
-
       res.json({
         success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name
-          },
-          accessToken,
-          refreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-// Refresh token
-router.post('/refresh',
-  [
-    body('refreshToken').notEmpty()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { refreshToken } = req.body;
-
-      // Verify token
-      let decoded;
-      try {
-        decoded = jwt.verify(refreshToken, JWT_SECRET);
-      } catch (error) {
-        throw new UnauthorizedError('Invalid refresh token');
-      }
-
-      if (decoded.type !== 'refresh') {
-        throw new UnauthorizedError('Invalid token type');
-      }
-
-      // Check if token exists in database
-      const tokenResult = await query(
-        'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-        [refreshToken]
-      );
-
-      if (tokenResult.rows.length === 0) {
-        throw new UnauthorizedError('Refresh token not found or expired');
-      }
-
-      const userId = tokenResult.rows[0].user_id;
-
-      // Generate new tokens
-      const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
-
-      // Rotate refresh token
-      await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-      await storeRefreshToken(userId, newRefreshToken);
-
-      res.json({
-        success: true,
-        data: {
-          accessToken,
-          refreshToken: newRefreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-// Password reset request (simplified - in production, send email)
-router.post('/password-reset-request',
-  authLimiter,
-  [
-    body('email').isEmail().normalizeEmail()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { email } = req.body;
-
-      const result = await query('SELECT id FROM users WHERE email = $1', [email]);
-      
-      // Don't reveal if user exists (security best practice)
-      res.json({
-        success: true,
-        message: 'If an account exists with this email, a password reset link has been sent'
+        message:
+          'Password reset is managed by Keycloak. Use the "Forgot password?" link on the login page or contact your administrator.',
       });
     } catch (error) {
       next(error);

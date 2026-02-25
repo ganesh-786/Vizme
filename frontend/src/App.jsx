@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { initKeycloak, isKeycloakEnabled, userFromKeycloakToken } from '@/lib/keycloak';
+import { initKeycloak, userFromKeycloakToken } from '@/lib/keycloak';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
@@ -19,13 +19,9 @@ function PrivateRoute({ children }) {
 }
 
 function App() {
-  const [keycloakReady, setKeycloakReady] = useState(!isKeycloakEnabled());
+  const [keycloakReady, setKeycloakReady] = useState(false);
 
   useEffect(() => {
-    if (!isKeycloakEnabled()) {
-      setKeycloakReady(true);
-      return;
-    }
     initKeycloak().then((kc) => {
       setKeycloakReady(true);
       if (kc?.authenticated) {
