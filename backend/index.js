@@ -1,18 +1,20 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import morgan from "morgan";
-import dotenv from "dotenv";
-import { errorHandler } from "./src/middleware/errorHandler.js";
-import { authRoutes } from "./src/routes/auth.routes.js";
-import { apiKeyRoutes } from "./src/routes/apikey.routes.js";
-import { metricConfigRoutes } from "./src/routes/metricconfig.routes.js";
-import { codeGenerationRoutes } from "./src/routes/codeGeneration.routes.js";
-import { metricsRoutes } from "./src/routes/metrics.routes.js";
-import { healthRoutes } from "./src/routes/health.routes.js";
-import { trackerRoutes } from "./src/routes/tracker.routes.js";
-import { initDatabase } from "./src/database/connection.js";
-import { getMetrics } from "./src/services/metrics.service.js";
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
+
+import { errorHandler } from './src/middleware/errorHandler.js';
+import { authRoutes } from './src/routes/auth.routes.js';
+import { apiKeyRoutes } from './src/routes/apikey.routes.js';
+import { metricConfigRoutes } from './src/routes/metricconfig.routes.js';
+import { codeGenerationRoutes } from './src/routes/codeGeneration.routes.js';
+import { metricsRoutes } from './src/routes/metrics.routes.js';
+import { healthRoutes } from './src/routes/health.routes.js';
+import { trackerRoutes } from './src/routes/tracker.routes.js';
+import { initDatabase } from './src/database/connection.js';
+import { getMetrics, restoreMetrics } from './src/services/metrics.service.js';
 
 dotenv.config();
 
@@ -20,34 +22,38 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Log startup configuration (non-sensitive)
-console.log("🔧 Starting backend server...");
-console.log("📋 Configuration:");
+console.log('🔧 Starting backend server...');
+console.log('📋 Configuration:');
 console.log(`   - Port: ${PORT}`);
-console.log(`   - Environment: ${process.env.NODE_ENV || "development"}`);
-console.log(`   - Database Host: ${process.env.DB_HOST || "localhost"}`);
-console.log(`   - Database Port: ${process.env.DB_PORT || "5432"}`);
-console.log(`   - Database Name: ${process.env.DB_NAME || "metrics_db"}`);
-console.log(`   - Database User: ${process.env.DB_USER || "postgres"}`);
-console.log(`   - Database SSL: ${process.env.DB_SSL || "false"}`);
-console.log(`   - Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
+console.log(`   - Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`   - Database Host: ${process.env.DB_HOST || 'localhost'}`);
+console.log(`   - Database Port: ${process.env.DB_PORT || '5432'}`);
+console.log(`   - Database Name: ${process.env.DB_NAME || 'metrics_db'}`);
+console.log(`   - Database User: ${process.env.DB_USER || 'postgres'}`);
+console.log(`   - Database SSL: ${process.env.DB_SSL || 'false'}`);
+console.log(`   - Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
 
 // Validate required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  console.error("❌ Missing required environment variables:");
-  missingVars.forEach(varName => console.error(`   - ${varName}`));
-  console.error("💡 Make sure .env file exists in docker/ directory with all required variables");
-  console.error("💡 Or set them in docker-compose.yml environment section");
+  console.error('❌ Missing required environment variables:');
+  missingVars.forEach((varName) => console.error(`   - ${varName}`));
+  console.error('💡 Make sure .env file exists in docker/ directory with all required variables');
+  console.error('💡 Or set them in docker-compose.yml environment section');
 }
 
 // Middleware
-app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP entirely for testing
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Disable CSP entirely for testing
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+app.use(cookieParser());
 
 const adminFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
@@ -64,14 +70,14 @@ app.use((req, res, next) => {
     // DO NOT set Access-Control-Allow-Credentials
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
-    
+
     // Handle preflight OPTIONS request
     if (req.method === 'OPTIONS') {
       return res.status(200).end();
     }
     return next();
   }
-  
+
   // For all other routes, use standard CORS
   next();
 });
@@ -82,7 +88,7 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/v1/metrics') || req.path === '/api/v1/metric-configs/by-api-key') {
     return next();
   }
-  
+
   cors({
     origin: adminFrontendUrl,
     credentials: true,
@@ -91,25 +97,25 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 
-app.use(morgan("combined"));
-app.use(express.json({ limit: "10mb" }));
+app.use(morgan('combined'));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Health check
-app.use("/health", healthRoutes);
+app.use('/health', healthRoutes);
 
 /**
  * Prometheus Metrics Endpoint
- * 
+ *
  * Exposes metrics in Prometheus format for scraping.
  * This endpoint should be accessible by Prometheus server.
- * 
+ *
  * Best Practices:
  * - No authentication required (Prometheus needs access)
  * - Returns metrics in Prometheus text format
  * - Fast response time (Prometheus scrapes frequently)
  */
-app.get("/metrics", async (req, res) => {
+app.get('/metrics', async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'development') {
       console.log('📊 Metrics endpoint accessed');
@@ -131,12 +137,12 @@ app.get("/metrics", async (req, res) => {
 });
 
 // API Routes
-app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/api-keys", apiKeyRoutes);
-app.use("/api/v1/metric-configs", metricConfigRoutes);
-app.use("/api/v1/code-generation", codeGenerationRoutes);
-app.use("/api/v1/metrics", metricsRoutes);
-app.use("/api/v1", trackerRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/api-keys', apiKeyRoutes);
+app.use('/api/v1/metric-configs', metricConfigRoutes);
+app.use('/api/v1/code-generation', codeGenerationRoutes);
+app.use('/api/v1/metrics', metricsRoutes);
+app.use('/api/v1', trackerRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -150,11 +156,14 @@ const startDatabaseInit = async () => {
   try {
     await initDatabase(5, 5000); // 5 retries, 5 second delay
     dbInitialized = true;
-    console.log("✅ Database ready");
+    console.log('✅ Database ready');
+
+    // Restore persisted metric values into prometheus registry
+    await restoreMetrics();
   } catch (error) {
-    console.error("❌ Database initialization failed after all retries");
-    console.error("⚠️  Server is running but database operations will fail");
-    console.error("💡 Check your .env file and database connectivity");
+    console.error('❌ Database initialization failed after all retries');
+    console.error('⚠️  Server is running but database operations will fail');
+    console.error('💡 Check your .env file and database connectivity');
     dbInitialized = false;
   }
 };
@@ -165,7 +174,7 @@ dbInitPromise = startDatabaseInit();
 // Start server immediately (don't wait for DB)
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 API available at http://localhost:${PORT}/api/v1`);
   console.log(`🏥 Health check at http://localhost:${PORT}/health`);
   console.log(`⏳ Database initialization in progress...`);

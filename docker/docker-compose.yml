@@ -31,8 +31,8 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
-    ports:
-      - "9090:9090"
+    # ports:
+    #   - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -54,28 +54,80 @@ services:
   #     - "--persistence.file=/pushgateway/data"
   #     - "--persistence.interval=5m"
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: metrics_grafana
+  nginx-grafana:
+    image: nginx:latest
+    container_name: metrics_nginx_grafana
     ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      # Enable iframe embedding in frontend
-      - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      - GF_SECURITY_COOKIE_SAMESITE=disabled
+      - "3002:80" # Grafana now accessed via port 3002
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./nginx/grafana.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - metrics_network
+    depends_on:
+      - backend
+      - grafana
+
+  prom-label-proxy:
+    image: quay.io/prometheuscommunity/prom-label-proxy:v0.11.0
+    container_name: metrics_prom_label_proxy
+    command:
+      - "--insecure-listen-address=0.0.0.0:8080"
+      - "--upstream=http://prometheus:9090"
+      - "--label=user_id"
+      - "--header-name=X-User-Id"
+      - "--enable-label-apis"
     networks:
       - metrics_network
     depends_on:
       - prometheus
+
+  nginx-prom-proxy:
+    image: nginx:latest
+    container_name: metrics_nginx_prom_proxy
+    volumes:
+      - ./nginx/prom-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - metrics_network
+    depends_on:
+      - prom-label-proxy
+      - backend
+
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: metrics_grafana
+    # removed the ports mapping - no longer exposed directly
+    # ports:
+    #   - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Editor
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      # Auth Proxy
+      - GF_AUTH_PROXY_ENABLED=true
+      - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
+      - GF_AUTH_PROXY_HEADER_PROPERTY=email
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=true
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_DISABLE_SIGNOUT_MENU=true
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Don't provision a global datasource (each org gets its own via API)
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Remove datasource provisioning - handled per-org via API
+      # - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - metrics_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      - prom-label-proxy
 
   backend:
     build:
@@ -136,3 +188,5 @@ volumes:
 networks:
   metrics_network:
     driver: bridge
+
+

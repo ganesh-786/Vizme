@@ -7,6 +7,7 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { setupUserGrafanaOrg, checkOrgExists, ADMIN_AUTH, GRAFANA_URL } from '../services/grafana.service.js';
 
 const router = express.Router();
 
@@ -16,18 +17,14 @@ const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
 
 // Helper: Generate tokens
 const generateTokens = (userId) => {
-  const accessToken = jwt.sign(
-    { userId, type: 'access' },
-    JWT_SECRET,
-    { expiresIn: JWT_ACCESS_EXPIRY }
-  );
-  
-  const refreshToken = jwt.sign(
-    { userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRY }
-  );
-  
+  const accessToken = jwt.sign({ userId, type: 'access' }, JWT_SECRET, {
+    expiresIn: JWT_ACCESS_EXPIRY,
+  });
+
+  const refreshToken = jwt.sign({ userId, type: 'refresh' }, JWT_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRY,
+  });
+
   return { accessToken, refreshToken };
 };
 
@@ -35,20 +32,22 @@ const generateTokens = (userId) => {
 const storeRefreshToken = async (userId, token) => {
   const decoded = jwt.decode(token);
   const expiresAt = new Date(decoded.exp * 1000);
-  
-  await query(
-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-    [userId, token, expiresAt]
-  );
+
+  await query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [
+    userId,
+    token,
+    expiresAt,
+  ]);
 };
 
 // Signup
-router.post('/signup',
+router.post(
+  '/signup',
   authLimiter,
   [
     body('email').isEmail().normalizeEmail(),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('name').optional().trim().isLength({ min: 1 })
+    body('name').optional().trim().isLength({ min: 1 }),
   ],
   async (req, res, next) => {
     try {
@@ -75,6 +74,16 @@ router.post('/signup',
       );
 
       const user = result.rows[0];
+
+      // Create isolated Garfana org for this user
+      try {
+        const grafanaOrgId = await setupUserGrafanaOrg(user.id, email, name);
+        await query('UPDATE users SET grafana_org_id = $1 WHERE id = $2', [grafanaOrgId, user.id]);
+      } catch (err) {
+        console.error('Failed to create Grafana org:', err);
+        // Non-fatal: user can still use the app, Grafana setup can be retried
+      }
+
       const { accessToken, refreshToken } = generateTokens(user.id);
       await storeRefreshToken(user.id, refreshToken);
 
@@ -84,11 +93,11 @@ router.post('/signup',
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            name: user.name,
           },
           accessToken,
-          refreshToken
-        }
+          refreshToken,
+        },
       });
     } catch (error) {
       next(error);
@@ -97,12 +106,10 @@ router.post('/signup',
 );
 
 // Signin
-router.post('/signin',
+router.post(
+  '/signin',
   authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').notEmpty()
-  ],
+  [body('email').isEmail().normalizeEmail(), body('password').notEmpty()],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -113,7 +120,10 @@ router.post('/signin',
       const { email, password } = req.body;
 
       // Find user
-      const result = await query('SELECT id, email, password_hash, name FROM users WHERE email = $1', [email]);
+      const result = await query(
+        'SELECT id, email, password_hash, name FROM users WHERE email = $1',
+        [email]
+      );
       if (result.rows.length === 0) {
         throw new UnauthorizedError('Invalid email or password');
       }
@@ -128,7 +138,7 @@ router.post('/signin',
 
       // Generate tokens
       const { accessToken, refreshToken } = generateTokens(user.id);
-      
+
       // Rotate refresh token (delete old ones for this user)
       await query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
       await storeRefreshToken(user.id, refreshToken);
@@ -139,11 +149,11 @@ router.post('/signin',
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            name: user.name,
           },
           accessToken,
-          refreshToken
-        }
+          refreshToken,
+        },
       });
     } catch (error) {
       next(error);
@@ -152,69 +162,63 @@ router.post('/signin',
 );
 
 // Refresh token
-router.post('/refresh',
-  [
-    body('refreshToken').notEmpty()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { refreshToken } = req.body;
-
-      // Verify token
-      let decoded;
-      try {
-        decoded = jwt.verify(refreshToken, JWT_SECRET);
-      } catch (error) {
-        throw new UnauthorizedError('Invalid refresh token');
-      }
-
-      if (decoded.type !== 'refresh') {
-        throw new UnauthorizedError('Invalid token type');
-      }
-
-      // Check if token exists in database
-      const tokenResult = await query(
-        'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-        [refreshToken]
-      );
-
-      if (tokenResult.rows.length === 0) {
-        throw new UnauthorizedError('Refresh token not found or expired');
-      }
-
-      const userId = tokenResult.rows[0].user_id;
-
-      // Generate new tokens
-      const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
-
-      // Rotate refresh token
-      await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-      await storeRefreshToken(userId, newRefreshToken);
-
-      res.json({
-        success: true,
-        data: {
-          accessToken,
-          refreshToken: newRefreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
+router.post('/refresh', [body('refreshToken').notEmpty()], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new BadRequestError('Validation failed', errors.array());
     }
+
+    const { refreshToken } = req.body;
+
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_SECRET);
+    } catch (error) {
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+
+    if (decoded.type !== 'refresh') {
+      throw new UnauthorizedError('Invalid token type');
+    }
+
+    // Check if token exists in database
+    const tokenResult = await query(
+      'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
+      [refreshToken]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      throw new UnauthorizedError('Refresh token not found or expired');
+    }
+
+    const userId = tokenResult.rows[0].user_id;
+
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
+
+    // Rotate refresh token
+    await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
+    await storeRefreshToken(userId, newRefreshToken);
+
+    res.json({
+      success: true,
+      data: {
+        accessToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // Password reset request (simplified - in production, send email)
-router.post('/password-reset-request',
+router.post(
+  '/password-reset-request',
   authLimiter,
-  [
-    body('email').isEmail().normalizeEmail()
-  ],
+  [body('email').isEmail().normalizeEmail()],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -225,11 +229,11 @@ router.post('/password-reset-request',
       const { email } = req.body;
 
       const result = await query('SELECT id FROM users WHERE email = $1', [email]);
-      
+
       // Don't reveal if user exists (security best practice)
       res.json({
         success: true,
-        message: 'If an account exists with this email, a password reset link has been sent'
+        message: 'If an account exists with this email, a password reset link has been sent',
       });
     } catch (error) {
       next(error);
@@ -245,20 +249,14 @@ router.get('/onboarding-status', authenticate, async (req, res, next) => {
   try {
     // Run all checks in parallel for performance
     const [configsResult, keyResult, userResult] = await Promise.all([
-      query(
-        'SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1',
-        [req.user.id]
-      ),
+      query('SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1', [req.user.id]),
       query(
         `SELECT id FROM api_keys
          WHERE user_id = $1 AND metric_config_id IS NULL AND is_active = true
          LIMIT 1`,
         [req.user.id]
       ),
-      query(
-        'SELECT onboarding_completed_at FROM users WHERE id = $1',
-        [req.user.id]
-      ),
+      query('SELECT onboarding_completed_at FROM users WHERE id = $1', [req.user.id]),
     ]);
 
     const hasMetricConfigs = configsResult.rows[0].count > 0;
@@ -299,6 +297,104 @@ router.post('/onboarding-complete', authenticate, async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+});
+
+// POST /api/v1/auth/grafana-session
+// Called by frontend before redirecting to Grafana
+// Validates JWT and sets an HttpOnly cookie for Grafana access
+router.post('/grafana-session', authenticate, async (req, res) => {
+  // Look up the user's Grafana org
+  let userRecord = await query('SELECT grafana_org_id, email, name FROM users WHERE id = $1', [
+    req.user.id,
+  ]);
+  let orgId = userRecord.rows[0].grafana_org_id;
+
+  // Validate the stored org still exists in Grafana (handles volume recreation)
+  if (orgId) {
+    const orgExists = await checkOrgExists(orgId);
+    if (!orgExists) {
+      console.log(`Grafana org ${orgId} no longer exists, will re-create for user ${req.user.id}`);
+      orgId = null;
+    }
+  }
+
+  // Lazy setup: org was never created or was lost (e.g. Grafana volume recreated)
+  if (!orgId) {
+    try {
+      const newOrgId = await setupUserGrafanaOrg(
+        req.user.id,
+        userRecord.rows[0].email,
+        userRecord.rows[0].name
+      );
+      await query('UPDATE users SET grafana_org_id = $1 WHERE id = $2', [newOrgId, req.user.id]);
+      orgId = newOrgId;
+      console.log(`Lazy-created Grafana org ${orgId} for user ${req.user.id}`);
+    } catch (err) {
+      console.error('Failed to lazy-create Grafana org:', err);
+      return res.status(500).json({ error: 'Grafana setup failed' });
+    }
+  }
+
+  // Switch user's active org in Grafana (so UI opens in their org)
+  if (orgId) {
+    try {
+      const lookupRes = await fetch(
+        `${GRAFANA_URL}/api/users/lookup?loginOrEmail=${encodeURIComponent(req.user.email)}`,
+        { headers: { Authorization: ADMIN_AUTH } }
+      );
+      if (lookupRes.ok) {
+        const grafanaUser = await lookupRes.json();
+        await fetch(`${GRAFANA_URL}/api/users/${grafanaUser.id}/using/${orgId}`, {
+          method: 'POST',
+          headers: { Authorization: ADMIN_AUTH },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to switch Grafana org:', err);
+    }
+  }
+
+  // Create the session token (rest stays the same)
+  const grafanaToken = jwt.sign(
+    { userId: req.user.id, email: req.user.email, name: req.user.name, type: 'grafana', orgId },
+    JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+
+  res.cookie('vizme_grafana_session', grafanaToken, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 8 * 60 * 60 * 1000,
+    path: '/',
+    domain: 'localhost',
+  });
+
+  res.json({ success: true });
+});
+
+// GET /api/v1/auth/verify-grafana
+// Called by Nginx auth_request for every Grafana request
+// Validates the cookie and returns user info in headers
+router.get('/verify-grafana', (req, res) => {
+  try {
+    const token = req.cookies?.vizme_grafana_session;
+    if (!token) {
+      return res.status(401).json({ error: 'No session' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.type !== 'grafana') {
+      return res.status(401).json({ error: 'Invalid token type' });
+    }
+
+    // Pass user identity back via response header
+    res.set('X-Grafana-User', decoded.email);
+    res.set('X-Grafana-Name', decoded.name);
+    res.set('X-Grafana-User-Id', decoded.userId.toString());
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid session' });
   }
 });
 
