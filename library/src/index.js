@@ -8,6 +8,9 @@ class VizmeClient {
       this.endpoint = config.endpoint || 'http://localhost:3000/api/v1/metrics';
       this.batchSize = config.batchSize || 5;
       this.flushInterval = config.flushInterval || 1000;
+      this.maxRetries = config.maxRetries ?? 5;
+      this.retryBaseMs = config.retryBaseMs ?? 1000;
+      this.sampleRate = config.sampleRate ?? 1;
 
       //store metric configurations (metric name -> type mapping )
       this.metricConfigs = config.metricConfigs || {};
@@ -16,20 +19,23 @@ class VizmeClient {
       this.queue = [];
       this.flushTimer = null;
       this.isDestroyed = false;
+      this.retryAttempt = 0;
+      this.retryTimer = null;
       
       this.startFlushTimer();
       
       // Handle online/offline events
       if (typeof window !== 'undefined' && window.addEventListener) {
         window.addEventListener('online', () => {
+          this.retryAttempt = 0;
           if (this.queue.length > 0) {
             this.flushQueue();
           }
         });
         
-        // Flush on page unload
+        // Flush on page unload - use sendBeacon when available for reliability
         window.addEventListener('beforeunload', () => {
-          this.flush();
+          this.flush(true);
         });
       }
     }
@@ -104,39 +110,72 @@ class VizmeClient {
     }
     
     sanitizeLabels(labels) {
+      const maxLen = 128;
       const sanitized = {};
-      for (const [key, value] of Object.entries(labels)) {
-        if (key !== '_type' && key !== '_operation') {
-          sanitized[String(key)] = String(value);
-        }
+      const keys = Object.keys(labels || {}).filter(k => k !== '_type' && k !== '_operation').slice(0, 10);
+      for (const key of keys) {
+        let val = String(labels[key]);
+        if (val.length > maxLen) val = val.slice(0, maxLen);
+        sanitized[String(key)] = val;
       }
       return sanitized;
     }
     
     addToBatch(metric) {
+      if (this.sampleRate < 1 && Math.random() >= this.sampleRate) return;
       this.batch.push(metric);
       
       if (this.batch.length >= this.batchSize) {
         this.flush();
+      } else if (metric.operation === 'set') {
+        // Flush gauge set immediately for real-time dashboard updates
+        this.flush();
       }
     }
     
-    async flush() {
-      if (this.batch.length === 0) return;
-      
+    async flush(useSendBeacon = false) {
       const metricsToSend = [...this.batch];
-      this.batch = [];
+      if (metricsToSend.length > 0) this.batch = [];
+      
+      if (useSendBeacon) {
+        const all = metricsToSend.length > 0 ? [...metricsToSend, ...this.queue] : [...this.queue];
+        this.queue = [];
+        if (all.length > 0) this.sendMetricsSync(all);
+        return;
+      }
+      
+      if (metricsToSend.length === 0) return;
       
       try {
         await this.sendMetrics(metricsToSend);
+        this.retryAttempt = 0;
       } catch (error) {
-        console.warn('Vizme: Failed to send metrics, queuing for retry', error);
-        // Add to queue for retry
         this.queue.push(...metricsToSend);
-        if (this.queue.length > 100) {
-          this.queue.shift(); // Remove oldest if queue is full
-        }
+        if (this.queue.length > 100) this.queue.shift();
+        this.scheduleRetryWithBackoff();
       }
+    }
+    
+    sendMetricsSync(metrics) {
+      if (!this.apiKey || !metrics.length) return;
+      const payload = JSON.stringify({ metrics });
+      const url = `${this.endpoint}?api_key=${encodeURIComponent(this.apiKey)}`;
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      }
+    }
+    
+    scheduleRetryWithBackoff() {
+      if (this.retryTimer || this.queue.length === 0) return;
+      const delay = Math.min(
+        this.retryBaseMs * Math.pow(2, this.retryAttempt),
+        30000
+      );
+      this.retryAttempt = Math.min(this.retryAttempt + 1, this.maxRetries);
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        this.flushQueue();
+      }, delay);
     }
     
     async flushQueue() {
@@ -147,10 +186,10 @@ class VizmeClient {
       
       try {
         await this.sendMetrics(metricsToSend);
+        this.retryAttempt = 0;
       } catch (error) {
-        console.warn('Vizme: Failed to flush queue', error);
-        // Re-add to queue if still failing
         this.queue.unshift(...metricsToSend);
+        this.scheduleRetryWithBackoff();
       }
     }
     
@@ -159,14 +198,14 @@ class VizmeClient {
         throw new Error('Vizme: API key not configured');
       }
       
-      // Regular fetch request
+      const payload = JSON.stringify({ metrics });
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey
         },
-        body: JSON.stringify({ metrics }),
+        body: payload,
         keepalive: true,
         credentials: 'omit'
       });
@@ -548,8 +587,11 @@ class VizmeClient {
         autoTrack: config.autoTrack !== false, // Default: true
         batchSize: config.batchSize || 5,
         flushInterval: config.flushInterval || 1000,
-        metricConfigs: config.metricConfigs || {}, //store metric configurations
-        autofetchConfigs: config.autofetchConfigs !== false, // Default: true
+        metricConfigs: config.metricConfigs || {},
+        autofetchConfigs: config.autofetchConfigs !== false,
+        sampleRate: config.sampleRate ?? 1,
+        maxRetries: config.maxRetries ?? 5,
+        retryBaseMs: config.retryBaseMs ?? 1000,
         ...config
       };
       
@@ -559,7 +601,10 @@ class VizmeClient {
         endpoint: this.config.endpoint,
         batchSize: this.config.batchSize,
         flushInterval: this.config.flushInterval,
-        metricConfigs: this.config.metricConfigs //pass metric configurations to the client
+        metricConfigs: this.config.metricConfigs,
+        sampleRate: this.config.sampleRate,
+        maxRetries: this.config.maxRetries,
+        retryBaseMs: this.config.retryBaseMs
       });
 
           // Auto-fetch metric configs from backend
@@ -578,6 +623,24 @@ class VizmeClient {
       if (this.config.autoTrack) {
         this.autoTracker = new AutoTracker(this.client);
         this.autoTracker.start();
+      }
+
+      // Listen for vizme:track CustomEvent (minimal-code API for dynamic flows)
+      // Supports operation: "increment" (default), "set", "decrement" for gauges
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        this._vizmeTrackHandler = (e) => {
+          const { event, value = 1, operation = 'increment', ...labels } = e.detail || {};
+          if (!event) return;
+          const numValue = typeof value === 'number' && isFinite(value) ? value : parseFloat(value) || 0;
+          if (operation === 'set') {
+            this.client.set(event, numValue, labels);
+          } else if (operation === 'decrement') {
+            this.client.decrement(event, Math.abs(numValue), labels);
+          } else {
+            this.client.increment(event, numValue, labels);
+          }
+        };
+        window.addEventListener('vizme:track', this._vizmeTrackHandler);
       }
     }
 
@@ -641,6 +704,9 @@ class VizmeClient {
     
     // Destroy/cleanup
     destroy() {
+      if (typeof window !== 'undefined' && this._vizmeTrackHandler) {
+        window.removeEventListener('vizme:track', this._vizmeTrackHandler);
+      }
       if (this.autoTracker) {
         this.autoTracker.stop();
       }

@@ -1,4 +1,5 @@
 import { Registry, Counter, Gauge, Histogram, Summary } from 'prom-client';
+import { config } from '../config.js';
 
 /**
  * Prometheus Metrics Service
@@ -32,6 +33,32 @@ const metricsStore = new Map();
 // Track metric instances to avoid duplicates
 // Key: `${userId}_${metricName}_${labelHash}`
 const metricInstances = new Map();
+
+/**
+ * Validate and sanitize labels (max keys, max value length). Prevents cardinality explosion.
+ * @param {Object} labels - Raw labels
+ * @returns {Object} - Sanitized labels
+ * @throws {Error} - If validation fails
+ */
+const validateAndSanitizeLabels = (labels) => {
+  const maxKeys = config.metrics.maxLabelsPerMetric;
+  const maxLen = config.metrics.maxLabelValueLength;
+  const keys = Object.keys(labels || {}).filter(k => k !== '_type' && k !== '_operation');
+  if (keys.length > maxKeys) {
+    throw new Error(`Too many labels: max ${maxKeys}, got ${keys.length}`);
+  }
+  const sanitized = {};
+  for (const [key, value] of Object.entries(labels || {})) {
+    if (key === '_type' || key === '_operation') continue;
+    const strKey = String(key);
+    let strVal = String(value);
+    if (strVal.length > maxLen) {
+      strVal = strVal.slice(0, maxLen);
+    }
+    sanitized[strKey] = strVal;
+  }
+  return sanitized;
+};
 
 /**
  * Generate a hash from labels object for consistent key generation
@@ -118,10 +145,25 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
  * @param {Object} metricData.labels - Metric labels
  * @param {string} userId - User ID
  */
+/** Count unique series per user for cardinality limit. */
+const userSeriesCount = new Map();
+
 export const recordMetric = (metricData, userId) => {
   const { name, type, value, labels = {} } = metricData;
   if (process.env.NODE_ENV === 'development') {
     console.log(`[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
+  }
+
+  // Validate and sanitize labels
+  const sanitizedLabels = validateAndSanitizeLabels(labels);
+
+  // Cardinality limit: reject if user exceeds max series
+  const maxSeries = config.metrics.maxSeriesPerUser;
+  const labelHash = hashLabels(sanitizedLabels);
+  const seriesKey = `${userId}_${name}_${labelHash}`;
+  const currentCount = userSeriesCount.get(userId) ?? new Set();
+  if (!currentCount.has(seriesKey) && currentCount.size >= maxSeries) {
+    throw new Error(`Cardinality limit exceeded: max ${maxSeries} series per user`);
   }
 
   // Validate value
@@ -136,11 +178,11 @@ export const recordMetric = (metricData, userId) => {
   }
 
   // Get or create the metric instance
-  const metric = getOrCreateMetric(name, type, Object.keys(labels));
+  const metric = getOrCreateMetric(name, type, Object.keys(sanitizedLabels));
 
   // Prepare labels with user_id
   const metricLabels = {
-    ...labels,
+    ...sanitizedLabels,
     user_id: userId.toString()
   };
 
@@ -180,7 +222,6 @@ export const recordMetric = (metricData, userId) => {
     }
 
     // Store in memory for reference (optional, for debugging/querying)
-    const labelHash = hashLabels(labels);
     const key = `${userId}_${name}_${labelHash}`;
     metricsStore.set(key, {
       name,
@@ -189,6 +230,8 @@ export const recordMetric = (metricData, userId) => {
       labels: metricLabels,
       timestamp: Date.now()
     });
+    currentCount.add(seriesKey);
+    userSeriesCount.set(userId, currentCount);
 
   } catch (error) {
     console.error(`Error recording metric ${name}:`, error);
@@ -215,7 +258,9 @@ export const getRegistry = () => {
 };
 
 /**
- * Clear metrics for a specific user (optional cleanup)
+ * Clear metrics for a specific user (optional cleanup).
+ * Note: Clears metricsStore and userSeriesCount only. prom-client does not support
+ * removing metrics from the registry; existing series remain until backend restart.
  * @param {string} userId - User ID
  */
 export const clearUserMetrics = (userId) => {
@@ -225,10 +270,8 @@ export const clearUserMetrics = (userId) => {
       keysToDelete.push(key);
     }
   }
-  keysToDelete.forEach(key => {
-    metricsStore.delete(key);
-    metricInstances.delete(key);
-  });
+  keysToDelete.forEach(key => metricsStore.delete(key));
+  userSeriesCount.delete(userId);
 };
 
 /**

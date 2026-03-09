@@ -76,6 +76,30 @@ export const config = {
     prometheus: getEnv('PROMETHEUS_URL', 'http://localhost:9090'),
     grafana: getEnv('GRAFANA_URL', 'http://localhost:3001'),
   },
+
+  /** Grafana embed token expiry (e.g. '15m', '1h'). Production: 15m. Dev: 1h for convenience. */
+  grafanaEmbedTokenExpiry: getEnv('GRAFANA_EMBED_TOKEN_EXPIRY', isProduction ? '15m' : '1h'),
+
+  /** Rate limits: requests per minute. Production: tune per tier. */
+  rateLimit: {
+    metricsMax: parseInt(getEnv('METRICS_RATE_LIMIT_MAX', '500'), 10),
+    authMax: parseInt(getEnv('AUTH_RATE_LIMIT_MAX', '5'), 10),
+    apiMax: parseInt(getEnv('API_RATE_LIMIT_MAX', '100'), 10),
+    grafanaEmbedMax: parseInt(getEnv('GRAFANA_EMBED_RATE_LIMIT_MAX', '30'), 10),
+  },
+
+  /** Optional basic auth for /metrics (Prometheus scrape). Set both to enable. */
+  metricsScrapeAuth: {
+    username: getEnv('METRICS_SCRAPE_USER', ''),
+    password: getEnv('METRICS_SCRAPE_PASSWORD', ''),
+  },
+
+  /** Label validation: max keys and max chars per value. Prevents cardinality explosion. */
+  metrics: {
+    maxLabelsPerMetric: parseInt(getEnv('METRICS_MAX_LABELS', '10'), 10),
+    maxLabelValueLength: parseInt(getEnv('METRICS_MAX_LABEL_VALUE_LENGTH', '128'), 10),
+    maxSeriesPerUser: parseInt(getEnv('METRICS_MAX_SERIES_PER_USER', '1000'), 10),
+  },
 };
 
 /** Call at application startup to fail fast if required env is missing. */

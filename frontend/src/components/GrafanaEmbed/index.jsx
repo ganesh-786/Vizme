@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Skeleton } from '@/components/Skeleton';
 import { getEmbedUrl } from '@/api/grafana';
 import { useToast } from '@/components/ToastContainer';
-import { getApiBaseUrl } from '@/config/env';
+import { useAuthStore } from '@/store/authStore';
 import './GrafanaEmbed.css';
 
 /**
  * GrafanaEmbed - Embeds Grafana dashboards via backend proxy with user isolation.
  * Fetches a signed embed URL from the API; only the authenticated user's metrics are shown.
+ * Implements proactive token refresh before expiry (production-grade).
  *
  * @param {string} dashboardUid - The unique identifier of the Grafana dashboard
  * @param {number} panelId - Optional panel ID to embed a specific panel (uses d-solo endpoint)
@@ -33,33 +34,78 @@ function GrafanaEmbed({
   const [embedUrl, setEmbedUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const refreshIntervalRef = useRef(null);
   const { showToast } = useToast();
+
+  const fetchParams = {
+    dashboard: dashboardUid,
+    panelId,
+    from,
+    to,
+    refresh,
+    theme,
+    kiosk: kiosk ? 'tv' : undefined,
+  };
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchUrl() {
+    async function fetchAndSetUrl() {
       try {
-        const url = await getEmbedUrl({
-          dashboard: dashboardUid,
-          panelId,
-          from,
-          to,
-          refresh,
-          theme,
-          kiosk: kiosk ? 'tv' : undefined,
-        });
-        if (!cancelled && url) setEmbedUrl(url);
-        else if (!cancelled) setHasError(true);
+        const result = await getEmbedUrl(fetchParams);
+        if (!cancelled && result?.url) {
+          setEmbedUrl(result.url);
+          setHasError(false);
+
+          // Clear any existing refresh interval
+          if (refreshIntervalRef.current) {
+            clearInterval(refreshIntervalRef.current);
+            refreshIntervalRef.current = null;
+          }
+
+          // Proactive token refresh: refresh at 70% of token lifetime
+          const intervalMs = result.refreshIntervalMs ?? 10 * 60 * 1000;
+          if (intervalMs > 0) {
+            refreshIntervalRef.current = setInterval(() => {
+              // Pause refresh when tab is hidden (save resources)
+              if (document.visibilityState === 'hidden') return;
+
+              getEmbedUrl(fetchParams)
+                .then((next) => {
+                  if (next?.url) setEmbedUrl(next.url);
+                })
+                .catch((err) => {
+                  if (err.response?.status === 401) {
+                    useAuthStore.getState().logout();
+                    window.location.href = '/login';
+                  }
+                });
+            }, intervalMs);
+          }
+        } else if (!cancelled) {
+          setHasError(true);
+        }
       } catch (err) {
-        if (!cancelled) setHasError(true);
+        if (!cancelled) {
+          setHasError(true);
+          if (err.response?.status === 401) {
+            useAuthStore.getState().logout();
+            window.location.href = '/login';
+          }
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     }
 
-    fetchUrl();
-    return () => { cancelled = true; };
+    fetchAndSetUrl();
+    return () => {
+      cancelled = true;
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
   }, [dashboardUid, panelId, from, to, refresh, theme, kiosk]);
 
   const handleLoad = () => {
@@ -99,15 +145,8 @@ function GrafanaEmbed({
               className="grafana-embed__error-link grafana-embed__error-link--button"
               onClick={async () => {
                 try {
-                  const url = await getEmbedUrl({
-                    dashboard: dashboardUid,
-                    from,
-                    to,
-                    refresh,
-                    theme,
-                    kiosk: kiosk ? 'tv' : undefined,
-                  });
-                  if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                  const result = await getEmbedUrl(fetchParams);
+                  if (result?.url) window.open(result.url, '_blank', 'noopener,noreferrer');
                 } catch (err) {
                   showToast(
                     err.response?.status === 401

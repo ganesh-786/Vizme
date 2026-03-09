@@ -1,27 +1,43 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import httpProxy from 'http-proxy';
 import { config } from '../config.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { grafanaEmbedLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 const GRAFANA_EMBED_COOKIE = 'vizme_grafana_embed';
-const EMBED_TOKEN_EXPIRY = '5m';
+
+/**
+ * Parse expiry string (e.g. '15m', '1h') to milliseconds for cookie maxAge.
+ */
+function parseExpiryToMs(str) {
+  const match = String(str || '15m').match(/^(\d+)(m|h|d)$/);
+  if (!match) return 15 * 60 * 1000;
+  const num = parseInt(match[1], 10);
+  const unit = match[2];
+  if (unit === 'm') return num * 60 * 1000;
+  if (unit === 'h') return num * 60 * 60 * 1000;
+  if (unit === 'd') return num * 24 * 60 * 60 * 1000;
+  return 15 * 60 * 1000;
+}
 
 /**
  * GET /api/v1/grafana/embed-url
  * Returns a signed embed URL for Grafana dashboard with user_id enforced.
- * Requires JWT auth.
+ * Requires JWT auth. Rate limited to prevent abuse.
  */
-router.get('/embed-url', authenticate, (req, res, next) => {
+router.get('/embed-url', grafanaEmbedLimiter, authenticate, (req, res, next) => {
   try {
     const { dashboard = 'metrics', from = 'now-1h', to = 'now', refresh = '10s', kiosk = 'tv' } = req.query;
     const userId = req.user.id;
+    const embedTokenExpiry = config.grafanaEmbedTokenExpiry || '15m';
 
     const embedToken = jwt.sign(
       { userId, purpose: 'grafana-embed', dashboard },
       config.jwt.secret,
-      { expiresIn: EMBED_TOKEN_EXPIRY }
+      { expiresIn: embedTokenExpiry }
     );
 
     const baseUrl = config.api.baseUrl || `${req.protocol}://${req.get('host')}`;
@@ -36,17 +52,20 @@ router.get('/embed-url', authenticate, (req, res, next) => {
 
     const url = `${baseUrl}/grafana/d/${dashboard}?${params.toString()}`;
 
-    res.json({ success: true, data: { url } });
+    res.json({ success: true, data: { url, expiresIn: embedTokenExpiry } });
   } catch (error) {
     next(error);
   }
 });
 
 /**
- * Validate embed token (from query or cookie) and return userId
+ * Validate embed token (from query or cookie) and return userId.
+ * For raw HTTP upgrade requests, pass parsed cookies and query.
  */
-function validateEmbedToken(req) {
-  const token = req.query.embed_token || req.cookies?.[GRAFANA_EMBED_COOKIE];
+function validateEmbedToken(reqOrToken, options = {}) {
+  const token =
+    options.token ??
+    (reqOrToken?.query?.embed_token || reqOrToken?.cookies?.[GRAFANA_EMBED_COOKIE]);
   if (!token) return null;
   try {
     const decoded = jwt.verify(token, config.jwt.secret);
@@ -55,6 +74,19 @@ function validateEmbedToken(req) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Parse cookies from raw Cookie header string.
+ */
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach((part) => {
+    const [key, ...rest] = part.trim().split('=');
+    if (key) cookies[key.trim()] = rest.join('=').trim();
+  });
+  return cookies;
 }
 
 /**
@@ -88,12 +120,13 @@ export async function grafanaProxyMiddleware(req, res, next) {
 
   const targetUrl = `${grafanaBase}/grafana${path}${queryStr ? `?${queryStr}` : ''}`;
 
+  const cookieMaxAge = parseExpiryToMs(config.grafanaEmbedTokenExpiry);
   if (req.query.embed_token && !req.cookies?.[GRAFANA_EMBED_COOKIE]) {
     res.cookie(GRAFANA_EMBED_COOKIE, req.query.embed_token, {
       httpOnly: true,
       secure: config.isProduction,
       sameSite: config.isProduction ? 'strict' : 'lax',
-      maxAge: 5 * 60 * 1000,
+      maxAge: cookieMaxAge,
       path: '/grafana',
     });
   }
@@ -147,6 +180,46 @@ export async function grafanaProxyMiddleware(req, res, next) {
     err.status = 503;
     next(err);
   }
+}
+
+/**
+ * Attach WebSocket upgrade handler for Grafana Live (/grafana/api/live/ws).
+ * Must be called with the HTTP server after app.listen.
+ */
+export function setupGrafanaWebSocketProxy(server) {
+  const proxy = httpProxy.createProxyServer({});
+  const grafanaBase = getGrafanaBaseUrl();
+
+  proxy.on('error', (err, req, socket) => {
+    socket.destroy();
+  });
+
+  server.on('upgrade', (req, socket, head) => {
+    if (!req.url?.startsWith('/grafana')) return;
+
+    const [pathPart, queryPart] = req.url.split('?');
+    const query = new URLSearchParams(queryPart || '');
+    const cookies = parseCookies(req.headers.cookie);
+    const token = query.get('embed_token') || cookies[GRAFANA_EMBED_COOKIE];
+    const userId = validateEmbedToken(null, { token });
+
+    if (!userId) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    query.delete('embed_token');
+    query.set('var-user_id', String(userId));
+    const newQuery = query.toString();
+    req.url = `${pathPart}${newQuery ? `?${newQuery}` : ''}`;
+    req.headers['x-webauth-user'] = `vizme_user_${userId}`;
+
+    proxy.ws(req, socket, head, {
+      target: grafanaBase,
+      ws: true,
+    });
+  });
 }
 
 export { router as grafanaRoutes };

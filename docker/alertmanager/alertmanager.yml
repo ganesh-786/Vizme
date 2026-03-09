@@ -1,8 +1,13 @@
 # Production-grade Alertmanager config for Vizme.
-# Configure receivers (email, Slack, PagerDuty) and routing.
+# Configure receivers (Slack, email, PagerDuty) and routing.
+# Uncomment and set env vars for your channels.
 
 global:
   resolve_timeout: 5m
+  # smtp_smarthost: 'smtp.gmail.com:587'
+  # smtp_from: 'alerts@example.com'
+  # smtp_auth_username: 'alerts@example.com'
+  # smtp_auth_password: 'your-app-password'
 
 # Route tree: default receiver and optional grouping by severity
 route:
@@ -22,19 +27,34 @@ route:
 
 receivers:
   - name: 'default'
-    # Add webhook or email here, e.g.:
+    # Webhook for custom integrations (e.g. Opsgenie, custom bot)
     # webhook_configs:
-    #   - url: 'http://localhost:5001/webhook'
+    #   - url: 'https://your-webhook-url'
     #     send_resolved: true
 
   - name: 'critical'
-    # Example: Slack, PagerDuty, or email for critical alerts
+    # Slack: set SLACK_WEBHOOK_URL and SLACK_CHANNEL in .env, use envsubst or similar
     # slack_configs:
-    #   - channel: '#alerts'
+    #   - api_url: '${SLACK_WEBHOOK_URL}'
+    #     channel: '#alerts'
     #     send_resolved: true
+    #     title: '{{ .Status | toUpper }}: {{ .CommonLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    # Email alternative:
+    # email_configs:
+    #   - to: 'oncall@example.com'
+    #     send_resolved: true
+    #     headers:
+    #       Subject: '[CRITICAL] Vizme: {{ .CommonLabels.alertname }}'
 
   - name: 'warning'
-    # Example: lower-priority channel or email
+    # slack_configs:
+    #   - api_url: '${SLACK_WEBHOOK_URL}'
+    #     channel: '#alerts-warning'
+    #     send_resolved: true
+    # email_configs:
+    #   - to: 'team@example.com'
+    #     send_resolved: true
 
 # Inhibit critical if warning for same alert (optional)
 inhibit_rules:

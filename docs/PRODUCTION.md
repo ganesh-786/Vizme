@@ -16,6 +16,12 @@ Use this checklist to run Vizme in a production-grade way.
 | `DB_SSL` | Set to `true` if DB requires TLS | Recommended for managed DBs |
 | `DB_SSL_REJECT_UNAUTHORIZED` | Set to `true` with valid DB CA in production | **Required** when `DB_SSL=true` |
 | `ALLOWED_METRICS_ORIGINS` | Comma-separated origins for metrics/tracker CORS; use specific domains, not `*` | Recommended |
+| `METRICS_SCRAPE_USER`, `METRICS_SCRAPE_PASSWORD` | Basic auth for Prometheus scraping `/metrics`; set both to enable | Recommended |
+| `METRICS_RATE_LIMIT_MAX` | Requests per minute per API key (default 500) | Optional |
+| `METRICS_MAX_LABELS` | Max label keys per metric (default 10) | Optional |
+| `METRICS_MAX_LABEL_VALUE_LENGTH` | Max chars per label value (default 128) | Optional |
+| `METRICS_MAX_SERIES_PER_USER` | Max unique series per user (default 1000) | Optional |
+| `GF_SECURITY_ADMIN_PASSWORD` | Grafana admin password | **Required** in production |
 | `LOG_LEVEL` | `error`, `warn`, `info`, `debug` | Optional (default `info`) |
 
 ### Frontend (build-time)
@@ -30,14 +36,15 @@ Use this checklist to run Vizme in a production-grade way.
 - [ ] **Database**: Use a dedicated DB user with minimal privileges; enable SSL and `DB_SSL_REJECT_UNAUTHORIZED=true` for managed DBs.
 - [ ] **CORS**: Set `ALLOWED_METRICS_ORIGINS` to the exact origins that will load the tracker (e.g. your app and customer domains). Avoid `*` in production.
 - [ ] **Helmet**: CSP is enabled in production; ensure `FRONTEND_URL` and `GRAFANA_URL` (if embedding) are correct.
-- [ ] **Grafana**: Change default admin password; use LDAP/OAuth or auth proxy; disable anonymous access if not needed.
+- [ ] **Grafana**: Set `GF_SECURITY_ADMIN_PASSWORD`; use LDAP/OAuth or auth proxy; disable anonymous access if not needed.
+- [ ] **Metrics scrape**: Set `METRICS_SCRAPE_USER` and `METRICS_SCRAPE_PASSWORD` for basic auth on `/metrics`; Prometheus will use the same credentials in its scrape config.
 - [ ] **Secrets**: No secrets in frontend; only `VITE_*` vars are exposed at build time.
 
 ## Observability
 
 - [ ] **Health**: Use `/health/ready` for load balancer or Kubernetes readiness; `/health/live` for liveness.
 - [ ] **Metrics**: Prometheus scrapes `/metrics`; app metrics (`http_requests_total`, `http_request_duration_seconds`) and user metrics are exposed.
-- [ ] **Alerts**: Configure `docker/alertmanager/alertmanager.yml` with real receivers (Slack, email, PagerDuty) and uncomment/configure in `docker/prometheus/prometheus.yml` if not using Docker Compose defaults.
+- [ ] **Alerts**: Copy `docker/alertmanager/alertmanager-prod.example.yml` to `alertmanager.yml` and set your Slack webhook or email; Prometheus will use it via rule_files.
 - [ ] **Logs**: Backend uses structured JSON logging (pino); send logs to your pipeline (e.g. Loki, CloudWatch) and correlate with `x-request-id`.
 
 ## Reliability

@@ -100,7 +100,8 @@ router.post('/',
             name: metric.name,
             type: metric.type,
             value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
-            labels: metric.labels || {}
+            labels: metric.labels || {},
+            operation: metric.operation
           }, userId);
 
           validMetrics.push({

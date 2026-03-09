@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { errorHandler } from "./src/middleware/errorHandler.js";
 import { requestIdMiddleware } from "./src/middleware/requestId.js";
+import { metricsScrapeAuthMiddleware } from "./src/middleware/metricsScrapeAuth.js";
 import { appMetricsMiddleware, getAppMetrics } from "./src/middleware/appMetrics.js";
 import { authRoutes } from "./src/routes/auth.routes.js";
 import { apiKeyRoutes } from "./src/routes/apikey.routes.js";
@@ -13,7 +14,7 @@ import { codeGenerationRoutes } from "./src/routes/codeGeneration.routes.js";
 import { metricsRoutes } from "./src/routes/metrics.routes.js";
 import { healthRoutes } from "./src/routes/health.routes.js";
 import { trackerRoutes } from "./src/routes/tracker.routes.js";
-import { grafanaRoutes, grafanaProxyMiddleware } from "./src/routes/grafana.routes.js";
+import { grafanaRoutes, grafanaProxyMiddleware, setupGrafanaWebSocketProxy } from "./src/routes/grafana.routes.js";
 import { initDatabase } from "./src/database/connection.js";
 import { getMetrics } from "./src/services/metrics.service.js";
 import { config, validateConfig } from "./src/config.js";
@@ -114,8 +115,8 @@ app.use(cookieParser());
 // Health (liveness: /health/live, readiness: /health/ready, legacy: /health)
 app.use("/health", healthRoutes);
 
-// Prometheus: expose app + user metrics
-app.get("/metrics", async (req, res) => {
+// Prometheus: expose app + user metrics (optional basic auth via METRICS_SCRAPE_USER/PASSWORD)
+app.get("/metrics", metricsScrapeAuthMiddleware, async (req, res) => {
   try {
     const [appMetricsText, userMetricsText] = await Promise.all([
       getAppMetrics(),
@@ -158,13 +159,15 @@ const startDatabaseInit = async () => {
 
 dbInitPromise = startDatabaseInit();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info({
     port: PORT,
     api: `http://localhost:${PORT}/api/v1`,
     health: `http://localhost:${PORT}/health`,
   }, 'Server listening');
 });
+
+setupGrafanaWebSocketProxy(server);
 
 export { dbInitialized, dbInitPromise };
 export default app;

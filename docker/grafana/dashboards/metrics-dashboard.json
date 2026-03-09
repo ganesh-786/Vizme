@@ -8,26 +8,22 @@
     ],
     "timezone": "browser",
     "schemaVersion": 38,
-    "version": 1,
+    "version": 2,
     "refresh": "10s",
     "templating": {
       "list": [
         {
           "name": "user_id",
-          "type": "query",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "query": "label_values(user_metric_*, user_id)",
-          "multi": false,
-          "includeAll": false,
+          "type": "textbox",
+          "query": "",
           "current": {
             "selected": true,
             "text": "",
             "value": ""
           },
-          "hide": 2
+          "hide": 2,
+          "skipUrlSync": false,
+          "description": "Set by backend proxy from token (locked)"
         }
       ]
     },
@@ -82,11 +78,11 @@
         },
         "targets": [
           {
-            "expr": "count(user_metric_*)",
+            "expr": "count(user_metric_*{user_id=~\"^${user_id}$\"})",
             "refId": "A"
           }
         ],
-        "description": "Total user-defined metric series (all users)"
+        "description": "Your metric series count (filtered by your user)"
       },
       {
         "id": 4,
@@ -100,12 +96,121 @@
         },
         "targets": [
           {
-            "expr": "sum by (user_id, __name__) (rate(user_metric_*{user_id=~\"$user_id\"}[5m]))",
+            "expr": "sum by (user_id, __name__) (rate(user_metric_*{user_id=~\"^${user_id}$\"}[5m]))",
             "refId": "A",
             "legendFormat": "{{user_id}} {{__name__}}"
           }
         ],
-        "description": "Rate of user metrics (counters) per user. Select user_id in the variable dropdown."
+        "description": "Rate of your metrics (filtered to your user only)."
+      },
+      {
+        "id": 5,
+        "title": "Cart items count (gauge)",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "max(user_metric_cart_items_count{user_id=~\"^${user_id}$\"}) or vector(0)",
+            "refId": "A"
+          }
+        ],
+        "description": "Current cart item count from ecommerce client"
+      },
+      {
+        "id": 6,
+        "title": "Cart value total (NPR)",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 16 },
+        "targets": [
+          {
+            "expr": "max(user_metric_cart_value_total{user_id=~\"^${user_id}$\"}) or vector(0)",
+            "refId": "A"
+          }
+        ],
+        "description": "Current cart total value (NPR) from ecommerce client",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        },
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 7,
+        "title": "Total revenue (NPR)",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "sum(increase(user_metric_total_revenue{user_id=~\"^${user_id}$\"}[24h])) or vector(0)",
+            "refId": "A"
+          }
+        ],
+        "description": "Total revenue in last 24h from completed orders (NPR)",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        },
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 8,
+        "title": "Ecommerce gauges over time",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+        "targets": [
+          {
+            "expr": "user_metric_cart_items_count{user_id=~\"^${user_id}$\"}",
+            "refId": "A",
+            "legendFormat": "Cart items"
+          },
+          {
+            "expr": "user_metric_cart_value_total{user_id=~\"^${user_id}$\"}",
+            "refId": "B",
+            "legendFormat": "Cart value"
+          }
+        ],
+        "description": "Cart items and value over time (gauges)"
+      },
+      {
+        "id": 9,
+        "title": "Cart products (real-time per-product quantity)",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+        "targets": [
+          {
+            "expr": "user_metric_cart_product_quantity{user_id=~\"^${user_id}$\"} > 0",
+            "refId": "A",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "description": "Quantity of each product in cart. Updates when you click +/- on cart page."
+      },
+      {
+        "id": 10,
+        "title": "Per-product quantities over time",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
+        "targets": [
+          {
+            "expr": "user_metric_cart_product_quantity{user_id=~\"^${user_id}$\"}",
+            "refId": "A",
+            "legendFormat": "{{product_name}} ({{product_id}})"
+          }
+        ],
+        "description": "Quantity of each product in cart over time"
       }
     ]
   }
