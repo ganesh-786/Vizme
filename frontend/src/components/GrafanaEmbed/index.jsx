@@ -54,6 +54,13 @@ function GrafanaEmbed({
       try {
         const result = await getEmbedUrl(fetchParams);
         if (!cancelled && result?.url) {
+          // Probe embed URL before iframe load; if 503 (tenant setup failed), show error UI
+          const probe = await fetch(result.url, { credentials: 'include', method: 'HEAD' });
+          if (probe.status === 503) {
+            setHasError(true);
+            setIsLoading(false);
+            return;
+          }
           setEmbedUrl(result.url);
           setHasError(false);
 

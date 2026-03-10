@@ -3,15 +3,11 @@ import { config } from '../config.js';
 
 /**
  * Prometheus Metrics Service
- * 
- * This service manages Prometheus metrics using the prom-client library.
- * Metrics are stored in memory and exposed via /metrics endpoint for Prometheus scraping.
- * 
- * Best Practices:
- * - Use appropriate metric types (Counter, Gauge, Histogram, Summary)
- * - Label metrics with user_id for multi-tenancy
- * - Register all metrics in a single registry
- * - Expose metrics endpoint for Prometheus scraping
+ *
+ * Manages user-submitted metrics with multi-tenant isolation.
+ * - Validates and records in prom-client (for cardinality tracking)
+ * - User metrics are pushed to Mimir only (via metrics.routes batch push)
+ * - /metrics endpoint exposes app metrics only (no user data) for Prometheus scrape
  */
 
 // Create a custom registry for application metrics

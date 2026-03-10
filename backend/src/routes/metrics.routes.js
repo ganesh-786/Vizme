@@ -3,7 +3,8 @@ import { body, validationResult } from 'express-validator';
 import { authenticateApiKey, authenticate } from '../middleware/auth.middleware.js';
 import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
-import { recordMetric, getMetrics } from '../services/metrics.service.js';
+import { recordMetric } from '../services/metrics.service.js';
+import { pushMetricsToMimir } from '../services/mimir.service.js';
 import { config } from '../config.js';
 
 const router = express.Router();
@@ -125,6 +126,19 @@ router.post('/',
         throw new BadRequestError('No valid metrics to process', errors_list);
       }
 
+      // Batch push to Mimir (hard tenant isolation)
+      pushMetricsToMimir(
+        validMetrics.map((m) => ({
+          name: m.name,
+          type: m.type,
+          value: m.value,
+          labels: m.labels || {},
+          userId: String(req.user.id),
+        }))
+      ).catch((err) => {
+        console.error('Mimir batch push failed:', err);
+      });
+
       res.json({
         success: true,
         data: {
@@ -151,10 +165,9 @@ router.get('/',
     try {
       res.json({
         success: true,
-        message: 'View your metrics in Grafana or query Prometheus',
-        prometheusUrl: config.urls.prometheus,
+        message: 'View your metrics in Grafana (Mimir). User metrics are isolated per tenant.',
         grafanaUrl: config.urls.grafana,
-        metricsEndpoint: '/metrics'
+        mimirUrl: config.urls.mimir
       });
     } catch (error) {
       next(error);

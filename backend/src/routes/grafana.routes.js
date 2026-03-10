@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { grafanaEmbedLimiter } from '../middleware/rateLimiter.js';
+import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
 
 const router = express.Router();
 const GRAFANA_EMBED_COOKIE = 'vizme_grafana_embed';
@@ -102,12 +103,27 @@ function getGrafanaBaseUrl() {
 /**
  * Proxies requests to Grafana at /grafana/*.
  * Validates embed_token, forces var-user_id from token.
- * Sets cookie on first request so subsequent Grafana asset/API requests work.
+ * Ensures org per user with Mimir datasource (X-Scope-OrgID) for hard isolation.
  */
 export async function grafanaProxyMiddleware(req, res, next) {
   const userId = validateEmbedToken(req);
   if (!userId) {
     return next(new UnauthorizedError('Valid embed token required to view Grafana'));
+  }
+
+  const orgId = await ensureGrafanaTenant(userId);
+  if (!orgId) {
+    // Send 503 directly with frame-allowing headers so iframe can display the message
+    // (Helmet sets X-Frame-Options: sameorigin, which blocks cross-origin iframes)
+    res.removeHeader('X-Frame-Options');
+    const frontendOrigin = config.cors.frontendUrl || '';
+    res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${frontendOrigin}`);
+    return res.status(503).json({
+      success: false,
+      error: 'Dashboard unavailable',
+      message:
+        'Tenant setup failed. Check backend logs for details. Ensure: (1) Grafana is running, (2) GRAFANA_ADMIN_USER/PASSWORD match Grafana, (3) MIMIR_URL is reachable from Grafana. Docker: MIMIR_URL=http://mimir:8080, GRAFANA_INTERNAL_URL=http://grafana:3000. Local dev: GRAFANA_URL=http://localhost:3001. Verify: GET /health/grafana',
+    });
   }
 
   const grafanaBase = getGrafanaBaseUrl();
@@ -137,6 +153,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
     delete headers.connection;
     delete headers.authorization;
     headers['X-WEBAUTH-USER'] = `vizme_user_${userId}`;
+    headers['X-WEBAUTH-ORGS'] = `${orgId}:Editor`;
 
     const fetchOpts = {
       method: req.method,
@@ -194,7 +211,7 @@ export function setupGrafanaWebSocketProxy(server) {
     socket.destroy();
   });
 
-  server.on('upgrade', (req, socket, head) => {
+  server.on('upgrade', async (req, socket, head) => {
     if (!req.url?.startsWith('/grafana')) return;
 
     const [pathPart, queryPart] = req.url.split('?');
@@ -209,11 +226,18 @@ export function setupGrafanaWebSocketProxy(server) {
       return;
     }
 
+    const orgId = await ensureGrafanaTenant(userId);
+    if (!orgId) {
+      socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     query.delete('embed_token');
     query.set('var-user_id', String(userId));
     const newQuery = query.toString();
     req.url = `${pathPart}${newQuery ? `?${newQuery}` : ''}`;
     req.headers['x-webauth-user'] = `vizme_user_${userId}`;
+    req.headers['x-webauth-orgs'] = `${orgId}:Editor`;
 
     proxy.ws(req, socket, head, {
       target: grafanaBase,

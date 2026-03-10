@@ -16,7 +16,6 @@ import { healthRoutes } from "./src/routes/health.routes.js";
 import { trackerRoutes } from "./src/routes/tracker.routes.js";
 import { grafanaRoutes, grafanaProxyMiddleware, setupGrafanaWebSocketProxy } from "./src/routes/grafana.routes.js";
 import { initDatabase } from "./src/database/connection.js";
-import { getMetrics } from "./src/services/metrics.service.js";
 import { config, validateConfig } from "./src/config.js";
 import { logger } from "./src/logger.js";
 import pinoHttp from "pino-http";
@@ -115,16 +114,12 @@ app.use(cookieParser());
 // Health (liveness: /health/live, readiness: /health/ready, legacy: /health)
 app.use("/health", healthRoutes);
 
-// Prometheus: expose app + user metrics (optional basic auth via METRICS_SCRAPE_USER/PASSWORD)
+// Prometheus: expose app metrics only (infra). User metrics go to Mimir only - hard tenant isolation.
 app.get("/metrics", metricsScrapeAuthMiddleware, async (req, res) => {
   try {
-    const [appMetricsText, userMetricsText] = await Promise.all([
-      getAppMetrics(),
-      getMetrics(),
-    ]);
+    const appMetricsText = await getAppMetrics();
     res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
-    const combined = [appMetricsText, userMetricsText].filter(Boolean).join('\n');
-    res.end(combined || '# No metrics yet\n');
+    res.end(appMetricsText || '# No metrics yet\n');
   } catch (error) {
     logger.error({ err: error, requestId: req.id }, 'Metrics endpoint error');
     res.status(500).set('Content-Type', 'text/plain').end(`# Error: ${error.message}\n`);

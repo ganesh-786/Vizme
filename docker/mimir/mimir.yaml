@@ -1,0 +1,56 @@
+# Grafana Mimir config for Vizme - multi-tenant metrics with hard isolation.
+# Tenant ID = user_id; X-Scope-OrgID header required on all requests.
+
+target: all,alertmanager,overrides-exporter
+
+multitenancy_enabled: true
+
+# Per-tenant limits (production-grade)
+limits:
+  ingestion_rate: 100000
+  ingestion_burst_size: 200000
+  max_global_series_per_user: 1000000
+  max_global_series_per_metric: 50000
+  max_fetched_chunks_per_query: 2000000
+  compactor_blocks_retention_period: 365d
+
+# Single-instance monolithic: replication factor 1 + disable zone awareness
+ingester:
+  ring:
+    replication_factor: 1
+    zone_awareness_enabled: false
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    zone_awareness_enabled: false
+
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: minio:9000
+      access_key_id: mimir
+      secret_access_key: supersecret
+      insecure: true
+      bucket_name: mimir
+
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/ingester
+
+# Single instance - no memberlist needed for monolithic
+server:
+  log_level: warn
+  http_listen_port: 8080
+
+# Ruler for recording/alerting rules
+ruler:
+  rule_path: /data/ruler
+  alertmanager_url: http://127.0.0.1:8080/alertmanager
+
+alertmanager:
+  data_dir: /data/alertmanager
+  fallback_config_file: /etc/alertmanager-fallback-config.yaml
+  external_url: http://localhost:9009/alertmanager

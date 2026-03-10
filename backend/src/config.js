@@ -75,6 +75,13 @@ export const config = {
   urls: {
     prometheus: getEnv('PROMETHEUS_URL', 'http://localhost:9090'),
     grafana: getEnv('GRAFANA_URL', 'http://localhost:3001'),
+    mimir: getEnv('MIMIR_URL', 'http://localhost:9009'),
+  },
+
+  grafana: {
+    /** Must match Grafana admin credentials. Prefer GRAFANA_ADMIN_*, fallback to GF_SECURITY_ADMIN_*. */
+    adminUser: getEnv('GRAFANA_ADMIN_USER', getEnv('GF_SECURITY_ADMIN_USER', 'admin')),
+    adminPassword: getEnv('GRAFANA_ADMIN_PASSWORD', getEnv('GF_SECURITY_ADMIN_PASSWORD', 'admin')),
   },
 
   /** Grafana embed token expiry (e.g. '15m', '1h'). Production: 15m. Dev: 1h for convenience. */
