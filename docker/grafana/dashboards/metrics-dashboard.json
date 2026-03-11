@@ -32,6 +32,7 @@
         "id": 1,
         "title": "HTTP request rate",
         "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "gridPos": {
           "h": 8,
           "w": 12,
@@ -42,7 +43,8 @@
           {
             "expr": "sum(rate(http_requests_total{service=\"vizme-backend\"}[5m])) by (method, route, status)",
             "refId": "A",
-            "legendFormat": "{{method}} {{route}} {{status}}"
+            "legendFormat": "{{method}} {{route}} {{status}}",
+            "datasource": { "type": "prometheus", "uid": "prometheus" }
           }
         ],
         "description": "Backend request rate (PromQL)"
@@ -51,6 +53,7 @@
         "id": 2,
         "title": "HTTP p99 latency (s)",
         "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "gridPos": {
           "h": 8,
           "w": 12,
@@ -61,7 +64,8 @@
           {
             "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"vizme-backend\"}[5m])) by (le, route))",
             "refId": "A",
-            "legendFormat": "{{route}}"
+            "legendFormat": "{{route}}",
+            "datasource": { "type": "prometheus", "uid": "prometheus" }
           }
         ],
         "description": "99th percentile request duration"
@@ -70,6 +74,7 @@
         "id": 3,
         "title": "User metric series count",
         "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": {
           "h": 6,
           "w": 6,
@@ -79,7 +84,8 @@
         "targets": [
           {
             "expr": "count(user_metric_*{user_id=~\"^${user_id}$\"})",
-            "refId": "A"
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Your metric series count (filtered by your user)"
@@ -88,6 +94,7 @@
         "id": 4,
         "title": "User metrics by user_id",
         "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": {
           "h": 8,
           "w": 18,
@@ -98,7 +105,8 @@
           {
             "expr": "sum by (user_id, __name__) (rate(user_metric_*{user_id=~\"^${user_id}$\"}[5m]))",
             "refId": "A",
-            "legendFormat": "{{user_id}} {{__name__}}"
+            "legendFormat": "{{user_id}} {{__name__}}",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Rate of your metrics (filtered to your user only)."
@@ -107,11 +115,13 @@
         "id": 5,
         "title": "Cart items count (gauge)",
         "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 },
         "targets": [
           {
             "expr": "max(user_metric_cart_items_count{user_id=~\"^${user_id}$\"}) or vector(0)",
-            "refId": "A"
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Current cart item count from ecommerce client"
@@ -120,11 +130,13 @@
         "id": 6,
         "title": "Cart value total (NPR)",
         "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": { "h": 6, "w": 6, "x": 6, "y": 16 },
         "targets": [
           {
             "expr": "max(user_metric_cart_value_total{user_id=~\"^${user_id}$\"}) or vector(0)",
-            "refId": "A"
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Current cart total value (NPR) from ecommerce client",
@@ -144,11 +156,13 @@
         "id": 7,
         "title": "Total revenue (NPR)",
         "type": "stat",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": { "h": 6, "w": 6, "x": 12, "y": 16 },
         "targets": [
           {
             "expr": "sum(increase(user_metric_total_revenue{user_id=~\"^${user_id}$\"}[24h])) or vector(0)",
-            "refId": "A"
+            "refId": "A",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Total revenue in last 24h from completed orders (NPR)",
@@ -168,17 +182,20 @@
         "id": 8,
         "title": "Ecommerce gauges over time",
         "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
         "targets": [
           {
             "expr": "user_metric_cart_items_count{user_id=~\"^${user_id}$\"}",
             "refId": "A",
-            "legendFormat": "Cart items"
+            "legendFormat": "Cart items",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           },
           {
             "expr": "user_metric_cart_value_total{user_id=~\"^${user_id}$\"}",
             "refId": "B",
-            "legendFormat": "Cart value"
+            "legendFormat": "Cart value",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Cart items and value over time (gauges)"
@@ -187,13 +204,15 @@
         "id": 9,
         "title": "Cart products (real-time per-product quantity)",
         "type": "table",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
         "targets": [
           {
             "expr": "user_metric_cart_product_quantity{user_id=~\"^${user_id}$\"} > 0",
             "refId": "A",
             "format": "table",
-            "instant": true
+            "instant": true,
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Quantity of each product in cart. Updates when you click +/- on cart page."
@@ -202,12 +221,14 @@
         "id": 10,
         "title": "Per-product quantities over time",
         "type": "timeseries",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
         "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
         "targets": [
           {
             "expr": "user_metric_cart_product_quantity{user_id=~\"^${user_id}$\"}",
             "refId": "A",
-            "legendFormat": "{{product_name}} ({{product_id}})"
+            "legendFormat": "{{product_name}} ({{product_id}})",
+            "datasource": { "type": "prometheus", "uid": "mimir" }
           }
         ],
         "description": "Quantity of each product in cart over time"

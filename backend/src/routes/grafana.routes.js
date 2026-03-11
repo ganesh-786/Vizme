@@ -154,6 +154,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
     delete headers.authorization;
     headers['X-WEBAUTH-USER'] = `vizme_user_${userId}`;
     headers['X-WEBAUTH-ORGS'] = `${orgId}:Editor`;
+    headers['X-Scope-OrgID'] = String(userId); // Mimir tenant; Grafana may propagate to datasource queries
 
     const fetchOpts = {
       method: req.method,
@@ -238,6 +239,7 @@ export function setupGrafanaWebSocketProxy(server) {
     req.url = `${pathPart}${newQuery ? `?${newQuery}` : ''}`;
     req.headers['x-webauth-user'] = `vizme_user_${userId}`;
     req.headers['x-webauth-orgs'] = `${orgId}:Editor`;
+    req.headers['x-scope-orgid'] = String(userId); // Mimir tenant for WebSocket/Live
 
     proxy.ws(req, socket, head, {
       target: grafanaBase,

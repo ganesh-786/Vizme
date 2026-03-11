@@ -37,7 +37,8 @@ User sees only their metrics (hard isolation)
 
 ### 3. Grafana
 
-- **Org per user**: `vizme-{userId}`
+- **Org 1 (admin)**: Provisioned datasources: Prometheus (infra), Mimir (tenant 1 for testing). See `docker/grafana/provisioning/datasources/datasources.yml`.
+- **Org per user**: `vizme-{userId}` with Mimir datasource via `grafanaTenant.service`
 - **Datasource**: Mimir with custom header `X-Scope-OrgID: {userId}`
 - **Auth proxy**: `X-WEBAUTH-ORGS: {orgId}:Editor` assigns user to their org
 
@@ -86,8 +87,10 @@ If users see each other's metrics:
 3. **Prometheus vs Mimir**: `/metrics` exposes app metrics only. User metrics go to Mimir only (batch push from backend)
 4. **Verify**: In Grafana Explore with Mimir datasource, run `user_metric_*` — should only return that tenant's data
 
-- **X-Scope-OrgID in jsonData**: Header value is set in datasource jsonData (not secureJsonData) for reliable delivery across Grafana versions
+- **X-Scope-OrgID**: Header name in jsonData, value in secureJsonData (Grafana stores and forwards it correctly)
 - **Explicit panel datasource**: Dashboard panels are bound to the tenant's Mimir datasource UID; Prometheus (org 1) must never be used for user metrics
+- **Auto-correction on login**: `ensureMimirDatasource` updates X-Scope-OrgID when an existing datasource has a stale header (e.g. after user ID change)
+- **Proxy header**: Backend adds `X-Scope-OrgID: {userId}` to every Grafana request; Grafana may propagate it to datasource queries
 
 ## Fixing Cross-Tenant Visibility
 
@@ -96,3 +99,16 @@ If users see each other's metrics:
 1. **Existing dashboards**: The backend overwrites dashboards on each tenant setup; panels are re-bound to the Mimir datasource
 2. **Existing datasources**: Delete and recreate per-user orgs, or reset Grafana volume: `docker compose down && docker volume rm docker_grafana_data && docker compose up -d`
 3. **Verify**: Check `/health/grafana` and ensure Mimir datasource has `X-Scope-OrgID` in jsonData
+
+## Grafana Provisioning (Production)
+
+All Org 1 datasources are provisioned via `docker/grafana/provisioning/datasources/datasources.yml`. No manual datasource creation is required. This ensures idempotent restarts—`docker compose down && up` works without "data source with the same uid already exists" errors.
+
+If you previously had manual datasources or a corrupted state, reset once:
+
+```bash
+cd docker
+docker compose down
+docker volume rm docker_grafana_data
+docker compose up -d
+```

@@ -177,29 +177,62 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
   const list = await listRes.json();
   const existing = list.find((d) => d.name === 'Mimir' || d.uid === `mimir-${tenantId}`);
   const correctUrl = `${MIMIR_URL}/prometheus`;
+  const correctJsonData = {
+    ...(existing?.jsonData || {}),
+    timeInterval: '3s',
+    httpHeaderName1: 'X-Scope-OrgID',
+  };
+  const correctSecureJsonData = { httpHeaderValue1: tenantId };
+
   if (existing) {
-    if (existing.url !== correctUrl) {
+    const urlMismatch = existing.url !== correctUrl;
+    const needsUpdate = urlMismatch;
+
+    if (needsUpdate) {
       const updateRes = await grafanaFetch(
         `/api/datasources/${existing.id}`,
         {
           method: 'PUT',
           headers: { 'X-Grafana-Org-Id': String(orgId) },
-          body: JSON.stringify({ ...existing, url: correctUrl }),
+          body: JSON.stringify({
+            ...existing,
+            url: correctUrl,
+            jsonData: correctJsonData,
+            secureJsonData: correctSecureJsonData,
+          }),
         },
         baseOverride
       );
       if (!updateRes.ok) {
         logger.warn(
           { status: updateRes.status, orgId, tenantId },
-          'ensureMimirDatasource: update URL failed'
+          'ensureMimirDatasource: update failed'
+        );
+      }
+    } else {
+      const updateRes = await grafanaFetch(
+        `/api/datasources/${existing.id}`,
+        {
+          method: 'PUT',
+          headers: { 'X-Grafana-Org-Id': String(orgId) },
+          body: JSON.stringify({
+            ...existing,
+            jsonData: correctJsonData,
+            secureJsonData: correctSecureJsonData,
+          }),
+        },
+        baseOverride
+      );
+      if (!updateRes.ok) {
+        logger.warn(
+          { status: updateRes.status, orgId, tenantId },
+          'ensureMimirDatasource: update X-Scope-OrgID failed'
         );
       }
     }
     return;
   }
 
-  // Use jsonData for X-Scope-OrgID (not secureJsonData) - some Grafana versions don't
-  // reliably send secureJsonData headers; tenant ID is server-enforced by Mimir anyway.
   const createRes = await grafanaFetch(
     '/api/datasources',
     {
@@ -214,10 +247,8 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
         isDefault: true,
         version: 1,
         editable: false,
-        jsonData: {
-          httpHeaderName1: 'X-Scope-OrgID',
-          httpHeaderValue1: tenantId,
-        },
+        jsonData: correctJsonData,
+        secureJsonData: correctSecureJsonData,
       }),
     },
     baseOverride
