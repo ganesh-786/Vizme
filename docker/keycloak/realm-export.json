@@ -31,8 +31,30 @@
         "description": "Administrator role",
         "composite": false,
         "clientRole": false
+      },
+      {
+        "name": "PLATFORM_ADMIN",
+        "description": "Full platform access for admin-only API routes",
+        "composite": false,
+        "clientRole": false
       }
-    ]
+    ],
+    "client": {
+      "uv-backend": [
+        {
+          "name": "API_USER",
+          "description": "Base role for backend API access",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "API_ADMIN",
+          "description": "Backend admin operations",
+          "composite": false,
+          "clientRole": true
+        }
+      ]
+    }
   },
   "defaultRoles": ["user"],
   "requiredCredentials": ["password"],
@@ -70,7 +92,8 @@
         "openid",
         "profile",
         "email",
-        "roles"
+        "roles",
+        "backend-roles"
       ],
       "optionalClientScopes": [
         "offline_access",
@@ -263,6 +286,32 @@
       ]
     },
     {
+      "name": "backend-roles",
+      "description": "Include uv-backend client roles in access token for API authorization",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "uv-backend roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "resource_access.uv-backend.roles",
+            "jsonType.label": "String",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "name": "offline_access",
       "description": "OpenID Connect built-in scope: offline_access",
       "protocol": "openid-connect",
@@ -293,7 +342,29 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["user"]
+      "realmRoles": ["user"],
+      "clientRoles": {
+        "uv-backend": ["API_USER"]
+      }
+    },
+    {
+      "username": "adminuser@example.com",
+      "email": "adminuser@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin1234",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["user", "admin", "PLATFORM_ADMIN"],
+      "clientRoles": {
+        "uv-backend": ["API_USER", "API_ADMIN"]
+      }
     }
   ],
   "accessTokenLifespan": 900,
