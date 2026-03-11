@@ -19,6 +19,15 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Authorization errors (authenticated but insufficient permissions)
+  if (err.name === 'ForbiddenError') {
+    return res.status(403).json({
+      success: false,
+      error: 'Forbidden',
+      message: err.message || 'Insufficient permissions'
+    });
+  }
+
   // Database errors
   if (err.code === '23505') { // Unique violation
     return res.status(409).json({
@@ -65,6 +74,13 @@ export class UnauthorizedError extends AppError {
   constructor(message = 'Unauthorized') {
     super(message, 401);
     this.name = 'UnauthorizedError';
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message = 'Insufficient permissions') {
+    super(message, 403);
+    this.name = 'ForbiddenError';
   }
 }
 
