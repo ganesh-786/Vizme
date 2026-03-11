@@ -54,6 +54,15 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Authorization errors (authenticated but insufficient permissions)
+  if (err.name === 'ForbiddenError') {
+    return res.status(403).json({
+      success: false,
+      error: 'Forbidden',
+      message: err.message || 'Insufficient permissions'
+    });
+  }
+
   // Database errors
   if (err.code === '23505') {
     return res.status(409).json({
