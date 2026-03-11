@@ -6,6 +6,7 @@ datasources:
   # Prometheus has ALL metrics - for infra only, never for user metrics. isDefault: false
   # so per-user orgs (when they get dashboard copied) won't accidentally use Prometheus.
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090

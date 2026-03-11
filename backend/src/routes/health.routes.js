@@ -22,7 +22,9 @@ router.get('/live', (req, res) => {
 router.get('/grafana', async (req, res) => {
   const grafanaBase =
     process.env.GRAFANA_INTERNAL_URL || config.urls.grafana || 'http://localhost:3001';
-  const base = grafanaBase.includes('/grafana') ? grafanaBase : `${grafanaBase.replace(/\/$/, '')}/grafana`;
+  const base = grafanaBase.includes('/grafana')
+    ? grafanaBase
+    : `${grafanaBase.replace(/\/$/, '')}/grafana`;
   const url = `${base}/api/org`;
   const adminUser = config.grafana?.adminUser || process.env.GRAFANA_ADMIN_USER || 'admin';
   const adminPass = config.grafana?.adminPassword || process.env.GRAFANA_ADMIN_PASSWORD || 'admin';

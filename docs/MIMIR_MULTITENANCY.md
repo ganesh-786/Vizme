@@ -21,6 +21,7 @@ User sees only their metrics (hard isolation)
 ## Components
 
 ### 1. Mimir (docker/mimir/)
+
 - **Multitenancy**: `multitenancy_enabled: true`
 - **Tenant ID**: `X-Scope-OrgID` HTTP header = `user_id`
 - **Storage**: MinIO (S3-compatible)
@@ -28,23 +29,25 @@ User sees only their metrics (hard isolation)
 - **Limits**: Per-tenant ingestion rate, series cap, retention (365d)
 
 ### 2. Backend
+
 - **metrics.service.js**: Validates, records in prom-client (cardinality tracking). User metrics go to Mimir only.
 - **mimir.service.js**: Batch-pushes metrics via `prometheus-remote-write` with `X-Scope-OrgID` (one request per tenant per batch)
 - **metrics.routes.js**: Calls `pushMetricsToMimir(validMetrics)` after processing each request
 - **grafanaTenant.service.js**: Creates Grafana org + Mimir datasource per user
 
 ### 3. Grafana
+
 - **Org per user**: `vizme-{userId}`
 - **Datasource**: Mimir with custom header `X-Scope-OrgID: {userId}`
 - **Auth proxy**: `X-WEBAUTH-ORGS: {orgId}:Editor` assigns user to their org
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `MIMIR_URL` | Mimir API URL (default: `http://mimir:8080` in Docker) |
-| `GRAFANA_ADMIN_USER` | Grafana admin for tenant provisioning |
-| `GRAFANA_ADMIN_PASSWORD` | Grafana admin password |
+| Variable                 | Description                                            |
+| ------------------------ | ------------------------------------------------------ |
+| `MIMIR_URL`              | Mimir API URL (default: `http://mimir:8080` in Docker) |
+| `GRAFANA_ADMIN_USER`     | Grafana admin for tenant provisioning                  |
+| `GRAFANA_ADMIN_PASSWORD` | Grafana admin password                                 |
 
 ## Flow
 
@@ -77,16 +80,19 @@ If metrics are pushed to Mimir but not visible in Grafana:
 ## Troubleshooting Cross-Tenant Visibility
 
 If users see each other's metrics:
+
 1. **Datasource header**: Ensure Mimir datasource has `jsonData.httpHeaderName1: 'X-Scope-OrgID'` and `httpHeaderValue1: tenantId`
 2. **Panel binding**: Each panel must use datasource UID `mimir-{userId}` (set in `ensureDashboardInOrg`)
 3. **Prometheus vs Mimir**: `/metrics` exposes app metrics only. User metrics go to Mimir only (batch push from backend)
 4. **Verify**: In Grafana Explore with Mimir datasource, run `user_metric_*` — should only return that tenant's data
+
 - **X-Scope-OrgID in jsonData**: Header value is set in datasource jsonData (not secureJsonData) for reliable delivery across Grafana versions
 - **Explicit panel datasource**: Dashboard panels are bound to the tenant's Mimir datasource UID; Prometheus (org 1) must never be used for user metrics
 
 ## Fixing Cross-Tenant Visibility
 
 If users see each other's metrics:
+
 1. **Existing dashboards**: The backend overwrites dashboards on each tenant setup; panels are re-bound to the Mimir datasource
 2. **Existing datasources**: Delete and recreate per-user orgs, or reset Grafana volume: `docker compose down && docker volume rm docker_grafana_data && docker compose up -d`
 3. **Verify**: Check `/health/grafana` and ensure Mimir datasource has `X-Scope-OrgID` in jsonData

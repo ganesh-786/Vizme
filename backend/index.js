@@ -1,24 +1,28 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
-import { errorHandler } from "./src/middleware/errorHandler.js";
-import { requestIdMiddleware } from "./src/middleware/requestId.js";
-import { metricsScrapeAuthMiddleware } from "./src/middleware/metricsScrapeAuth.js";
-import { appMetricsMiddleware, getAppMetrics } from "./src/middleware/appMetrics.js";
-import { authRoutes } from "./src/routes/auth.routes.js";
-import { apiKeyRoutes } from "./src/routes/apikey.routes.js";
-import { metricConfigRoutes } from "./src/routes/metricconfig.routes.js";
-import { codeGenerationRoutes } from "./src/routes/codeGeneration.routes.js";
-import { metricsRoutes } from "./src/routes/metrics.routes.js";
-import { healthRoutes } from "./src/routes/health.routes.js";
-import { trackerRoutes } from "./src/routes/tracker.routes.js";
-import { grafanaRoutes, grafanaProxyMiddleware, setupGrafanaWebSocketProxy } from "./src/routes/grafana.routes.js";
-import { initDatabase } from "./src/database/connection.js";
-import { config, validateConfig } from "./src/config.js";
-import { logger } from "./src/logger.js";
-import pinoHttp from "pino-http";
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
+import { errorHandler } from './src/middleware/errorHandler.js';
+import { requestIdMiddleware } from './src/middleware/requestId.js';
+import { metricsScrapeAuthMiddleware } from './src/middleware/metricsScrapeAuth.js';
+import { appMetricsMiddleware, getAppMetrics } from './src/middleware/appMetrics.js';
+import { authRoutes } from './src/routes/auth.routes.js';
+import { apiKeyRoutes } from './src/routes/apikey.routes.js';
+import { metricConfigRoutes } from './src/routes/metricconfig.routes.js';
+import { codeGenerationRoutes } from './src/routes/codeGeneration.routes.js';
+import { metricsRoutes } from './src/routes/metrics.routes.js';
+import { healthRoutes } from './src/routes/health.routes.js';
+import { trackerRoutes } from './src/routes/tracker.routes.js';
+import {
+  grafanaRoutes,
+  grafanaProxyMiddleware,
+  setupGrafanaWebSocketProxy,
+} from './src/routes/grafana.routes.js';
+import { initDatabase } from './src/database/connection.js';
+import { config, validateConfig } from './src/config.js';
+import { logger } from './src/logger.js';
+import pinoHttp from 'pino-http';
 
 dotenv.config();
 
@@ -28,12 +32,15 @@ validateConfig();
 const app = express();
 const PORT = config.port;
 
-logger.info({
-  port: PORT,
-  env: config.env,
-  dbHost: config.db.host,
-  frontendUrl: config.cors.frontendUrl,
-}, 'Starting backend');
+logger.info(
+  {
+    port: PORT,
+    env: config.env,
+    dbHost: config.db.host,
+    frontendUrl: config.cors.frontendUrl,
+  },
+  'Starting backend'
+);
 
 // Security: Helmet with production-safe defaults (CSP only in production)
 let grafanaOrigin = null;
@@ -43,32 +50,38 @@ try {
   }
 } catch (_) {}
 
-app.use(helmet({
-  contentSecurityPolicy: config.isProduction ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      frameSrc: ["'self'", grafanaOrigin].filter(Boolean),
-      frameAncestors: ["'self'", config.cors.frontendUrl].filter(Boolean),
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", config.api.baseUrl].filter(Boolean),
-    },
-  } : false,
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: config.isProduction
+      ? {
+          directives: {
+            defaultSrc: ["'self'"],
+            frameSrc: ["'self'", grafanaOrigin].filter(Boolean),
+            frameAncestors: ["'self'", config.cors.frontendUrl].filter(Boolean),
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            connectSrc: ["'self'", config.api.baseUrl].filter(Boolean),
+          },
+        }
+      : false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // Request ID and structured request logging
 app.use(requestIdMiddleware);
-app.use(pinoHttp({
-  logger,
-  genReqId: (req) => req.id,
-  customLogLevel: (req, res, err) => {
-    if (res.statusCode >= 500 || err) return 'error';
-    if (res.statusCode >= 400) return 'warn';
-    return 'info';
-  },
-}));
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: (req) => req.id,
+    customLogLevel: (req, res, err) => {
+      if (res.statusCode >= 500 || err) return 'error';
+      if (res.statusCode >= 400) return 'warn';
+      return 'info';
+    },
+  })
+);
 
 // Application metrics (request count, duration)
 app.use(appMetricsMiddleware);
@@ -83,11 +96,12 @@ const isPublicApiPath = (path) =>
 app.use((req, res, next) => {
   if (isPublicApiPath(req.path)) {
     const origin = req.headers.origin;
-    const allowOrigin = (allowedMetricsOrigins.includes('*') || !origin)
-      ? '*'
-      : allowedMetricsOrigins.includes(origin)
-        ? origin
-        : null;
+    const allowOrigin =
+      allowedMetricsOrigins.includes('*') || !origin
+        ? '*'
+        : allowedMetricsOrigins.includes(origin)
+          ? origin
+          : null;
     res.setHeader('Access-Control-Allow-Origin', allowOrigin || allowedMetricsOrigins[0] || '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
@@ -107,15 +121,15 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Health (liveness: /health/live, readiness: /health/ready, legacy: /health)
-app.use("/health", healthRoutes);
+app.use('/health', healthRoutes);
 
 // Prometheus: expose app metrics only (infra). User metrics go to Mimir only - hard tenant isolation.
-app.get("/metrics", metricsScrapeAuthMiddleware, async (req, res) => {
+app.get('/metrics', metricsScrapeAuthMiddleware, async (req, res) => {
   try {
     const appMetricsText = await getAppMetrics();
     res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
@@ -127,14 +141,14 @@ app.get("/metrics", metricsScrapeAuthMiddleware, async (req, res) => {
 });
 
 // API Routes
-app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/api-keys", apiKeyRoutes);
-app.use("/api/v1/metric-configs", metricConfigRoutes);
-app.use("/api/v1/code-generation", codeGenerationRoutes);
-app.use("/api/v1/metrics", metricsRoutes);
-app.use("/api/v1", trackerRoutes);
-app.use("/api/v1/grafana", grafanaRoutes);
-app.use("/grafana", grafanaProxyMiddleware);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/api-keys', apiKeyRoutes);
+app.use('/api/v1/metric-configs', metricConfigRoutes);
+app.use('/api/v1/code-generation', codeGenerationRoutes);
+app.use('/api/v1/metrics', metricsRoutes);
+app.use('/api/v1', trackerRoutes);
+app.use('/api/v1/grafana', grafanaRoutes);
+app.use('/grafana', grafanaProxyMiddleware);
 
 app.use(errorHandler);
 
@@ -155,11 +169,14 @@ const startDatabaseInit = async () => {
 dbInitPromise = startDatabaseInit();
 
 const server = app.listen(PORT, () => {
-  logger.info({
-    port: PORT,
-    api: `http://localhost:${PORT}/api/v1`,
-    health: `http://localhost:${PORT}/health`,
-  }, 'Server listening');
+  logger.info(
+    {
+      port: PORT,
+      api: `http://localhost:${PORT}/api/v1`,
+      health: `http://localhost:${PORT}/health`,
+    },
+    'Server listening'
+  );
 });
 
 setupGrafanaWebSocketProxy(server);

@@ -5,13 +5,7 @@
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const requiredProduction = [
-  'DB_HOST',
-  'DB_NAME',
-  'DB_USER',
-  'DB_PASSWORD',
-  'JWT_SECRET',
-];
+const requiredProduction = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'JWT_SECRET'];
 
 const requiredAll = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
 
@@ -33,7 +27,11 @@ function validateEnv() {
   // In production, reject default/weak JWT_SECRET
   if (isProduction) {
     const secret = process.env.JWT_SECRET;
-    if (!secret || secret.length < 32 || /change-in-production|your-secret|dev|test/i.test(secret)) {
+    if (
+      !secret ||
+      secret.length < 32 ||
+      /change-in-production|your-secret|dev|test/i.test(secret)
+    ) {
       throw new Error(
         'JWT_SECRET must be set to a strong random value (min 32 chars) in production. Do not use default or example values.'
       );
@@ -53,11 +51,13 @@ export const config = {
     user: getEnv('DB_USER', 'postgres'),
     password: getEnv('DB_PASSWORD', ''),
     ssl: getEnv('DB_SSL', 'false') === 'true',
-    sslRejectUnauthorized: getEnv('DB_SSL_REJECT_UNAUTHORIZED', isProduction ? 'true' : 'false') === 'true',
+    sslRejectUnauthorized:
+      getEnv('DB_SSL_REJECT_UNAUTHORIZED', isProduction ? 'true' : 'false') === 'true',
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || (isProduction ? undefined : 'dev-secret-change-in-production'),
+    secret:
+      process.env.JWT_SECRET || (isProduction ? undefined : 'dev-secret-change-in-production'),
     accessExpiry: getEnv('JWT_ACCESS_EXPIRY', '15m'),
     refreshExpiry: getEnv('JWT_REFRESH_EXPIRY', '7d'),
   },
@@ -65,7 +65,10 @@ export const config = {
   cors: {
     frontendUrl: getEnv('FRONTEND_URL', 'http://localhost:5173'),
     /** Comma-separated allowed origins for metrics/tracker (e.g. https://app.example.com,https://cdn.example.com). In production set this; * means allow any (less secure). */
-    allowedMetricsOrigins: getEnv('ALLOWED_METRICS_ORIGINS', '*').split(',').map((s) => s.trim()).filter(Boolean),
+    allowedMetricsOrigins: getEnv('ALLOWED_METRICS_ORIGINS', '*')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
   },
 
   api: {

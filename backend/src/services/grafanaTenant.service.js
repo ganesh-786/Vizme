@@ -5,17 +5,36 @@
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 
-const GRAFANA_BASE_RAW = (process.env.GRAFANA_INTERNAL_URL || config.urls.grafana || 'http://localhost:3001').replace(/\/$/, '');
+const GRAFANA_BASE_RAW = (
+  process.env.GRAFANA_INTERNAL_URL ||
+  config.urls.grafana ||
+  'http://localhost:3001'
+).replace(/\/$/, '');
 // Grafana serves from /grafana subpath (serve_from_sub_path=true); API is at /grafana/api/*
-const GRAFANA_BASE = GRAFANA_BASE_RAW.includes('/grafana') ? GRAFANA_BASE_RAW : `${GRAFANA_BASE_RAW}/grafana`;
+const GRAFANA_BASE = GRAFANA_BASE_RAW.includes('/grafana')
+  ? GRAFANA_BASE_RAW
+  : `${GRAFANA_BASE_RAW}/grafana`;
 // Use GRAFANA_ADMIN_* or GF_SECURITY_ADMIN_* (docker-compose uses GF_* for Grafana)
-const ADMIN_USER = config.grafana?.adminUser || process.env.GRAFANA_ADMIN_USER || process.env.GF_SECURITY_ADMIN_USER || 'admin';
-const ADMIN_PASS = config.grafana?.adminPassword || process.env.GRAFANA_ADMIN_PASSWORD || process.env.GF_SECURITY_ADMIN_PASSWORD || 'admin';
-const MIMIR_URL = (config.urls.mimir || process.env.MIMIR_URL || 'http://localhost:9009').replace(/\/$/, '');
+const ADMIN_USER =
+  config.grafana?.adminUser ||
+  process.env.GRAFANA_ADMIN_USER ||
+  process.env.GF_SECURITY_ADMIN_USER ||
+  'admin';
+const ADMIN_PASS =
+  config.grafana?.adminPassword ||
+  process.env.GRAFANA_ADMIN_PASSWORD ||
+  process.env.GF_SECURITY_ADMIN_PASSWORD ||
+  'admin';
+const MIMIR_URL = (config.urls.mimir || process.env.MIMIR_URL || 'http://localhost:9009').replace(
+  /\/$/,
+  ''
+);
 
 // Fallback when GRAFANA_INTERNAL_URL fails (e.g. backend runs locally, "grafana" hostname doesn't resolve)
 const GRAFANA_FALLBACK_RAW = (config.urls.grafana || 'http://localhost:3001').replace(/\/$/, '');
-const GRAFANA_FALLBACK = GRAFANA_FALLBACK_RAW.includes('/grafana') ? GRAFANA_FALLBACK_RAW : `${GRAFANA_FALLBACK_RAW}/grafana`;
+const GRAFANA_FALLBACK = GRAFANA_FALLBACK_RAW.includes('/grafana')
+  ? GRAFANA_FALLBACK_RAW
+  : `${GRAFANA_FALLBACK_RAW}/grafana`;
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
@@ -90,7 +109,11 @@ export async function ensureGrafanaTenant(userId) {
         );
         if (attempt < MAX_RETRIES && isConnectError) {
           await sleep(RETRY_DELAY_MS * attempt);
-        } else if (attempt === MAX_RETRIES && isConnectError && basesToTry.indexOf(base) < basesToTry.length - 1) {
+        } else if (
+          attempt === MAX_RETRIES &&
+          isConnectError &&
+          basesToTry.indexOf(base) < basesToTry.length - 1
+        ) {
           // Try next base (fallback)
           break;
         } else if (attempt === MAX_RETRIES) {
@@ -145,7 +168,10 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
     baseOverride
   );
   if (!listRes.ok) {
-    logger.warn({ status: listRes.status, orgId }, 'ensureMimirDatasource: list datasources failed');
+    logger.warn(
+      { status: listRes.status, orgId },
+      'ensureMimirDatasource: list datasources failed'
+    );
     return;
   }
   const list = await listRes.json();
@@ -163,7 +189,10 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
         baseOverride
       );
       if (!updateRes.ok) {
-        logger.warn({ status: updateRes.status, orgId, tenantId }, 'ensureMimirDatasource: update URL failed');
+        logger.warn(
+          { status: updateRes.status, orgId, tenantId },
+          'ensureMimirDatasource: update URL failed'
+        );
       }
     }
     return;
@@ -217,7 +246,10 @@ async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null) {
     baseOverride
   );
   if (!getRes.ok) {
-    logger.warn({ status: getRes.status }, 'ensureDashboardInOrg: could not fetch metrics dashboard from org 1');
+    logger.warn(
+      { status: getRes.status },
+      'ensureDashboardInOrg: could not fetch metrics dashboard from org 1'
+    );
     return;
   }
   const { dashboard } = await getRes.json();
@@ -261,6 +293,9 @@ async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null) {
     dashboardLastUpdated.set(orgId, Date.now());
   } else {
     const text = await createRes.text();
-    logger.warn({ status: createRes.status, text: text?.slice(0, 200), orgId }, 'ensureDashboardInOrg: create failed');
+    logger.warn(
+      { status: createRes.status, text: text?.slice(0, 200), orgId },
+      'ensureDashboardInOrg: create failed'
+    );
   }
 }
