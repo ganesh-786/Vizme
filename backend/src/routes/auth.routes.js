@@ -13,17 +13,13 @@ const router = express.Router();
 
 // Helper: Generate tokens (uses config so JWT_SECRET is validated at startup in production)
 const generateTokens = (userId) => {
-  const accessToken = jwt.sign(
-    { userId, type: 'access' },
-    config.jwt.secret,
-    { expiresIn: config.jwt.accessExpiry }
-  );
+  const accessToken = jwt.sign({ userId, type: 'access' }, config.jwt.secret, {
+    expiresIn: config.jwt.accessExpiry,
+  });
 
-  const refreshToken = jwt.sign(
-    { userId, type: 'refresh' },
-    config.jwt.secret,
-    { expiresIn: config.jwt.refreshExpiry }
-  );
+  const refreshToken = jwt.sign({ userId, type: 'refresh' }, config.jwt.secret, {
+    expiresIn: config.jwt.refreshExpiry,
+  });
 
   return { accessToken, refreshToken };
 };
@@ -32,20 +28,22 @@ const generateTokens = (userId) => {
 const storeRefreshToken = async (userId, token) => {
   const decoded = jwt.decode(token);
   const expiresAt = new Date(decoded.exp * 1000);
-  
-  await query(
-    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-    [userId, token, expiresAt]
-  );
+
+  await query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [
+    userId,
+    token,
+    expiresAt,
+  ]);
 };
 
 // Signup
-router.post('/signup',
+router.post(
+  '/signup',
   authLimiter,
   [
     body('email').isEmail().normalizeEmail(),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('name').optional().trim().isLength({ min: 1 })
+    body('name').optional().trim().isLength({ min: 1 }),
   ],
   async (req, res, next) => {
     try {
@@ -81,11 +79,11 @@ router.post('/signup',
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            name: user.name,
           },
           accessToken,
-          refreshToken
-        }
+          refreshToken,
+        },
       });
     } catch (error) {
       next(error);
@@ -94,12 +92,10 @@ router.post('/signup',
 );
 
 // Signin
-router.post('/signin',
+router.post(
+  '/signin',
   authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').notEmpty()
-  ],
+  [body('email').isEmail().normalizeEmail(), body('password').notEmpty()],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -110,7 +106,10 @@ router.post('/signin',
       const { email, password } = req.body;
 
       // Find user
-      const result = await query('SELECT id, email, password_hash, name FROM users WHERE email = $1', [email]);
+      const result = await query(
+        'SELECT id, email, password_hash, name FROM users WHERE email = $1',
+        [email]
+      );
       if (result.rows.length === 0) {
         throw new UnauthorizedError('Invalid email or password');
       }
@@ -125,7 +124,7 @@ router.post('/signin',
 
       // Generate tokens
       const { accessToken, refreshToken } = generateTokens(user.id);
-      
+
       // Rotate refresh token (delete old ones for this user)
       await query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
       await storeRefreshToken(user.id, refreshToken);
@@ -136,11 +135,11 @@ router.post('/signin',
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            name: user.name,
           },
           accessToken,
-          refreshToken
-        }
+          refreshToken,
+        },
       });
     } catch (error) {
       next(error);
@@ -149,69 +148,63 @@ router.post('/signin',
 );
 
 // Refresh token
-router.post('/refresh',
-  [
-    body('refreshToken').notEmpty()
-  ],
-  async (req, res, next) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new BadRequestError('Validation failed', errors.array());
-      }
-
-      const { refreshToken } = req.body;
-
-      // Verify token
-      let decoded;
-      try {
-        decoded = jwt.verify(refreshToken, config.jwt.secret);
-      } catch (error) {
-        throw new UnauthorizedError('Invalid refresh token');
-      }
-
-      if (decoded.type !== 'refresh') {
-        throw new UnauthorizedError('Invalid token type');
-      }
-
-      // Check if token exists in database
-      const tokenResult = await query(
-        'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-        [refreshToken]
-      );
-
-      if (tokenResult.rows.length === 0) {
-        throw new UnauthorizedError('Refresh token not found or expired');
-      }
-
-      const userId = tokenResult.rows[0].user_id;
-
-      // Generate new tokens
-      const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
-
-      // Rotate refresh token
-      await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-      await storeRefreshToken(userId, newRefreshToken);
-
-      res.json({
-        success: true,
-        data: {
-          accessToken,
-          refreshToken: newRefreshToken
-        }
-      });
-    } catch (error) {
-      next(error);
+router.post('/refresh', [body('refreshToken').notEmpty()], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new BadRequestError('Validation failed', errors.array());
     }
+
+    const { refreshToken } = req.body;
+
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, config.jwt.secret);
+    } catch (error) {
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+
+    if (decoded.type !== 'refresh') {
+      throw new UnauthorizedError('Invalid token type');
+    }
+
+    // Check if token exists in database
+    const tokenResult = await query(
+      'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
+      [refreshToken]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      throw new UnauthorizedError('Refresh token not found or expired');
+    }
+
+    const userId = tokenResult.rows[0].user_id;
+
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
+
+    // Rotate refresh token
+    await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
+    await storeRefreshToken(userId, newRefreshToken);
+
+    res.json({
+      success: true,
+      data: {
+        accessToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // Password reset request (simplified - in production, send email)
-router.post('/password-reset-request',
+router.post(
+  '/password-reset-request',
   authLimiter,
-  [
-    body('email').isEmail().normalizeEmail()
-  ],
+  [body('email').isEmail().normalizeEmail()],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -222,11 +215,11 @@ router.post('/password-reset-request',
       const { email } = req.body;
 
       const result = await query('SELECT id FROM users WHERE email = $1', [email]);
-      
+
       // Don't reveal if user exists (security best practice)
       res.json({
         success: true,
-        message: 'If an account exists with this email, a password reset link has been sent'
+        message: 'If an account exists with this email, a password reset link has been sent',
       });
     } catch (error) {
       next(error);
@@ -242,20 +235,14 @@ router.get('/onboarding-status', authenticate, async (req, res, next) => {
   try {
     // Run all checks in parallel for performance
     const [configsResult, keyResult, userResult] = await Promise.all([
-      query(
-        'SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1',
-        [req.user.id]
-      ),
+      query('SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1', [req.user.id]),
       query(
         `SELECT id FROM api_keys
          WHERE user_id = $1 AND metric_config_id IS NULL AND is_active = true
          LIMIT 1`,
         [req.user.id]
       ),
-      query(
-        'SELECT onboarding_completed_at FROM users WHERE id = $1',
-        [req.user.id]
-      ),
+      query('SELECT onboarding_completed_at FROM users WHERE id = $1', [req.user.id]),
     ]);
 
     const hasMetricConfigs = configsResult.rows[0].count > 0;

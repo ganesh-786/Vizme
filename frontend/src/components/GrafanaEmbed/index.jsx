@@ -54,8 +54,9 @@ function GrafanaEmbed({
       try {
         const result = await getEmbedUrl(fetchParams);
         if (!cancelled && result?.url) {
-          // Probe embed URL before iframe load; if 503 (tenant setup failed), show error UI
-          const probe = await fetch(result.url, { credentials: 'include', method: 'HEAD' });
+          // Probe embed URL before iframe load; if 503 (tenant setup failed), show error UI.
+          // Use GET not HEAD: Grafana returns 404 for HEAD on some paths (SPA quirk).
+          const probe = await fetch(result.url, { credentials: 'include', method: 'GET' });
           if (probe.status === 503) {
             setHasError(true);
             setIsLoading(false);

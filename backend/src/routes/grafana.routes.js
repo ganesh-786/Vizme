@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import httpProxy from 'http-proxy';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { grafanaEmbedLimiter } from '../middleware/rateLimiter.js';
@@ -31,7 +32,13 @@ function parseExpiryToMs(str) {
  */
 router.get('/embed-url', grafanaEmbedLimiter, authenticate, (req, res, next) => {
   try {
-    const { dashboard = 'metrics', from = 'now-1h', to = 'now', refresh = '10s', kiosk = 'tv' } = req.query;
+    const {
+      dashboard = 'metrics',
+      from = 'now-1h',
+      to = 'now',
+      refresh = '10s',
+      kiosk = 'tv',
+    } = req.query;
     const userId = req.user.id;
     const embedTokenExpiry = config.grafanaEmbedTokenExpiry || '15m';
 
@@ -127,11 +134,22 @@ export async function grafanaProxyMiddleware(req, res, next) {
   }
 
   const grafanaBase = getGrafanaBaseUrl();
-  const path = req.path || '/';
+  // Use full path: when mounted at /grafana, req.path is relative; req.baseUrl + req.path = /grafana/api/...
+  let path = (req.baseUrl || '') + (req.path || req.url?.split('?')[0] || '/');
+  if (path.startsWith('/grafana')) path = path.slice(9) || '/';
+  path = '/' + path.replace(/^\/+/, '');
+
+  // Fix path duplication: Grafana 11 sometimes builds .../grafana/api/... mid-path (datasource proxy bug)
+  path = path.replace(/\/grafana\/api(?=\/)/g, '/api');
+
+  if (path.includes('/namespaces/org-')) {
+    path = path.replace(/\/namespaces\/org-[^/]+/, `/namespaces/org-${orgId}`);
+  }
 
   const query = new URLSearchParams(req.query);
   query.delete('embed_token');
   query.set('var-user_id', String(userId));
+  query.set('orgId', String(orgId));
   const queryStr = query.toString();
 
   const targetUrl = `${grafanaBase}/grafana${path}${queryStr ? `?${queryStr}` : ''}`;
@@ -152,20 +170,32 @@ export async function grafanaProxyMiddleware(req, res, next) {
     delete headers.host;
     delete headers.connection;
     delete headers.authorization;
+    headers['Host'] = new URL(grafanaBase).host;
     headers['X-WEBAUTH-USER'] = `vizme_user_${userId}`;
-    headers['X-WEBAUTH-ORGS'] = `${orgId}:Editor`;
-    headers['X-Scope-OrgID'] = String(userId); // Mimir tenant; Grafana may propagate to datasource queries
+    headers['X-WEBAUTH-ORGS'] = `${orgId}:Admin`;
+    headers['X-Grafana-Org-Id'] = String(orgId);
+    headers['X-Scope-OrgID'] = String(userId);
 
     const fetchOpts = {
       method: req.method,
       headers,
       redirect: 'manual',
     };
-    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
-      fetchOpts.body = JSON.stringify(req.body);
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body != null) {
+      fetchOpts.body =
+        typeof req.body === 'string' || Buffer.isBuffer(req.body)
+          ? req.body
+          : JSON.stringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOpts);
+
+    if (response.status >= 400) {
+      logger.warn(
+        { status: response.status, path, targetUrl: targetUrl.replace(/:[^:@]+@/, ':***@'), method: req.method },
+        'Grafana proxy non-2xx response'
+      );
+    }
 
     res.status(response.status);
     const frontendOrigin = config.cors.frontendUrl || '';
@@ -191,9 +221,10 @@ export async function grafanaProxyMiddleware(req, res, next) {
       res.send(Buffer.from(buffer));
     }
   } catch (error) {
-    const message = error.cause?.code === 'ECONNREFUSED' || error.message?.includes('fetch failed')
-      ? 'Grafana is unavailable. Ensure Grafana is running (e.g. docker compose up grafana).'
-      : error.message;
+    const message =
+      error.cause?.code === 'ECONNREFUSED' || error.message?.includes('fetch failed')
+        ? 'Grafana is unavailable. Ensure Grafana is running (e.g. docker compose up grafana).'
+        : error.message;
     const err = new Error(message);
     err.status = 503;
     next(err);
@@ -235,10 +266,16 @@ export function setupGrafanaWebSocketProxy(server) {
     }
     query.delete('embed_token');
     query.set('var-user_id', String(userId));
+    query.set('orgId', String(orgId));
     const newQuery = query.toString();
-    req.url = `${pathPart}${newQuery ? `?${newQuery}` : ''}`;
+    let wsPath = pathPart;
+    if (wsPath.includes('/namespaces/org-')) {
+      wsPath = wsPath.replace(/\/namespaces\/org-[^/]+/, `/namespaces/org-${orgId}`);
+    }
+    req.url = `${wsPath}${newQuery ? `?${newQuery}` : ''}`;
     req.headers['x-webauth-user'] = `vizme_user_${userId}`;
-    req.headers['x-webauth-orgs'] = `${orgId}:Editor`;
+    req.headers['x-webauth-orgs'] = `${orgId}:Admin`;
+    req.headers['x-grafana-org-id'] = String(orgId);
     req.headers['x-scope-orgid'] = String(userId); // Mimir tenant for WebSocket/Live
 
     proxy.ws(req, socket, head, {

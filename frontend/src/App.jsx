@@ -22,24 +22,24 @@ function App() {
       <ToastProvider>
         <ConfirmModalProvider>
           <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Layout />
-              </PrivateRoute>
-            }
-          >
-            <Route index element={<Dashboard />} />
-            <Route path="metric-configs" element={<MetricConfigs />} />
-            <Route path="metric-configs/new" element={<MetricConfigForm />} />
-            <Route path="metric-configs/:id/edit" element={<MetricConfigForm isEdit />} />
-            <Route path="api-keys" element={<ApiKeys />} />
-            <Route path="code-generation" element={<CodeGeneration />} />
-          </Route>
-        </Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <Layout />
+                </PrivateRoute>
+              }
+            >
+              <Route index element={<Dashboard />} />
+              <Route path="metric-configs" element={<MetricConfigs />} />
+              <Route path="metric-configs/new" element={<MetricConfigForm />} />
+              <Route path="metric-configs/:id/edit" element={<MetricConfigForm isEdit />} />
+              <Route path="api-keys" element={<ApiKeys />} />
+              <Route path="code-generation" element={<CodeGeneration />} />
+            </Route>
+          </Routes>
         </ConfirmModalProvider>
       </ToastProvider>
     </Router>

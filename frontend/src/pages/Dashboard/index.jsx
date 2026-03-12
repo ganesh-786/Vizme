@@ -44,7 +44,9 @@ function Dashboard() {
         ]);
 
         setStats({
-          metricConfigs: Array.isArray(configsRes) ? configsRes.length : (configsRes?.data?.length ?? 0),
+          metricConfigs: Array.isArray(configsRes)
+            ? configsRes.length
+            : (configsRes?.data?.length ?? 0),
           apiKeys: Array.isArray(keysRes) ? keysRes.length : (keysRes?.data?.length ?? 0),
           loading: false,
         });
@@ -65,7 +67,13 @@ function Dashboard() {
 
   const handleOpenGrafana = async () => {
     try {
-      const url = await getEmbedUrl({ dashboard: 'metrics', from: 'now-1h', to: 'now', refresh: '10s', kiosk: 'tv' });
+      const url = await getEmbedUrl({
+        dashboard: 'metrics',
+        from: 'now-1h',
+        to: 'now',
+        refresh: '10s',
+        kiosk: 'tv',
+      });
       if (url) window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       const isUnauthorized = err.response?.status === 401;
@@ -104,8 +112,8 @@ function Dashboard() {
             <h3 className="setup-complete-title">Setup Complete</h3>
             <p className="setup-complete-text">
               Your API key and tracking snippet are active. All metrics — current and future — are
-              automatically covered by your single API key. No additional setup needed when you create
-              new metric configurations.
+              automatically covered by your single API key. No additional setup needed when you
+              create new metric configurations.
             </p>
           </div>
           <Link to="/api-keys" className="setup-complete-link">
@@ -154,7 +162,10 @@ function Dashboard() {
               <span className="overview-status">{step2Done ? 'Active' : 'Not Created'}</span>
             </div>
             <div className={`overview-note ${step2Done ? '' : 'overview-note--muted'}`}>
-              <span className={`status-dot ${step2Done ? 'status-dot--good' : ''}`} aria-hidden="true" />
+              <span
+                className={`status-dot ${step2Done ? 'status-dot--good' : ''}`}
+                aria-hidden="true"
+              />
               <p>{step2Done ? 'Covers all metrics' : 'Generate to get started'}</p>
             </div>
           </div>
@@ -191,7 +202,13 @@ function Dashboard() {
                 data in real-time.
               </p>
               <Link to="/metric-configs" className={step1Done ? 'text-link' : 'primary-inline-btn'}>
-                {step1Done ? 'Manage Configurations →' : <>Configure Source <span aria-hidden="true">→</span></>}
+                {step1Done ? (
+                  'Manage Configurations →'
+                ) : (
+                  <>
+                    Configure Source <span aria-hidden="true">→</span>
+                  </>
+                )}
               </Link>
             </div>
           </div>
@@ -259,7 +276,11 @@ function Dashboard() {
                 Connect your VIZME endpoint to your Grafana dashboard via our native plugin for
                 visualization.
               </p>
-              <button type="button" onClick={handleOpenGrafana} className="text-link button-as-link">
+              <button
+                type="button"
+                onClick={handleOpenGrafana}
+                className="text-link button-as-link"
+              >
                 Open Grafana →
               </button>
             </div>

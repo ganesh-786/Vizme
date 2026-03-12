@@ -109,7 +109,8 @@ services:
   #     - "--persistence.interval=5m"
 
   grafana:
-    image: grafana/grafana:latest
+    # Pin to 11.4.0 to avoid 11.5.x URL/orgId bugs and "invalid org" 403
+    image: grafana/grafana:11.4.0
     container_name: metrics_grafana
     ports:
       - "3001:3000"
