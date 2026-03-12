@@ -48,7 +48,9 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, (req, res, next) => 
       { expiresIn: embedTokenExpiry }
     );
 
-    const baseUrl = config.api.baseUrl || `${req.protocol}://${req.get('host')}`;
+    // Use frontend URL so iframe loads same-origin as parent (cookie sent, avoids 401)
+    const baseUrl =
+      config.cors.frontendUrl || config.api.baseUrl || `${req.protocol}://${req.get('host')}`;
     const params = new URLSearchParams({
       embed_token: embedToken,
       'var-user_id': String(userId),
@@ -139,8 +141,11 @@ export async function grafanaProxyMiddleware(req, res, next) {
   if (path.startsWith('/grafana')) path = path.slice(9) || '/';
   path = '/' + path.replace(/^\/+/, '');
 
-  // Fix path duplication: Grafana 11 sometimes builds .../grafana/api/... mid-path (datasource proxy bug)
-  path = path.replace(/\/grafana\/api(?=\/)/g, '/api');
+  // Fix path duplication only in datasource proxy paths. Do NOT rewrite Grafana alerting API
+  // (/api/prometheus/grafana/api/v1/rules) - that path is intentional.
+  if (path.includes('/datasources/proxy/') && path.includes('/grafana/api')) {
+    path = path.replace(/\/grafana\/api(?=\/)/g, '/api');
+  }
 
   if (path.includes('/namespaces/org-')) {
     path = path.replace(/\/namespaces\/org-[^/]+/, `/namespaces/org-${orgId}`);

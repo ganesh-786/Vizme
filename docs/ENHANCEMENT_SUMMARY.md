@@ -101,12 +101,12 @@ window.dispatchEvent(new CustomEvent('vizme:track', {
 4. Log in as User B
 5. Confirm User B sees only their metrics
 
-### 5. Cookie / SameSite
+### 5. Cookie / SameSite (same-origin embed)
 
-For the Grafana embed cookie to work:
-- Frontend and backend should be on the same site (or configure CORS/credentials)
-- `cookieParser` is installed in the backend
-- Cookie path: `/grafana`
+For the Grafana embed cookie to work (avoids 401 on API calls):
+- **Dev**: Vite proxies `/grafana` to the backend; embed URL uses `FRONTEND_URL` (localhost:5173) so the iframe loads same-origin.
+- **Prod**: Reverse proxy must proxy `/grafana` to the backend; `FRONTEND_URL` must match where users access the app.
+- `cookieParser` is installed in the backend; cookie path: `/grafana`.
 
 ---
 

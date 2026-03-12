@@ -133,6 +133,8 @@ services:
       # Root URL must match how users access (via backend proxy at :3000)
       - GF_SERVER_ROOT_URL=${API_BASE_URL:-http://localhost:3000}/grafana
       - GF_SECURITY_COOKIE_SAMESITE=disabled
+      # Disable unified alerting - stops AlertStatesDataLayer 404s on /api/prometheus/grafana/api/v1/rules
+      - GF_UNIFIED_ALERTING_ENABLED=false
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini

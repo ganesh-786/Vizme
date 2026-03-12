@@ -11,7 +11,7 @@ Use this checklist to run Vizme in a production-grade way.
 | `NODE_ENV` | Set to `production` | **Required** |
 | `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection | **Required** |
 | `JWT_SECRET` | Signing key for JWTs; min 32 chars, cryptographically random | **Required**; never use default or example values |
-| `FRONTEND_URL` | Origin of the admin frontend (for CORS) | **Required** (e.g. `https://app.example.com`) |
+| `FRONTEND_URL` | Origin of the admin frontend (for CORS and Grafana embed URL) | **Required** (e.g. `https://app.example.com`). Must match where users access the app so the Grafana iframe loads same-origin (cookie sent, avoids 401). |
 | `API_BASE_URL` | Public base URL of the API (for snippets and tracker) | **Required** (e.g. `https://api.example.com`) |
 | `DB_SSL` | Set to `true` if DB requires TLS | Recommended for managed DBs |
 | `DB_SSL_REJECT_UNAUTHORIZED` | Set to `true` with valid DB CA in production | **Required** when `DB_SSL=true` |
@@ -52,6 +52,22 @@ Use this checklist to run Vizme in a production-grade way.
 - [ ] **Database**: Use connection pooling (e.g. PgBouncer) and read replicas if needed.
 - [ ] **Backend**: Run multiple instances behind a load balancer; ensure sticky sessions are not required (stateless JWT).
 - [ ] **Prometheus**: Single backend scrape target today; if you scale backends, consider a metrics aggregator or remote write so one place exposes user metrics.
+
+## Reverse proxy (Grafana embed)
+
+For the Grafana embed to work without 401 errors, the embed iframe must load from the **same origin** as the parent app (so the auth cookie is sent). Configure your reverse proxy (nginx, Caddy, etc.) to:
+
+- Proxy `/api` to the backend
+- Proxy `/grafana` to the backend (same as `/api`)
+
+Example nginx snippet:
+
+```nginx
+location /api { proxy_pass http://backend:3000; proxy_set_header Host $host; ... }
+location /grafana { proxy_pass http://backend:3000; proxy_set_header Host $host; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; ... }
+```
+
+Set `FRONTEND_URL` to the public URL where users access the app (e.g. `https://app.example.com`). The embed URL will use this so the iframe loads same-origin.
 
 ## Docker Compose (production)
 
