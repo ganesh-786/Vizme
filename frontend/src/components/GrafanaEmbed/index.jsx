@@ -54,10 +54,9 @@ function GrafanaEmbed({
       try {
         const result = await getEmbedUrl(fetchParams);
         if (!cancelled && result?.url) {
-          // Probe embed URL before iframe load; if 503 (tenant setup failed), show error UI.
-          // Use GET not HEAD: Grafana returns 404 for HEAD on some paths (SPA quirk).
+          // Probe embed URL before iframe load; 503 = tenant setup failed, 404 = dashboard not found.
           const probe = await fetch(result.url, { credentials: 'include', method: 'GET' });
-          if (probe.status === 503) {
+          if (probe.status === 503 || probe.status === 404) {
             setHasError(true);
             setIsLoading(false);
             return;
@@ -148,26 +147,58 @@ function GrafanaEmbed({
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <p>Unable to load Grafana dashboard</p>
-            <button
-              type="button"
-              className="grafana-embed__error-link grafana-embed__error-link--button"
-              onClick={async () => {
-                try {
-                  const result = await getEmbedUrl(fetchParams);
-                  if (result?.url) window.open(result.url, '_blank', 'noopener,noreferrer');
-                } catch (err) {
-                  showToast(
-                    err.response?.status === 401
-                      ? 'Session expired. Please log in again.'
-                      : 'Unable to load Grafana. Please try again.',
-                    'error',
-                    4000
-                  );
-                }
-              }}
-            >
-              Open Grafana →
-            </button>
+            <p className="grafana-embed__error-hint">
+              Dashboard may still be initializing. Try again in a few seconds.
+            </p>
+            <div className="grafana-embed__error-actions">
+              <button
+                type="button"
+                className="grafana-embed__error-link grafana-embed__error-link--button"
+                onClick={async () => {
+                  setHasError(false);
+                  setIsLoading(true);
+                  try {
+                    const result = await getEmbedUrl(fetchParams);
+                    if (result?.url) {
+                      setEmbedUrl(result.url);
+                      setHasError(false);
+                    }
+                  } catch (err) {
+                    setHasError(true);
+                    if (err.response?.status === 401) {
+                      useAuthStore.getState().logout();
+                      window.location.href = '/login';
+                    } else {
+                      showToast('Unable to load Grafana. Please try again.', 'error', 4000);
+                    }
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                className="grafana-embed__error-link grafana-embed__error-link--button"
+                onClick={async () => {
+                  try {
+                    const result = await getEmbedUrl(fetchParams);
+                    if (result?.url) window.open(result.url, '_blank', 'noopener,noreferrer');
+                  } catch (err) {
+                    showToast(
+                      err.response?.status === 401
+                        ? 'Session expired. Please log in again.'
+                        : 'Unable to load Grafana. Please try again.',
+                      'error',
+                      4000
+                    );
+                  }
+                }}
+              >
+                Open in new tab →
+              </button>
+            </div>
           </div>
         </div>
       )}

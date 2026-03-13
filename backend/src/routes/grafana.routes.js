@@ -131,7 +131,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
       success: false,
       error: 'Dashboard unavailable',
       message:
-        'Tenant setup failed. Check backend logs for details. Ensure: (1) Grafana is running, (2) GRAFANA_ADMIN_USER/PASSWORD match Grafana, (3) MIMIR_URL is reachable from Grafana. Docker: MIMIR_URL=http://mimir:8080, GRAFANA_INTERNAL_URL=http://grafana:3000. Local dev: GRAFANA_URL=http://localhost:3001. Verify: GET /health/grafana',
+        'Tenant setup failed. Restart backend after code changes: docker compose restart backend. Ensure: (1) Grafana is running, (2) GRAFANA_ADMIN_USER/PASSWORD match Grafana, (3) MIMIR_URL is reachable from Grafana. Verify: GET /health/grafana',
     });
   }
 
@@ -175,7 +175,12 @@ export async function grafanaProxyMiddleware(req, res, next) {
     delete headers.host;
     delete headers.connection;
     delete headers.authorization;
-    headers['Host'] = new URL(grafanaBase).host;
+    const rootUrl = new URL(
+      (config.api.baseUrl || 'http://localhost:3000').replace(/\/$/, '') + '/grafana'
+    );
+    headers['Host'] = rootUrl.host;
+    headers['X-Forwarded-Host'] = req.get('host') || rootUrl.host;
+    headers['X-Forwarded-Proto'] = req.get('x-forwarded-proto') || req.protocol || 'http';
     headers['X-WEBAUTH-USER'] = `vizme_user_${userId}`;
     headers['X-WEBAUTH-ORGS'] = `${orgId}:Admin`;
     headers['X-Grafana-Org-Id'] = String(orgId);

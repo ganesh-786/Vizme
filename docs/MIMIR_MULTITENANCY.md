@@ -78,11 +78,35 @@ If metrics are pushed to Mimir but not visible in Grafana:
 3. **Backend logs**: Check for `Mimir batch push failed` — push may be failing.
 4. **Verify**: In Grafana Explore with Mimir datasource, run `user_metric_*` — should return that tenant's data.
 
+## Troubleshooting: "Dashboard not found" / 404 / orgId=-1
+
+**Root cause**: Auth proxy users created with `auto_assign_org` default to org 1. When the backend proxies with `X-WEBAUTH-ORGS: {orgId}:Admin` and `X-Grafana-Org-Id: {orgId}`, Grafana UI routes may still use the user's cached org (org 1 or orgId=-1), causing 404 for dashboards in the user's org.
+
+**Workaround**: If the embed shows "Unable to load Grafana dashboard" or 404:
+1. Open Grafana directly: `http://localhost:3001/grafana` (or your Grafana URL)
+2. The backend proxy will create your user; you may need to access via the app first so the proxy sets the cookie
+3. In Grafana, switch to your org (Organization → vizme-{userId}) from the profile menu
+4. Return to the app and retry the Library → Metrics embed
+
+**Proxy headers**: The backend sends `Host`, `X-Forwarded-Host`, `X-Forwarded-Proto` to match Grafana's `root_url` so dashboard routes resolve correctly.
+
+## Troubleshooting: "Dashboard not found" After Volume Reset
+
+After `docker volume rm docker_grafana_data`, Grafana starts with empty DB. Tenant setup may fail if the dashboard is not yet provisioned in org 1, causing "Dashboard not found" or "no found" for users.
+
+**Production-grade solution (implemented):**
+
+1. **Dashboard provisioning format**: `metrics-dashboard.json` uses Grafana's format `{"dashboard": {...}, "folderUid": "", "overwrite": true}` so it loads correctly on startup.
+2. **Dashboard fallback**: Backend reads `metrics-dashboard.json` from disk (mounted at `/app/dashboards` in Docker) when Grafana API returns 404. Set `DASHBOARD_JSON_PATH` if using a custom path.
+3. **Provisioning retries**: Increased to 10 retries × 3s (30s total) to wait for Grafana provisioning.
+4. **Fail tenant setup on dashboard error**: If dashboard creation fails, tenant setup returns 503 and the user sees "Dashboard unavailable" instead of an empty dashboard.
+5. **Readiness check**: `GET /health/grafana-ready` verifies the metrics dashboard exists in org 1. Use after volume reset to confirm Grafana is ready for embed traffic.
+
 ## Troubleshooting Cross-Tenant Visibility
 
 If users see each other's metrics:
 
-1. **Datasource header**: Ensure Mimir datasource has `jsonData.httpHeaderName1: 'X-Scope-OrgID'` and `httpHeaderValue1: tenantId`
+1. **Datasource header**: Ensure Mimir datasource has `jsonData.httpHeaderName1: 'X-Scope-OrgID'` and `secureJsonData.httpHeaderValue1: tenantId`
 2. **Panel binding**: Each panel must use datasource UID `mimir-{userId}` (set in `ensureDashboardInOrg`)
 3. **Prometheus vs Mimir**: `/metrics` exposes app metrics only. User metrics go to Mimir only (batch push from backend)
 4. **Verify**: In Grafana Explore with Mimir datasource, run `user_metric_*` — should only return that tenant's data
@@ -98,13 +122,30 @@ If users see each other's metrics:
 
 1. **Existing dashboards**: The backend overwrites dashboards on each tenant setup; panels are re-bound to the Mimir datasource
 2. **Existing datasources**: Delete and recreate per-user orgs, or reset Grafana volume: `docker compose down && docker volume rm docker_grafana_data && docker compose up -d`
-3. **Verify**: Check `/health/grafana` and ensure Mimir datasource has `X-Scope-OrgID` in jsonData
+3. **Verify**: Check `/health/grafana` and ensure Mimir datasource has `X-Scope-OrgID` header (jsonData.httpHeaderName1 + secureJsonData.httpHeaderValue1)
 
 ## Grafana Provisioning (Production)
 
-All Org 1 datasources are provisioned via `docker/grafana/provisioning/datasources/datasources.yml`. No manual datasource creation is required. This ensures idempotent restarts—`docker compose down && up` works without "data source with the same uid already exists" errors.
+All Org 1 datasources are provisioned via `docker/grafana/provisioning/datasources/datasources.yml`. Dashboards are provisioned from `docker/grafana/dashboards/` using the Grafana file format: `{"dashboard": {...}, "folderUid": "", "overwrite": true}`. This ensures the metrics dashboard loads correctly on startup (including after volume reset).
+
+No manual datasource creation is required. This ensures idempotent restarts—`docker compose down && up` works without "data source with the same uid already exists" errors.
 
 If you previously had manual datasources or a corrupted state, reset once:
+
+## User Isolation Verification
+
+To verify one user cannot see another's metrics:
+
+| Layer | Isolation mechanism |
+|-------|---------------------|
+| **Mimir** | `X-Scope-OrgID: {userId}` on every push and query; Mimir enforces tenant boundary |
+| **Grafana org** | One org per user (`vizme-{userId}`); user cannot switch orgs via proxy |
+| **Mimir datasource** | Per-org datasource with `X-Scope-OrgID: {userId}` in secureJsonData |
+| **Dashboard panels** | All user-metric panels bound to `mimir-{userId}` datasource (rebound in `ensureDashboardInOrg`) |
+| **PromQL** | `user_id=~"^${user_id}$"` filter; `var-user_id` set by backend proxy from JWT (not user-editable) |
+| **Auth proxy** | `X-WEBAUTH-USER: vizme_user_{userId}`; Grafana assigns user to their org only |
+
+**Test**: Log in as user A, note metrics. Log in as user B in another browser/incognito. User B must see only their metrics (or empty if none pushed). User B cannot access user A's data.
 
 ```bash
 cd docker

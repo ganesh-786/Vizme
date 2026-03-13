@@ -88,8 +88,9 @@ app.use(appMetricsMiddleware);
 
 // CORS: metrics/tracker endpoints allow cross-origin for client sites; use allowlist in production
 const allowedMetricsOrigins = config.cors.allowedMetricsOrigins;
+// Public API paths use API key auth; dashboard uses JWT and needs Authorization header
 const isPublicApiPath = (path) =>
-  path.startsWith('/api/v1/metrics') ||
+  (path.startsWith('/api/v1/metrics') && !path.includes('/dashboard')) ||
   path === '/api/v1/metric-configs/by-api-key' ||
   path === '/api/v1/tracker.js';
 

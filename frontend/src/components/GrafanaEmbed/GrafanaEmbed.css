@@ -59,6 +59,20 @@
   margin-bottom: 0.75rem;
 }
 
+.grafana-embed__error-hint {
+  font-size: 0.875rem;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  opacity: 0.8;
+}
+
+.grafana-embed__error-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 .grafana-embed__error-link {
   color: var(--primary);
   font-weight: 700;

@@ -483,6 +483,8 @@
 
 .metrics-visualization__container {
   margin-bottom: 1rem;
+  width: 100%;
+  min-width: 0; /* Allow flex/grid children to shrink */
 }
 
 .metrics-visualization__hint {

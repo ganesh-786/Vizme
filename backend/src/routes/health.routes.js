@@ -55,6 +55,47 @@ router.get('/grafana', async (req, res) => {
   }
 });
 
+/** Grafana readiness: metrics dashboard provisioned in org 1. Use after volume reset to verify tenant setup will succeed. */
+router.get('/grafana-ready', async (req, res) => {
+  const grafanaBase =
+    process.env.GRAFANA_INTERNAL_URL || config.urls.grafana || 'http://localhost:3001';
+  const base = grafanaBase.includes('/grafana')
+    ? grafanaBase
+    : `${grafanaBase.replace(/\/$/, '')}/grafana`;
+  const url = `${base}/api/dashboards/uid/metrics`;
+  const adminUser = config.grafana?.adminUser || process.env.GRAFANA_ADMIN_USER || 'admin';
+  const adminPass = config.grafana?.adminPassword || process.env.GRAFANA_ADMIN_PASSWORD || 'admin';
+  const auth = Buffer.from(`${adminUser}:${adminPass}`).toString('base64');
+
+  try {
+    const r = await fetch(url, {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'X-Grafana-Org-Id': '1',
+      },
+    });
+    const ok = r.ok;
+    const status = r.status;
+    const text = await r.text();
+    res.status(ok ? 200 : 503).json({
+      success: ok,
+      grafanaUrl: base,
+      status,
+      message: ok
+        ? 'Metrics dashboard provisioned in org 1'
+        : `Dashboard not ready: ${status} ${text?.slice(0, 150)}`,
+    });
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      grafanaUrl: base,
+      error: err.message,
+      code: err.cause?.code,
+      message: 'Cannot reach Grafana or dashboard not yet provisioned.',
+    });
+  }
+});
+
 /** Readiness: DB is reachable. Use for load balancer / k8s readiness probe. */
 router.get('/ready', async (req, res) => {
   try {

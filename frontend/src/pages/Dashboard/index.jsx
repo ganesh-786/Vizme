@@ -15,7 +15,7 @@ import {
   TrendUpIcon,
 } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
-import { GrafanaEmbed } from '@/components/GrafanaEmbed';
+import { MetricsDashboard } from '@/components/MetricsDashboard';
 import { useToast } from '@/components/ToastContainer';
 import './Dashboard.css';
 
@@ -307,15 +307,7 @@ function Dashboard() {
         </div>
 
         <div className="metrics-visualization__container">
-          <GrafanaEmbed
-            dashboardUid="metrics"
-            from="now-1h"
-            to="now"
-            refresh="10s"
-            height={450}
-            title="Vizme Metrics Dashboard"
-            kiosk={true}
-          />
+          <MetricsDashboard height={500} showGrafanaLink />
         </div>
 
         <p className="metrics-visualization__hint">

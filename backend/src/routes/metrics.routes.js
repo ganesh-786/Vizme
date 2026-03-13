@@ -5,6 +5,7 @@ import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
 import { recordMetric } from '../services/metrics.service.js';
 import { pushMetricsToMimir } from '../services/mimir.service.js';
+import { fetchDashboardMetrics } from '../services/mimirQuery.service.js';
 import { config } from '../config.js';
 
 const router = express.Router();
@@ -112,7 +113,8 @@ router.post('/',
             labels: {
               ...metric.labels,
               user_id: userId.toString()
-            }
+            },
+            operation: metric.operation
           });
         } catch (error) {
           errors_list.push({
@@ -133,6 +135,7 @@ router.post('/',
           type: m.type,
           value: m.value,
           labels: m.labels || {},
+          operation: m.operation,
           userId: String(req.user.id),
         }))
       ).catch((err) => {
@@ -169,6 +172,25 @@ router.get('/',
         grafanaUrl: config.urls.grafana,
         mimirUrl: config.urls.mimir
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/metrics/dashboard
+ *
+ * Fetch dashboard metrics from Mimir (tenant-isolated).
+ * Returns stats and timeseries for the custom metrics dashboard.
+ */
+router.get('/dashboard',
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const data = await fetchDashboardMetrics(userId);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }

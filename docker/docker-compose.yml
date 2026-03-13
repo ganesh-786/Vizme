@@ -109,7 +109,7 @@ services:
   #     - "--persistence.interval=5m"
 
   grafana:
-    # Pin to 11.4.0 to avoid 11.5.x URL/orgId bugs and "invalid org" 403
+    # Pin to 11.4.0 to avoid 11.5.x URL/orgId bugs; 11.6.x has auth proxy user sync issues
     image: grafana/grafana:11.4.0
     container_name: metrics_grafana
     ports:
@@ -170,6 +170,7 @@ services:
       - DB_SSL_REJECT_UNAUTHORIZED=${DB_SSL_REJECT_UNAUTHORIZED:-false}
       - PUSHGATEWAY_URL=${PUSHGATEWAY_URL:-http://pushgateway:9091}
       - MIMIR_URL=${MIMIR_URL:-http://mimir:8080}
+      - PROMETHEUS_INTERNAL_URL=${PROMETHEUS_INTERNAL_URL:-http://prometheus:9090}
       - GRAFANA_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
       - GRAFANA_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
       # Backend must use grafana:3000 from inside Docker (localhost = container itself)
@@ -178,8 +179,12 @@ services:
       - API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
       - METRICS_SCRAPE_USER=${METRICS_SCRAPE_USER:-}
       - METRICS_SCRAPE_PASSWORD=${METRICS_SCRAPE_PASSWORD:-}
+      # Dashboard fallback path for tenant setup (resilient after grafana volume reset)
+      - DASHBOARD_JSON_PATH=/app/dashboards/metrics-dashboard.json
     volumes:
       - ../backend:/app
+      # Dashboard JSON for tenant setup fallback (when Grafana org 1 provisioning is slow after volume reset)
+      - ./grafana/dashboards:/app/dashboards:ro
       # Use image's node_modules (from npm ci) - anonymous volume can cache stale deps.
       # Removed /app/node_modules to ensure rebuilt image deps are used.
     # Note: Cannot add depends_on: grafana (cycle: backend->grafana->prometheus->backend).
