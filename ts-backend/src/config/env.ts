@@ -22,6 +22,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32), // At least 32 chars for security
   JWT_ACCESS_EXPIRY: z.string().default('15m'), // 15 minutes
   JWT_REFRESH_EXPIRY: z.string().default('7d'), // 7 days
+  GOOGLE_CLIENT_ID: z.string().min(1),
 
   FRONTEND_URL: z.string().optional(),
   LOG_LEVEL: z
@@ -29,6 +30,7 @@ const envSchema = z.object({
     .default('info'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),
+  CSRF_PROTECTION_ENABLED: z.coerce.boolean().default(true),
 });
 
 export const env = envSchema.parse(process.env);

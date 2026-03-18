@@ -9,6 +9,11 @@ export interface RefreshTokenData {
   is_revoked: boolean;
 }
 
+export interface ConsumedRefreshToken {
+  user_id: string;
+  family_id: string;
+}
+
 export const refreshTokenRepository = {
   // Hash token before storing (security best practice)
   hashToken(token: string): string {
@@ -45,6 +50,24 @@ export const refreshTokenRepository = {
     const result = await pool.query(
       `SELECT user_id, expires_at, family_id, is_revoked FROM refresh_tokens
        WHERE token_hash = $1 AND expires_at > NOW()`,
+      [tokenHash]
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Atomically consume a valid, active refresh token.
+   * Returns token ownership metadata if and only if the token was active.
+   */
+  async consumeForRotation(token: string): Promise<ConsumedRefreshToken | null> {
+    const tokenHash = this.hashToken(token);
+    const result = await pool.query(
+      `UPDATE refresh_tokens
+       SET is_revoked = TRUE
+       WHERE token_hash = $1
+         AND expires_at > NOW()
+         AND is_revoked = FALSE
+       RETURNING user_id, family_id`,
       [tokenHash]
     );
     return result.rows[0] || null;

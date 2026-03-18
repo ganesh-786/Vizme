@@ -1,7 +1,13 @@
 // src/controllers/auth.controller.ts
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { authService } from '@/services/auth.service.js';
+import { env } from '@/config/env.js';
+
+type ErrorWithMessage = {
+  message?: string;
+};
 
 const signupSchema = z.object({
   email: z.email({ error: 'Invalid email' }),
@@ -14,18 +20,45 @@ const signinSchema = z.object({
   password: z.string().min(8, 'Password is required'),
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+const googleSigninSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
 });
 
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
+const CSRF_TOKEN_COOKIE = 'csrf_token';
+const IS_PROD = env.NODE_ENV === 'production';
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  secure: IS_PROD,
+  sameSite: 'lax' as const,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: '/api/v1/auth',
 };
+const CSRF_COOKIE_OPTIONS = {
+  httpOnly: false,
+  secure: IS_PROD,
+  sameSite: 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/api/v1/auth',
+};
+const CLEAR_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: IS_PROD,
+  sameSite: 'lax' as const,
+  path: '/api/v1/auth',
+};
+const CLEAR_CSRF_COOKIE_OPTIONS = {
+  httpOnly: false,
+  secure: IS_PROD,
+  sameSite: 'lax' as const,
+  path: '/api/v1/auth',
+};
+
+function issueAuthCookies(res: Response, refreshToken: string) {
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, COOKIE_OPTIONS);
+  res.cookie(CSRF_TOKEN_COOKIE, csrfToken, CSRF_COOKIE_OPTIONS);
+}
 
 export async function signup(
   req: Request,
@@ -35,22 +68,22 @@ export async function signup(
     const data = signupSchema.parse(req.body);
     const result = await authService.signup(data);
 
-    // Set refresh token as httpOnly cookie
-    res.cookie(REFRESH_TOKEN_COOKIE, result.refreshToken, COOKIE_OPTIONS);
+    issueAuthCookies(res, result.refreshToken);
 
     // Return response without exposing refreshToken in body
     const { refreshToken: _, ...safeResult } = result;
     res.status(201).json({
       data: safeResult,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = (error as ErrorWithMessage).message;
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0].message });
     }
-    if (error.message === 'Email already registered') {
-      return res.status(409).json({ error: error.message });
+    if (errorMessage === 'Email already registered') {
+      return res.status(409).json({ error: 'Unable to create account' });
     }
-    console.error('Signup error:', error);
+    console.error('Signup error:', errorMessage || error);
     res.status(500).json({ error: 'Failed to create account' });
   }
 }
@@ -63,23 +96,53 @@ export async function signin(
     const data = signinSchema.parse(req.body);
     const result = await authService.signin(data);
 
-    // Set refresh token as httpOnly cookie
-    res.cookie(REFRESH_TOKEN_COOKIE, result.refreshToken, COOKIE_OPTIONS);
+    issueAuthCookies(res, result.refreshToken);
 
     // Return response without exposing refreshToken in body
     const { refreshToken: _, ...safeResult } = result;
     res.json({
       data: safeResult,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = (error as ErrorWithMessage).message;
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0].message });
     }
-    if (error.message === 'Invalid email or password') {
-      return res.status(401).json({ error: error.message });
+    if (
+      errorMessage === 'Invalid email or password' ||
+      errorMessage === 'Use Google sign in for this account'
+    ) {
+      return res.status(401).json({ error: errorMessage });
     }
-    console.error('Signin error:', error);
+    console.error('Signin error:', errorMessage || error);
     res.status(500).json({ error: 'Authentication failed' });
+  }
+}
+
+export async function googleSignin(
+  req: Request,
+  res: Response
+): Promise<void | Response> {
+  try {
+    const data = googleSigninSchema.parse(req.body);
+    const result = await authService.signinWithGoogle(data);
+
+    issueAuthCookies(res, result.refreshToken);
+    const { refreshToken: _, ...safeResult } = result;
+    res.json({ data: safeResult });
+  } catch (error: unknown) {
+    const errorMessage = (error as ErrorWithMessage).message;
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.issues[0].message });
+    }
+    if (
+      errorMessage?.includes('Google') ||
+      errorMessage === 'Account already exists with password login'
+    ) {
+      return res.status(401).json({ error: 'Google authentication failed' });
+    }
+    console.error('Google signin error:', errorMessage || error);
+    res.status(500).json({ error: 'Google authentication failed' });
   }
 }
 
@@ -88,29 +151,27 @@ export async function refresh(
   res: Response
 ): Promise<void | Response> {
   try {
-    const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
+    const refreshToken = req.cookies?.refresh_token;
 
     if (!refreshToken) {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
     const result = await authService.refresh(refreshToken);
-    res.cookie(REFRESH_TOKEN_COOKIE, result.refreshToken, COOKIE_OPTIONS);
+    issueAuthCookies(res, result.refreshToken);
     const { refreshToken: _, ...safeResult } = result;
     res.json({ data: safeResult });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = (error as ErrorWithMessage).message;
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.issues[0].message });
     }
-    if (
-      error.message.includes('Invalid') ||
-      error.message.includes('expired')
-    ) {
+    if (errorMessage?.includes('Invalid') || errorMessage?.includes('expired')) {
       return res
         .status(401)
         .json({ error: 'Session expired. Please login again.' });
     }
-    console.error('Refresh error:', error);
+    console.error('Refresh error:', errorMessage || error);
     res.status(500).json({ error: 'Failed to refresh session' });
   }
 }
@@ -120,19 +181,20 @@ export async function logout(
   res: Response
 ): Promise<void | Response> {
   try {
-    // Try cookie first, then body
-    const refreshToken = req.cookies?.refresh_token || req.body?.refreshToken;
+    const refreshToken = req.cookies?.refresh_token;
 
     if (refreshToken) {
       await authService.logout(refreshToken);
     }
 
     // Clear the cookie
-    res.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_TOKEN_COOKIE, CLEAR_COOKIE_OPTIONS);
+    res.clearCookie(CSRF_TOKEN_COOKIE, CLEAR_CSRF_COOKIE_OPTIONS);
     res.json({ message: 'Logged out successfully' });
   } catch {
     // Clear cookie even on error
-    res.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_TOKEN_COOKIE, CLEAR_COOKIE_OPTIONS);
+    res.clearCookie(CSRF_TOKEN_COOKIE, CLEAR_CSRF_COOKIE_OPTIONS);
     res.json({ message: 'Logged out successfully' });
   }
 }
@@ -149,7 +211,8 @@ export async function logoutAll(
     await authService.logoutAll(req.user.sub);
 
     // Clear the current session cookie
-    res.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_TOKEN_COOKIE, CLEAR_COOKIE_OPTIONS);
+    res.clearCookie(CSRF_TOKEN_COOKIE, CLEAR_CSRF_COOKIE_OPTIONS);
     res.json({ message: 'Logged out from all devices successfully' });
   } catch (error) {
     console.error('LogoutAll error:', error);

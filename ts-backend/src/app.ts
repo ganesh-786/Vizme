@@ -21,7 +21,7 @@ app.use(helmet() as RequestHandler);
 
 const corsOptions =
   env.NODE_ENV === 'development'
-    ? { origin: true }
+    ? { origin: true, credentials: true }
     : env.FRONTEND_URL
       ? { origin: env.FRONTEND_URL, credentials: true }
       : { origin: false };

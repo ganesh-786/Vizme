@@ -2,6 +2,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { env } from '@/config/env.js';
 import { userRepository, User } from '@/repositories/user.repository.js';
 import { refreshTokenRepository } from '@/repositories/refreshToken.repository.js';
@@ -31,6 +32,17 @@ export interface SigninParams {
   email: string;
   password: string;
 }
+
+export interface GoogleSigninParams {
+  idToken: string;
+}
+
+type PgError = {
+  code?: string;
+  constraint?: string;
+};
+
+const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID);
 
 // Generate unique tenant ID
 function generateTenantId(email: string): string {
@@ -66,7 +78,7 @@ function parseExpiry(expiry: string): number {
   const match = expiry.match(/^(\d+)([smhd])$/);
   if (!match) return 7 * 24 * 60 * 60 * 1000; // default 7 days
 
-  const value = parseInt(match[1]);
+  const value = parseInt(match[1], 10);
   const unit = match[2];
 
   switch (unit) {
@@ -83,6 +95,95 @@ function parseExpiry(expiry: string): number {
   }
 }
 
+async function issueSession(user: User, familyId?: string) {
+  const tokens = generateTokens(user);
+  const refreshExpiry = new Date(Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY));
+  await refreshTokenRepository.save(
+    user.id,
+    tokens.refreshToken,
+    refreshExpiry,
+    familyId
+  );
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      tenantId: user.tenant_id,
+    },
+    ...tokens,
+  };
+}
+
+async function createLocalUserWithRetries(
+  params: SignupParams,
+  passwordHash: string
+): Promise<User> {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await userRepository.create({
+        email: params.email,
+        passwordHash,
+        name: params.name,
+        tenantId: generateTenantId(params.email),
+      });
+    } catch (error: unknown) {
+      const pgError = error as PgError;
+      if (pgError.code !== '23505') {
+        throw error;
+      }
+
+      if (pgError.constraint === 'users_email_key') {
+        throw new Error('Email already registered');
+      }
+
+      // Retry on tenant_id collision; email collision should fail immediately.
+      if (pgError.constraint !== 'users_tenant_id_key' || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Failed to create user');
+}
+
+async function createGoogleUserWithRetries(
+  email: string,
+  name: string | undefined,
+  googleSub: string
+): Promise<User> {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await userRepository.createGoogleUser({
+        email,
+        name,
+        tenantId: generateTenantId(email),
+        googleSub,
+      });
+    } catch (error: unknown) {
+      const pgError = error as PgError;
+      if (pgError.code !== '23505') {
+        throw error;
+      }
+
+      if (pgError.constraint === 'users_email_key') {
+        throw new Error('Account already exists with password login');
+      }
+
+      if (pgError.constraint !== 'users_tenant_id_key' || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Failed to create Google user');
+}
+
 export const authService = {
   async signup(params: SignupParams) {
     // Check if email exists
@@ -93,42 +194,10 @@ export const authService = {
     // Hash password
     const passwordHash = await bcrypt.hash(params.password, SALT_ROUNDS);
 
-    // Generate tenant ID
-    const tenantId = generateTenantId(params.email);
+    const user = await createLocalUserWithRetries(params, passwordHash);
 
-    // Create user
-    const user = await userRepository.create({
-      email: params.email,
-      passwordHash,
-      name: params.name,
-      tenantId,
-    });
-
-    logger.info({ userId: user.id, tenantId }, 'User created');
-
-    // Generate tokens
-    const tokens = generateTokens(user);
-
-    // Save refresh token (starts a new token family)
-    const refreshExpiry = new Date(
-      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY)
-    );
-    await refreshTokenRepository.save(
-      user.id,
-      tokens.refreshToken,
-      refreshExpiry
-      // No familyId = new family for new signup
-    );
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        tenantId: user.tenant_id,
-      },
-      ...tokens,
-    };
+    logger.info({ userId: user.id, tenantId: user.tenant_id }, 'User created');
+    return issueSession(user);
   },
 
   async signin(params: SigninParams) {
@@ -136,6 +205,9 @@ export const authService = {
     const user = await userRepository.findByEmail(params.email);
     if (!user) {
       throw new Error('Invalid email or password');
+    }
+    if (!user.password_hash) {
+      throw new Error('Use Google sign in for this account');
     }
 
     // Verify password
@@ -146,29 +218,50 @@ export const authService = {
 
     logger.info({ userId: user.id }, 'User signed in');
 
-    // Generate tokens
-    const tokens = generateTokens(user);
+    return issueSession(user);
+  },
 
-    // Save refresh token (starts a new token family for new login)
-    const refreshExpiry = new Date(
-      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY)
-    );
-    await refreshTokenRepository.save(
-      user.id,
-      tokens.refreshToken,
-      refreshExpiry
-      // No familyId = new family for new signin
-    );
+  async signinWithGoogle(params: GoogleSigninParams) {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: params.idToken,
+      audience: env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
 
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        tenantId: user.tenant_id,
-      },
-      ...tokens,
-    };
+    if (!payload) {
+      throw new Error('Invalid Google token payload');
+    }
+
+    const googleSub = payload.sub;
+    const email = payload.email?.toLowerCase();
+    const name = payload.name;
+
+    if (!googleSub || !email) {
+      throw new Error('Google token missing required identity fields');
+    }
+    if (!payload.email_verified) {
+      throw new Error('Google email is not verified');
+    }
+
+    let user = await userRepository.findByGoogleSub(googleSub);
+
+    if (!user) {
+      const existingUser = await userRepository.findByEmail(email);
+      if (existingUser) {
+        if (existingUser.password_hash) {
+          throw new Error('Account already exists with password login');
+        }
+        user = await userRepository.linkGoogleToUser(existingUser.id, googleSub);
+        if (!user) {
+          throw new Error('Failed to link Google account');
+        }
+      } else {
+        user = await createGoogleUserWithRetries(email, name || undefined, googleSub);
+      }
+    }
+
+    logger.info({ userId: user.id }, 'User signed in with Google');
+    return issueSession(user);
   },
 
   async refresh(refreshToken: string) {
@@ -178,9 +271,8 @@ export const authService = {
       throw new Error('Invalid or expired refresh token');
     }
 
-    // SECURITY: Detect refresh token reuse attack
-    // If a token that was already used (revoked) is being used again,
-    // someone may have stolen the token. Revoke the entire family to protect the user.
+    const consumed = await refreshTokenRepository.consumeForRotation(refreshToken);
+
     if (tokenData.is_revoked) {
       logger.warn(
         { userId: tokenData.user_id, familyId: tokenData.family_id },
@@ -189,39 +281,16 @@ export const authService = {
       await refreshTokenRepository.revokeFamily(tokenData.family_id);
       throw new Error('Token reuse detected. Please login again.');
     }
+    if (!consumed) {
+      throw new Error('Invalid or expired refresh token');
+    }
 
     // Get user
-    const user = await userRepository.findById(tokenData.user_id);
+    const user = await userRepository.findById(consumed.user_id);
     if (!user) {
       throw new Error('User not found');
     }
-
-    // Mark the old token as revoked (not deleted) to detect reuse
-    await refreshTokenRepository.markRevoked(refreshToken);
-
-    // Generate new tokens
-    const tokens = generateTokens(user);
-
-    // Save new refresh token in the same family
-    const refreshExpiry = new Date(
-      Date.now() + parseExpiry(env.JWT_REFRESH_EXPIRY)
-    );
-    await refreshTokenRepository.save(
-      user.id,
-      tokens.refreshToken,
-      refreshExpiry,
-      tokenData.family_id // Continue the same token family
-    );
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        tenantId: user.tenant_id,
-      },
-      ...tokens,
-    };
+    return issueSession(user, consumed.family_id);
   },
 
   async logout(refreshToken: string) {

@@ -1,17 +1,7 @@
 // src/middleware/auth.ts
 import { Request, Response, NextFunction } from 'express';
-import { authService, TokenPayload } from '@/services/auth.service.js';
+import { authService } from '@/services/auth.service.js';
 import { logger } from '@/utils/logger.js';
-
-// Extend Express Request
-declare global {
-  namespace Express {
-    interface Request {
-      user?: TokenPayload;
-      tenantId?: string;
-    }
-  }
-}
 
 export async function authenticate(
   req: Request,
@@ -35,12 +25,13 @@ export async function authenticate(
     req.tenantId = payload.tenantId;
 
     next();
-  } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
+  } catch (error: unknown) {
+    const errorName = error instanceof Error ? error.name : undefined;
+    if (errorName === 'TokenExpiredError') {
       res.status(401).json({ error: 'Token expired' });
       return;
     }
-    if (error.name === 'JsonWebTokenError') {
+    if (errorName === 'JsonWebTokenError') {
       res.status(401).json({ error: 'Invalid token' });
       return;
     }
