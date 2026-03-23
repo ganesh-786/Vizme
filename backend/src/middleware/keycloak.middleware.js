@@ -19,7 +19,7 @@
 
 import * as jose from 'jose';
 import { query } from '../database/connection.js';
-import { UnauthorizedError } from './errorHandler.js';
+import { ForbiddenError, UnauthorizedError } from './errorHandler.js';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -217,19 +217,79 @@ export const getKeycloakRoles = (payload) => {
 };
 
 /**
+ * Extract client roles for a given Keycloak client id from the token payload.
+ * @param {object} payload  Verified JWT payload
+ * @param {string} clientId  e.g. uv-backend (same as KEYCLOAK_CLIENT_ID)
+ * @returns {string[]}
+ */
+export const getKeycloakClientRoles = (payload, clientId) => {
+  if (!clientId || !payload?.resource_access) return [];
+  const entry = payload.resource_access[clientId];
+  return entry?.roles || [];
+};
+
+export const hasRealmRole = (payload, role) => {
+  return getKeycloakRoles(payload).includes(role);
+};
+
+export const hasClientRole = (payload, clientId, role) => {
+  return getKeycloakClientRoles(payload, clientId).includes(role);
+};
+
+/** True if realm PLATFORM_ADMIN or client API_ADMIN on the configured backend client. */
+export const isPlatformAdmin = (payload) => {
+  return hasRealmRole(payload, 'PLATFORM_ADMIN')
+    || hasClientRole(payload, KEYCLOAK_CLIENT_ID, 'API_ADMIN');
+};
+
+/**
  * Middleware factory: require one or more Keycloak realm roles.
  * Must be used AFTER `authenticateKeycloak` (needs `req.keycloakPayload`).
+ * Missing roles → 403 Forbidden (authenticated but not allowed).
  *
  * Usage:
- *   router.get('/admin', authenticateKeycloak, requireRole('admin'), handler);
+ *   router.get('/admin', authenticateKeycloak, requireRole('PLATFORM_ADMIN'), handler);
  */
 export const requireRole = (...roles) => {
   return (req, res, next) => {
+    if (!req.keycloakPayload) {
+      return next(new UnauthorizedError('Authentication required'));
+    }
     const userRoles = getKeycloakRoles(req.keycloakPayload);
     const hasRole = roles.some((r) => userRoles.includes(r));
     if (!hasRole) {
-      return next(new UnauthorizedError(`Required role(s): ${roles.join(', ')}`));
+      return next(new ForbiddenError(`Required realm role(s): ${roles.join(', ')}`));
     }
     next();
   };
 };
+
+/**
+ * Middleware factory: require at least one of the given client roles for `clientId`.
+ * Must be used AFTER `authenticateKeycloak`.
+ *
+ * Usage:
+ *   router.get('/x', authenticateKeycloak, requireClientRole(KEYCLOAK_CLIENT_ID, 'API_USER'), handler);
+ */
+export const requireClientRole = (clientId, ...clientRoles) => {
+  return (req, res, next) => {
+    if (!req.keycloakPayload) {
+      return next(new UnauthorizedError('Authentication required'));
+    }
+    const userRoles = getKeycloakClientRoles(req.keycloakPayload, clientId);
+    const hasRole = clientRoles.some((r) => userRoles.includes(r));
+    if (!hasRole) {
+      return next(
+        new ForbiddenError(`Required client role(s) on ${clientId}: ${clientRoles.join(', ')}`)
+      );
+    }
+    next();
+  };
+};
+
+/**
+ * Shorthand for client roles on the backend Keycloak client (KEYCLOAK_CLIENT_ID).
+ * Prefer this on routes so callers do not repeat the client id.
+ */
+export const requireBackendClientRole = (...clientRoles) =>
+  requireClientRole(KEYCLOAK_CLIENT_ID, ...clientRoles);
