@@ -15,6 +15,18 @@ import { authenticateKeycloak } from './keycloak.middleware.js';
 // Re-export Keycloak middleware as the single authenticate middleware
 export const authenticate = authenticateKeycloak;
 
+// Authorization helpers (use after `authenticate` on routes)
+export {
+  requireRole,
+  requireClientRole,
+  requireBackendClientRole,
+  getKeycloakRoles,
+  getKeycloakClientRoles,
+  hasRealmRole,
+  hasClientRole,
+  isPlatformAdmin,
+} from './keycloak.middleware.js';
+
 // ─── API Key Authentication (unchanged) ─────────────────────────────────
 
 /**

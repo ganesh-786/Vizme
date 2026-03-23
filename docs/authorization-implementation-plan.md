@@ -333,7 +333,7 @@ Execute in this order, pausing after each step for approval before the next.
 |------|-------------|----------------|-----|
 | **1** | Keycloak: Create realm roles and client roles; assign to test users; verify token contents | Yes | [Step 1 — Keycloak config](authorization-step1-keycloak-config.md) ✓ |
 | **2** | Backend: Add `ForbiddenError` and 403 handling in errorHandler | Yes |
-| **3** | Backend: Add `getKeycloakClientRoles`, `requireClientRole`, use ForbiddenError in `requireRole`; optional helpers | Yes |
+| **3** | Backend: Add `getKeycloakClientRoles`, `requireClientRole`, use ForbiddenError in `requireRole`; optional helpers | Yes | [Step 3 — Backend helpers](authorization-step3-backend-authorization-helpers.md) ✓ |
 | **4** | Backend: Apply optional `requireClientRole('API_USER')` to chosen routes (or skip until Keycloak roles are assigned) | Yes |
 | **5** | (Future) Add admin routes and protect with `requireRole('PLATFORM_ADMIN')` or `requireClientRole('API_ADMIN')` | When admin features exist |
 | **6** | Testing: Run through 8.1–8.4 and document results | Yes |
