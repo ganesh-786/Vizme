@@ -2,15 +2,16 @@ import express from 'express';
 import crypto from 'crypto';
 import { body, validationResult } from 'express-validator';
 import { query } from '../database/connection.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, requireBackendClientRole } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 import { ensureSiteOwnedByUser } from '../services/dashboardWidget.service.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// All routes require authentication and uv-backend client role API_USER
 router.use(authenticate);
+router.use(requireBackendClientRole('API_USER'));
 router.use(apiLimiter);
 
 // ---------------------------------------------------------------------------

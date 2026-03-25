@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../database/connection.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, requireBackendClientRole } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 
@@ -75,8 +75,9 @@ router.get('/by-api-key',
   }
 );
 
-// All routes require authentication
+// JWT routes: authentication + uv-backend client role API_USER (/by-api-key above is unchanged)
 router.use(authenticate);
+router.use(requireBackendClientRole('API_USER'));
 router.use(apiLimiter);
 
 const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
