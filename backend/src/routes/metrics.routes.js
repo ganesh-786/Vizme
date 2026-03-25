@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import { authenticateApiKey, authenticate } from '../middleware/auth.middleware.js';
+import { authenticateApiKey, authenticate, requireBackendClientRole } from '../middleware/auth.middleware.js';
 import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
 import { recordMetric, getMetrics } from '../services/metrics.service.js';
@@ -145,6 +145,7 @@ router.post('/',
  */
 router.get('/',
   authenticate,
+  requireBackendClientRole('API_USER'),
   async (req, res, next) => {
     try {
       res.json({
