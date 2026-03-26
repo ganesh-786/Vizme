@@ -16,6 +16,7 @@ import { sitesRoutes } from './src/routes/sites.routes.js';
 import { dashboardWidgetsRoutes } from './src/routes/dashboardWidgets.routes.js';
 import { healthRoutes } from './src/routes/health.routes.js';
 import { trackerRoutes } from './src/routes/tracker.routes.js';
+import { adminRoutes } from './src/routes/admin.routes.js';
 import {
   grafanaRoutes,
   grafanaProxyMiddleware,
@@ -152,6 +153,7 @@ app.use('/api/v1/code-generation', codeGenerationRoutes);
 app.use('/api/v1/sites', sitesRoutes);
 app.use('/api/v1/dashboard-widgets', dashboardWidgetsRoutes);
 app.use('/api/v1/metrics', metricsRoutes);
+app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1', trackerRoutes);
 app.use('/api/v1/grafana', grafanaRoutes);
 app.use('/grafana', grafanaProxyMiddleware);
