@@ -1,56 +1,72 @@
 import { Registry, Counter, Gauge, Histogram, Summary } from 'prom-client';
+import { query } from '../database/connection.js';
 
-/**
- * Prometheus Metrics Service
- * 
- * This service manages Prometheus metrics using the prom-client library.
- * Metrics are stored in memory and exposed via /metrics endpoint for Prometheus scraping.
- * 
- * Best Practices:
- * - Use appropriate metric types (Counter, Gauge, Histogram, Summary)
- * - Label metrics with user_id for multi-tenancy
- * - Register all metrics in a single registry
- * - Expose metrics endpoint for Prometheus scraping
- */
-
-// Create a custom registry for application metrics
-// This allows us to separate application metrics from default Node.js metrics
 const register = new Registry();
 
-// Set default labels that will be added to all metrics
-// This helps with filtering and querying in Prometheus
 register.setDefaultLabels({
   app: 'unified-visibility-platform',
-  version: '1.0.0'
+  version: '1.0.0',
 });
 
-// Track metric instances to avoid duplicates
-// Key: `${userId}_${metricName}_${labelHash}`
+const metricsStore = new Map();
 const metricInstances = new Map();
 
-/**
- * Generate a hash from labels object for consistent key generation
- * @param {Object} labels - Metric labels
- * @returns {string} - Hash string
- */
+// --- Batch persistence ---
+// Accumulate DB writes and flush periodically to avoid
+// hammering PostgreSQL on every single recordMetric call.
+const pendingUpserts = new Map(); // key -> { userId, name, type, value, labels }
+let flushTimer = null;
+const FLUSH_INTERVAL_MS = 5000; // flush every 5 seconds
+
+const scheduleFlush = () => {
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    flushToDb().catch((err) => console.error('Failed to flush metrics to DB:', err));
+  }, FLUSH_INTERVAL_MS);
+};
+
+const flushToDb = async () => {
+  if (pendingUpserts.size === 0) return;
+
+  const entries = [...pendingUpserts.values()];
+  pendingUpserts.clear();
+
+  // Build a single multi-row upsert for efficiency
+  const values = [];
+  const placeholders = [];
+  let idx = 1;
+
+  for (const entry of entries) {
+    placeholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4})`);
+    values.push(entry.userId, entry.name, entry.type, entry.value, JSON.stringify(entry.labels));
+    idx += 5;
+  }
+
+  const sql = `
+    INSERT INTO metric_values (user_id, metric_name, metric_type, value, labels)
+    VALUES ${placeholders.join(', ')}
+    ON CONFLICT (user_id, metric_name, labels)
+    DO UPDATE SET
+      value = EXCLUDED.value,
+      metric_type = EXCLUDED.metric_type,
+      updated_at = CURRENT_TIMESTAMP
+  `;
+
+  await query(sql, values);
+};
+
+// --- End batch persistence ---
+
 const hashLabels = (labels) => {
   const sorted = Object.keys(labels)
     .sort()
-    .map(key => `${key}:${labels[key]}`)
+    .map((key) => `${key}:${labels[key]}`)
     .join(',');
   return sorted || 'no-labels';
 };
 
-/**
- * Get or create a Prometheus metric instance
- * @param {string} userId - User ID
- * @param {string} metricName - Metric name
- * @param {string} metricType - Metric type (counter, gauge, histogram, summary)
- * @param {Object} labels - Metric labels
- * @returns {Counter|Gauge|Histogram|Summary} - Prometheus metric instance
- */
 const getOrCreateMetric = (metricName, metricType, labelKeys) => {
-  // Cache by metric name + sorted label key names (not values, not userId)
   const allLabelNames = [...labelKeys, 'user_id'].sort();
   const key = `${metricName}_${allLabelNames.join(',')}`;
 
@@ -67,7 +83,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         name: fullMetricName,
         help: `Counter metric: ${metricName}`,
         labelNames: allLabelNames,
-        registers: [register]
+        registers: [register],
       });
       break;
     case 'gauge':
@@ -75,7 +91,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         name: fullMetricName,
         help: `Gauge metric: ${metricName}`,
         labelNames: allLabelNames,
-        registers: [register]
+        registers: [register],
       });
       break;
     case 'histogram':
@@ -84,7 +100,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         help: `Histogram metric: ${metricName}`,
         labelNames: allLabelNames,
         buckets: [0.1, 0.5, 1, 2.5, 5, 10, 25, 50, 100],
-        registers: [register]
+        registers: [register],
       });
       break;
     case 'summary':
@@ -93,7 +109,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         help: `Summary metric: ${metricName}`,
         labelNames: allLabelNames,
         percentiles: [0.01, 0.1, 0.5, 0.9, 0.99],
-        registers: [register]
+        registers: [register],
       });
       break;
     default:
@@ -105,75 +121,96 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
 };
 
 /**
- * Record a metric value
- * @param {Object} metricData - Metric data
- * @param {string} metricData.name - Metric name
- * @param {string} metricData.type - Metric type
- * @param {number} metricData.value - Metric value
- * @param {Object} metricData.labels - Metric labels
- * @param {string} userId - User ID
+ * Resolve the current absolute value for a counter or gauge so we
+ * can persist it. For counters we read back the running total from
+ * the Prometheus metric instance; for gauges we store the latest
+ * set/inc/dec result.
  */
-export const recordMetric = (metricData, userId) => {
-  const { name, type, value, labels = {} } = metricData;
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
-  }
+const resolveCurrentValue = async (metricName, metricLabels) => {
+  const fullMetricName = `user_metric_${metricName}`;
+  const promMetric = register.getSingleMetric(fullMetricName);
+  if (!promMetric) return 0;
 
-  // Validate value
+  // prom-client exposes .get() which returns { values: [...] }
+  const snapshot = await promMetric.get();
+  for (const entry of snapshot.values) {
+    const labelsMatch = Object.keys(metricLabels).every(
+      (k) => String(entry.labels[k]) === String(metricLabels[k])
+    );
+    if (labelsMatch) {
+      return entry.value;
+    }
+  }
+  return 0;
+};
+
+export const recordMetric = async (metricData, userId) => {
+  const { name, type, value, labels = {} } = metricData;
+
   const numValue = typeof value === 'number' ? value : parseFloat(value);
   if (isNaN(numValue)) {
     throw new Error(`Invalid metric value: ${value}`);
   }
 
-  // Validate counter values (must be non-negative)
   if (type.toLowerCase() === 'counter' && numValue < 0) {
     throw new Error('Counter metrics cannot have negative values');
   }
 
-  // Get or create the metric instance
   const metric = getOrCreateMetric(name, type, Object.keys(labels));
 
-  // Prepare labels with user_id
   const metricLabels = {
     ...labels,
-    user_id: userId.toString()
+    user_id: userId.toString(),
   };
 
-  // Record the metric based on type
   try {
     switch (type.toLowerCase()) {
       case 'counter':
-        // For counters, we typically increment, but allow setting absolute value
-        // If value is 0 or positive, we'll set it (assuming it's a delta)
         if (numValue > 0) {
           metric.inc(metricLabels, numValue);
         }
         break;
-
-        case 'gauge':
-          const operation = metricData.operation || (numValue < 0 ? 'decrement' : numValue>0 ? 'increment' : 'set');
-          if (operation === 'set') {
-            metric.set(metricLabels, Math.abs(numValue));
-          } else if (operation === 'increment') {
-            metric.inc(metricLabels, Math.abs(numValue));
-          } else if (operation === 'decrement') {
-            metric.dec(metricLabels, Math.abs(numValue));
-          } else {
-            throw new Error(`Unsupported operation: ${operation}`);
-          }
-          break;
-
+      case 'gauge': {
+        const operation =
+          metricData.operation || (numValue < 0 ? 'decrement' : numValue > 0 ? 'increment' : 'set');
+        if (operation === 'set') {
+          metric.set(metricLabels, Math.abs(numValue));
+        } else if (operation === 'increment') {
+          metric.inc(metricLabels, Math.abs(numValue));
+        } else if (operation === 'decrement') {
+          metric.dec(metricLabels, Math.abs(numValue));
+        }
+        break;
+      }
       case 'histogram':
-        // Histograms observe values
-        metric.observe(metricLabels, numValue);
-        break;
-
       case 'summary':
-        // Summaries observe values
         metric.observe(metricLabels, numValue);
         break;
-    }    
+    }
 
+    // --- Persist to DB (counters & gauges only) ---
+    if (type.toLowerCase() === 'counter' || type.toLowerCase() === 'gauge') {
+      const currentValue = await resolveCurrentValue(name, metricLabels);
+      const persistKey = `${userId}_${name}_${hashLabels(labels)}`;
+      pendingUpserts.set(persistKey, {
+        userId,
+        name,
+        type: type.toLowerCase(),
+        value: currentValue,
+        labels: metricLabels,
+      });
+      scheduleFlush();
+    }
+
+    const labelHash = hashLabels(labels);
+    const key = `${userId}_${name}_${labelHash}`;
+    metricsStore.set(key, {
+      name,
+      type,
+      value: numValue,
+      labels: metricLabels,
+      timestamp: Date.now(),
+    });
   } catch (error) {
     console.error(`Error recording metric ${name}:`, error);
     throw error;
@@ -181,19 +218,94 @@ export const recordMetric = (metricData, userId) => {
 };
 
 /**
- * Get metrics in Prometheus format
- * This is called by the /metrics endpoint for Prometheus scraping
- * @returns {Promise<string>} - Prometheus metrics in text format
+ * Restore persisted counter and gauge values from PostgreSQL
+ * into the Prometheus registry. Call this once at startup
+ * after the database is ready.
  */
+export const restoreMetrics = async () => {
+  try {
+    const result = await query(
+      'SELECT user_id, metric_name, metric_type, value, labels FROM metric_values'
+    );
+
+    if (!result.rows.length) {
+      console.log('No persisted metrics to restore');
+      return;
+    }
+
+    let restored = 0;
+
+    for (const row of result.rows) {
+      const { user_id, metric_name, metric_type, value, labels } = row;
+
+      // labels already contains user_id from when it was stored
+      const labelKeys = Object.keys(labels).filter((k) => k !== 'user_id');
+      const metric = getOrCreateMetric(metric_name, metric_type, labelKeys);
+
+      try {
+        switch (metric_type) {
+          case 'counter':
+            // Counter.inc(labels, amount) — restore accumulated total
+            if (value > 0) {
+              metric.inc(labels, value);
+            }
+            break;
+          case 'gauge':
+            metric.set(labels, value);
+            break;
+          // Histograms/summaries are not restored — Prometheus
+          // handles counter-like resets for _sum and _count, and
+          // bucket state can't be meaningfully reconstructed.
+        }
+        restored++;
+      } catch (err) {
+        console.error(`Failed to restore metric ${metric_name} for user ${user_id}:`, err.message);
+      }
+    }
+
+    console.log(`Restored ${restored} metrics from database`);
+  } catch (error) {
+    console.error('Failed to restore metrics:', error);
+  }
+};
+
+// Flush remaining metrics on process shutdown
+const gracefulShutdown = async () => {
+  try {
+    await flushToDb();
+  } catch (err) {
+    console.error('Failed to flush metrics on shutdown:', err);
+  }
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
 export const getMetrics = async () => {
   return register.metrics();
 };
 
-/**
- * Get metrics registry
- * Useful for adding custom metrics or accessing the registry directly
- * @returns {Registry} - Prometheus registry
- */
 export const getRegistry = () => {
   return register;
+};
+
+export const clearUserMetrics = (userId) => {
+  const keysToDelete = [];
+  for (const [key] of metricsStore) {
+    if (key.startsWith(`${userId}_`)) {
+      keysToDelete.push(key);
+    }
+  }
+  keysToDelete.forEach((key) => {
+    metricsStore.delete(key);
+    metricInstances.delete(key);
+  });
+};
+
+export const getMetricsStats = () => {
+  return {
+    totalMetrics: metricsStore.size,
+    totalInstances: metricInstances.size,
+    registryMetrics: register.getMetricsAsArray().length,
+  };
 };
