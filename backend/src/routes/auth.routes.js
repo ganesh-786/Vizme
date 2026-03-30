@@ -7,7 +7,14 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
-import { setupUserGrafanaOrg, checkOrgExists, ADMIN_AUTH, GRAFANA_URL } from '../services/grafana.service.js';
+import {
+  setupUserGrafanaOrg,
+  checkOrgExists,
+  ensureDefaultDashboardInOrg,
+  setOrgHomeDashboard,
+  ADMIN_AUTH,
+  GRAFANA_URL,
+} from '../services/grafana.service.js';
 
 const router = express.Router();
 
@@ -352,6 +359,16 @@ router.post('/grafana-session', authenticate, async (req, res) => {
       }
     } catch (err) {
       console.error('Failed to switch Grafana org:', err);
+    }
+  }
+
+  if (orgId) {
+    try {
+      const dash = await ensureDefaultDashboardInOrg(orgId);
+      await setOrgHomeDashboard(orgId, dash.uid, dash.id);
+    } catch (err) {
+      console.error('Failed to ensure default Grafana dashboard:', err);
+      // non-fatal: keep login flow working
     }
   }
 

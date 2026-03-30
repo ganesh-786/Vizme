@@ -95,11 +95,169 @@ export async function createDatasourceInOrg(orgId) {
   }
 }
 
+// Build org-scoped headers once
+const orgHeaders = (orgId) => ({
+  ...headers,
+  'X-Grafana-Org-Id': String(orgId),
+});
+
+// Fixed UID for your default tenant dashboard
+const DEFAULT_DASHBOARD_UID = 'vizme-default';
+
+// Creates a starter timeseries dashboard JSON
+function buildDefaultDashboard() {
+  return {
+    uid: DEFAULT_DASHBOARD_UID,
+    title: 'Vizme - Default Metrics',
+    schemaVersion: 39,
+    version: 1,
+    timezone: 'browser',
+    refresh: '5s',
+    tags: ['vizme', 'default'],
+    editable: true,
+    time: { from: 'now-1h', to: 'now' },
+    panels: [
+      // 1) Quick KPI
+      {
+        id: 1,
+        type: 'stat',
+        title: 'Active Metric Series',
+        gridPos: { h: 6, w: 6, x: 0, y: 0 },
+        datasource: 'Prometheus',
+        targets: [
+          {
+            refId: 'A',
+            expr: 'count({__name__=~"user_metric_.*"})',
+          },
+        ],
+        options: {
+          reduceOptions: { calcs: ['lastNotNull'], values: false },
+          colorMode: 'value',
+          graphMode: 'none',
+        },
+      },
+
+      // 2) Counter traffic only (clean rate chart)
+      {
+        id: 2,
+        type: 'timeseries',
+        title: 'Request/Event Throughput (per sec)',
+        gridPos: { h: 10, w: 18, x: 6, y: 0 },
+        datasource: 'Prometheus',
+        targets: [
+          {
+            refId: 'A',
+            expr: 'sum by (__name__) (rate({__name__=~"user_metric_.*_total"}[1m]))',
+            legendFormat: '{{__name__}}',
+          },
+        ],
+        fieldConfig: {
+          defaults: { unit: 'ops' },
+          overrides: [],
+        },
+        options: {
+          legend: { displayMode: 'table', placement: 'bottom' },
+          tooltip: { mode: 'multi' },
+        },
+      },
+
+      // 3) Gauge/current values panel (no rate)
+      {
+        id: 3,
+        type: 'timeseries',
+        title: 'Current Values (Gauges/Instant Metrics)',
+        gridPos: { h: 10, w: 24, x: 0, y: 6 },
+        datasource: 'Prometheus',
+        targets: [
+          {
+            refId: 'A',
+            expr: '{__name__=~"user_metric_.*",__name__!~".*(_total|_count|_sum|_bucket|_created)$"}',
+            legendFormat: '{{__name__}}',
+          },
+        ],
+        options: {
+          legend: { displayMode: 'table', placement: 'bottom' },
+          tooltip: { mode: 'multi' },
+        },
+      },
+    ],
+  };
+}
+
+// Ensure dashboard exists in org (idempotent)
+export async function ensureDefaultDashboardInOrg(orgId) {
+  // 1) Check if dashboard already exists
+  const getRes = await fetch(`${GRAFANA_URL}/api/dashboards/uid/${DEFAULT_DASHBOARD_UID}`, {
+    method: 'GET',
+    headers: orgHeaders(orgId),
+  });
+
+  if (getRes.ok) {
+    const data = await getRes.json();
+    return { id: data.dashboard.id, uid: data.dashboard.uid, created: false };
+  }
+
+  if (getRes.status !== 404) {
+    const body = await getRes.text();
+    throw new Error(`Failed checking default dashboard in org ${orgId}: ${getRes.status} ${body}`);
+  }
+
+  // 2) Create dashboard when missing
+  const createPayload = {
+    dashboard: buildDefaultDashboard(),
+    folderId: 0,
+    overwrite: false,
+    message: 'Create Vizme default dashboard',
+  };
+
+  const createRes = await fetchWithRetry(`${GRAFANA_URL}/api/dashboards/db`, {
+    method: 'POST',
+    headers: orgHeaders(orgId),
+    body: JSON.stringify(createPayload),
+  });
+
+  if (!createRes.ok) {
+    const body = await createRes.text();
+    throw new Error(
+      `Failed creating default dashboard in org ${orgId}: ${createRes.status} ${body}`
+    );
+  }
+
+  const created = await createRes.json();
+  return { id: created.id, uid: created.uid, created: true };
+}
+
+// Set org home dashboard so opening Grafana lands here
+export async function setOrgHomeDashboard(orgId, dashboardUid, dashboardId) {
+  const payload = {
+    theme: '',
+    timezone: '',
+    homeDashboardUID: dashboardUid,
+    homeDashboardId: dashboardId, // optional but useful for compatibility
+  };
+
+  const res = await fetchWithRetry(`${GRAFANA_URL}/api/org/preferences`, {
+    method: 'PUT',
+    headers: orgHeaders(orgId),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed setting home dashboard for org ${orgId}: ${res.status} ${body}`);
+  }
+}
+
 // 6. Full setup: called once during signup
 export async function setupUserGrafanaOrg(userId, email, name) {
   const org = await createOrg(`vizme-user-${userId}`);
   const user = await createGrafanaUser(email, name, org.orgId);
+
   await setUserOrgRole(org.orgId, user.id, 'Editor');
   await createDatasourceInOrg(org.orgId);
+
+  const dash = await ensureDefaultDashboardInOrg(org.orgId);
+  await setOrgHomeDashboard(org.orgId, dash.uid, dash.id);
+
   return org.orgId;
 }
