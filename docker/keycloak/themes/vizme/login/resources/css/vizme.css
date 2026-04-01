@@ -1,0 +1,505 @@
+/* VIZME login theme — layout & visual overrides on top of Keycloak (PatternFly) login.css */
+
+:root {
+  --vizme-bg: #f9fafb;
+  --vizme-card: #ffffff;
+  --vizme-heading: #111827;
+  --vizme-body: #374151;
+  --vizme-muted: #6b7280;
+  --vizme-border: #d1d5db;
+  --vizme-border-light: #e5e7eb;
+  --vizme-primary: #5b7cfd;
+  --vizme-primary-hover: #4a6aef;
+  --vizme-link: #5b7cfd;
+  --vizme-radius-input: 6px;
+  --vizme-radius-card: 14px;
+  --vizme-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+}
+
+.vizme-body,
+.vizme-body.login-pf {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--vizme-bg) !important;
+  color: var(--vizme-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.pf-vizme-dark-surface {
+  --vizme-bg: #0b1220;
+  --vizme-card: #0f172a;
+  --vizme-heading: #e5e7eb;
+  --vizme-body: #cbd5e1;
+  --vizme-muted: #9ca3af;
+  --vizme-border: rgba(148, 163, 184, 0.35);
+  --vizme-border-light: rgba(148, 163, 184, 0.25);
+}
+
+/* Dark tokens: PatternFly/Keycloak classes, OS/browser scheme, and JS-synced class from template.ftl */
+html.pf-m-dark,
+body.pf-m-dark,
+html.pf-v5-theme-dark,
+body.pf-v5-theme-dark,
+html.vizme-scheme-dark {
+  --vizme-bg: #0b1220;
+  --vizme-card: #0f172a;
+  --vizme-heading: #e5e7eb;
+  --vizme-body: #cbd5e1;
+  --vizme-muted: #9ca3af;
+  --vizme-border: rgba(148, 163, 184, 0.35);
+  --vizme-border-light: rgba(148, 163, 184, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vizme-bg: #0b1220;
+    --vizme-card: #0f172a;
+    --vizme-heading: #e5e7eb;
+    --vizme-body: #cbd5e1;
+    --vizme-muted: #9ca3af;
+    --vizme-border: rgba(148, 163, 184, 0.35);
+    --vizme-border-light: rgba(148, 163, 184, 0.25);
+  }
+}
+
+html.pf-m-dark .pf-c-form-control,
+html.pf-m-dark .pf-c-input-group,
+html.pf-v5-theme-dark .pf-c-form-control,
+html.pf-v5-theme-dark .pf-c-input-group,
+body.pf-m-dark .pf-c-form-control,
+body.pf-m-dark .pf-c-input-group,
+body.pf-v5-theme-dark .pf-c-form-control,
+body.pf-v5-theme-dark .pf-c-input-group,
+html.vizme-scheme-dark .pf-c-form-control,
+html.vizme-scheme-dark .pf-c-input-group {
+  background: var(--vizme-card) !important;
+  color: var(--vizme-body) !important;
+  border-color: var(--vizme-border) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pf-c-form-control,
+  .pf-c-input-group {
+    background: var(--vizme-card) !important;
+    color: var(--vizme-body) !important;
+    border-color: var(--vizme-border) !important;
+  }
+}
+
+html.pf-m-dark .pf-c-input-group .pf-c-button.pf-m-control,
+html.pf-v5-theme-dark .pf-c-input-group .pf-c-button.pf-m-control,
+body.pf-m-dark .pf-c-input-group .pf-c-button.pf-m-control,
+body.pf-v5-theme-dark .pf-c-input-group .pf-c-button.pf-m-control,
+html.vizme-scheme-dark .pf-c-input-group .pf-c-button.pf-m-control {
+  background: transparent !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pf-c-input-group .pf-c-button.pf-m-control {
+    background: transparent !important;
+  }
+}
+
+.vizme-body.login-pf .login-pf body,
+.login-pf {
+  background: none !important;
+  height: auto !important;
+}
+
+.vizme-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2rem 1rem 2rem;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.vizme-center {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  flex: 1 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vizme-login.login-pf-page {
+  background: transparent !important;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 0 !important;
+}
+
+/* Hide default Keycloak header band; branding is inside the card */
+.vizme-kc-header,
+#kc-header.vizme-kc-header {
+  display: none !important;
+}
+
+.vizme-card.card-pf {
+  position: relative;
+  background: var(--vizme-card) !important;
+  border: 1px solid var(--vizme-border-light) !important;
+  border-radius: var(--vizme-radius-card) !important;
+  box-shadow: var(--vizme-shadow) !important;
+  padding: 2.25rem 2.5rem 2rem !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 480px) {
+  .vizme-card.card-pf {
+    padding: 1.75rem 1.25rem 1.5rem !important;
+    max-width: 100%;
+  }
+}
+
+.vizme-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 1.25rem;
+}
+
+/* Wordmarks from frontend/public (logo-light.png / logo-dark.png) */
+.vizme-logo-crop {
+  width: 200px;
+  max-width: 100%;
+  height: 56px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vizme-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+}
+
+.vizme-logo--dark {
+  display: none;
+}
+
+/* Show dark logo when OS/browser is dark, PatternFly dark, or JS class on <html> */
+html.pf-m-dark .vizme-logo--light,
+body.pf-m-dark .vizme-logo--light,
+html.pf-v5-theme-dark .vizme-logo--light,
+body.pf-v5-theme-dark .vizme-logo--light,
+html.vizme-scheme-dark .vizme-logo--light,
+.pf-m-dark .vizme-logo--light,
+.pf-v5-theme-dark .vizme-logo--light {
+  display: none !important;
+}
+
+html.pf-m-dark .vizme-logo--dark,
+body.pf-m-dark .vizme-logo--dark,
+html.pf-v5-theme-dark .vizme-logo--dark,
+body.pf-v5-theme-dark .vizme-logo--dark,
+html.vizme-scheme-dark .vizme-logo--dark,
+.pf-m-dark .vizme-logo--dark,
+.pf-v5-theme-dark .vizme-logo--dark {
+  display: block !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vizme-logo--light {
+    display: none !important;
+  }
+  .vizme-logo--dark {
+    display: block !important;
+  }
+}
+
+.vizme-brand-word {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  color: var(--vizme-heading);
+}
+
+.vizme-brand-icon {
+  display: block;
+}
+
+.login-pf-header,
+#kc-content-wrapper {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+#kc-page-title {
+  margin: 0 0 1.5rem !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  color: var(--vizme-heading) !important;
+  text-align: center;
+}
+
+.vizme-title {
+  display: block;
+}
+
+.vizme-subtitle {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.9375rem !important;
+  font-weight: 400 !important;
+  line-height: 1.45 !important;
+  color: var(--vizme-muted) !important;
+}
+
+/* Form groups */
+#kc-form .form-group,
+#kc-form-wrapper .form-group,
+#kc-register-form .form-group,
+#kc-content .form-group {
+  margin-bottom: 1.15rem !important;
+}
+
+#kc-form .pf-c-form__label,
+#kc-register-form .pf-c-form__label,
+#kc-content .pf-c-form__label {
+  font-weight: 600 !important;
+  font-size: 0.8125rem !important;
+  color: var(--vizme-body) !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.vizme-password-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.vizme-password-label-row .pf-c-form__label {
+  margin-bottom: 0 !important;
+}
+
+.vizme-inline-link {
+  font-size: 0.8125rem !important;
+  font-weight: 500;
+  color: var(--vizme-link) !important;
+  text-decoration: none !important;
+  white-space: nowrap;
+}
+
+.vizme-inline-link:hover {
+  text-decoration: underline !important;
+  color: var(--vizme-primary-hover) !important;
+}
+
+.pf-c-form-control,
+input.pf-c-form-control,
+#kc-form-login input.pf-c-form-control,
+#kc-register-form input.pf-c-form-control {
+  border: 1px solid var(--vizme-border) !important;
+  border-radius: var(--vizme-radius-input) !important;
+  background: #fff !important;
+  font-size: 0.9375rem !important;
+  padding: 0.65rem 0.75rem !important;
+  min-height: 2.75rem !important;
+  box-shadow: none !important;
+}
+
+.pf-c-form-control:focus {
+  border-color: var(--vizme-primary) !important;
+  box-shadow: 0 0 0 3px rgba(91, 124, 253, 0.2) !important;
+}
+
+.pf-c-input-group {
+  display: flex !important;
+  align-items: stretch !important;
+  border: 1px solid var(--vizme-border) !important;
+  border-radius: var(--vizme-radius-input) !important;
+  overflow: hidden;
+  background: #fff !important;
+}
+
+.pf-c-input-group .pf-c-form-control {
+  border: none !important;
+  border-radius: 0 !important;
+  flex: 1 !important;
+}
+
+.pf-c-input-group .pf-c-button.pf-m-control {
+  border: none !important;
+  border-left: 1px solid var(--vizme-border-light) !important;
+  background: #f9fafb !important;
+  color: var(--vizme-muted) !important;
+  padding: 0 0.75rem !important;
+}
+
+.pf-c-input-group .pf-c-button.pf-m-control:hover {
+  background: #f3f4f6 !important;
+  color: var(--vizme-body) !important;
+}
+
+.vizme-remember-row {
+  margin-bottom: 1.25rem !important;
+}
+
+.vizme-remember {
+  font-size: 0.875rem !important;
+  color: var(--vizme-body) !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vizme-field-hint {
+  margin: 0.35rem 0 0 !important;
+  font-size: 0.75rem !important;
+  color: var(--vizme-muted) !important;
+}
+
+/* Primary actions */
+.vizme-btn-primary.pf-c-button.pf-m-primary,
+button.vizme-btn-primary.pf-c-button.pf-m-primary,
+input.vizme-btn-primary.pf-c-button.pf-m-primary {
+  background: var(--vizme-primary) !important;
+  background-image: none !important;
+  border: none !important;
+  border-radius: var(--vizme-radius-input) !important;
+  font-weight: 600 !important;
+  font-size: 0.9375rem !important;
+  padding: 0.75rem 1rem !important;
+  min-height: 2.75rem !important;
+  margin-top: 0.25rem !important;
+  box-shadow: none !important;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.vizme-btn-primary:hover {
+  background: var(--vizme-primary-hover) !important;
+}
+
+.vizme-btn-primary:active {
+  transform: scale(0.99);
+}
+
+.vizme-btn-with-arrow .vizme-btn-arrow {
+  margin-left: 0.35rem;
+  font-weight: 600;
+}
+
+#kc-form-buttons {
+  margin-top: 0.5rem !important;
+}
+
+/* Kill Keycloak default gray strip behind "Sign up" / info row */
+#kc-info {
+  margin: 0 !important;
+}
+
+#kc-info-wrapper {
+  background: transparent !important;
+  background-color: transparent !important;
+  padding: 1rem 0 0 !important;
+}
+
+/* Registration / info row */
+#kc-registration-container,
+#kc-info.login-pf-signup {
+  text-align: center !important;
+  margin-top: 1.5rem !important;
+  padding-top: 1.25rem !important;
+  border-top: 1px solid var(--vizme-border-light) !important;
+  font-size: 0.875rem !important;
+  color: var(--vizme-muted) !important;
+  background: transparent !important;
+}
+
+#kc-registration a,
+#kc-info a,
+#kc-form-options a {
+  color: var(--vizme-link) !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+}
+
+#kc-registration a:hover,
+#kc-info a:hover,
+#kc-form-options a:hover {
+  text-decoration: underline !important;
+}
+
+/* Alerts */
+.pf-c-alert {
+  border-radius: var(--vizme-radius-input) !important;
+  margin-bottom: 1rem !important;
+}
+
+/* Social */
+#kc-social-providers h2 {
+  font-size: 0.875rem !important;
+  color: var(--vizme-muted) !important;
+}
+
+/* Locale — top-right of card (no theme toggle) */
+#kc-locale {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+}
+
+.login-pf-header {
+  position: static;
+}
+
+/* Footer: scrolls with page (not fixed to viewport) */
+.vizme-page-footer {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0 0;
+  font-size: 0.75rem;
+  color: var(--vizme-muted);
+  background: transparent;
+}
+
+.vizme-page-footer a {
+  color: var(--vizme-muted) !important;
+  text-decoration: none !important;
+}
+
+.vizme-page-footer a:hover {
+  color: var(--vizme-body) !important;
+  text-decoration: underline !important;
+}
+
+.vizme-footer-sep {
+  opacity: 0.5;
+  user-select: none;
+}
+
+/* OTP / select-authenticator tiles — soften */
+.select-auth-box-headline {
+  color: var(--vizme-heading) !important;
+}
+
+/* Error links */
+#input-error,
+.required.kc-feedback-text {
+  font-size: 0.8125rem !important;
+}
