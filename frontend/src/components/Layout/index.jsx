@@ -1,9 +1,8 @@
-import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useToast } from '@/components/ToastContainer';
-import { getKeycloak } from '@/lib/keycloak';
 import Logo from '@/components/Logo';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { BellIcon, MoonIcon, SunIcon } from '@/assets/icons';
@@ -14,7 +13,6 @@ function Layout() {
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const { showToast } = useToast();
-  const navigate = useNavigate();
   const location = useLocation();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -29,9 +27,7 @@ function Layout() {
 
   const handleLogout = () => {
     setIsProfileOpen(false);
-    const kc = getKeycloak();
-    logout();
-    if (!kc) navigate('/login');
+    void logout();
   };
 
   const handleComingSoon = useCallback(
