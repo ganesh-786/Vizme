@@ -376,7 +376,7 @@
   "actionTokenGeneratedByAdminLifespan": 43200,
   "actionTokenGeneratedByUserLifespan": 300,
   "smtpServer": {},
-  "loginTheme": "keycloak",
+  "loginTheme": "vizme",
   "accountTheme": "keycloak.v2",
   "internationalizationEnabled": false,
   "supportedLocales": [],

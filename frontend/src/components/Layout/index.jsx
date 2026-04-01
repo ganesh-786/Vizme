@@ -1,4 +1,4 @@
-import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -13,7 +13,6 @@ function Layout() {
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const { showToast } = useToast();
-  const navigate = useNavigate();
   const location = useLocation();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -28,8 +27,7 @@ function Layout() {
 
   const handleLogout = () => {
     setIsProfileOpen(false);
-    logout();
-    navigate('/login');
+    void logout();
   };
 
   const handleComingSoon = useCallback(

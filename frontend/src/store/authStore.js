@@ -21,10 +21,24 @@ export const useAuthStore = create((set, get) => ({
 
   logout: () => {
     const kc = getKeycloak();
-    if (kc) kc.logout();
+    const postLogout = `${window.location.origin}/login`;
+
+    // IMPORTANT: Do not clear isAuthenticated before Keycloak logout.
+    // Clearing it routes to /login, whose effect calls kc.login() immediately and
+    // races / cancels RP-initiated logout — user stays signed in.
+    if (kc) {
+      try {
+        kc.logout({ redirectUri: postLogout });
+        return;
+      } catch (err) {
+        console.error('Keycloak logout failed, falling back to local sign-out', err);
+      }
+    }
+
     set({
       user: null,
       isAuthenticated: false,
     });
+    window.location.assign('/login');
   },
 }));

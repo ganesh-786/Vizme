@@ -69,6 +69,9 @@ services:
       - "8080:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak/themes:/opt/keycloak/themes:ro
+      # Login theme images: single source of truth (no duplicate copies under themes/…/img)
+      - ../frontend/public:/opt/keycloak/themes/vizme/login/resources/img:ro
     env_file:
       - .env
     healthcheck:
