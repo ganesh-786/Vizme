@@ -19,6 +19,12 @@ const MIMIR_PUSH_URL = `${config.urls.mimir.replace(/\/$/, '')}/api/v1/push`;
  * In-memory cumulative state for Mimir remote-write values.
  * Key: `${tenantId}::user_metric_${name}::${sortedLabelPairs}`
  */
+/**
+ * Stores cumulative counter/gauge values AND the full label set so the
+ * heartbeat can re-push current values periodically, keeping increase()
+ * accurate even when real events are sparse.
+ * Value: { value: number, labels: object } (labels include __name__)
+ */
 const cumulativeState = new Map();
 
 function hashLabels(labels) {
@@ -36,36 +42,37 @@ function hashLabels(labels) {
  * - gauge inc/dec: accumulate relative change
  * - histogram/summary: pass raw observation
  */
-function resolveValue(metric, tenantId) {
+function resolveValue(metric, tenantId, fullLabels) {
   const type = (metric.type || 'gauge').toLowerCase();
   const operation = metric.operation || 'set';
   const fullName = `user_metric_${metric.name}`;
   const labelHash = hashLabels({ ...(metric.labels || {}), __name__: fullName });
   const stateKey = `${tenantId}::${fullName}::${labelHash}`;
 
+  const entry = cumulativeState.get(stateKey);
+  const currentValue = entry ? entry.value : 0;
+
   if (type === 'counter') {
-    const current = cumulativeState.get(stateKey) || 0;
-    const next = current + Math.abs(metric.value);
-    cumulativeState.set(stateKey, next);
+    const next = currentValue + Math.abs(metric.value);
+    cumulativeState.set(stateKey, { value: next, labels: fullLabels, tenantId });
     return next;
   }
 
   if (type === 'gauge') {
-    const current = cumulativeState.get(stateKey) || 0;
     let next;
     switch (operation) {
       case 'increment':
-        next = current + Math.abs(metric.value);
+        next = currentValue + Math.abs(metric.value);
         break;
       case 'decrement':
-        next = current - Math.abs(metric.value);
+        next = currentValue - Math.abs(metric.value);
         break;
       case 'set':
       default:
         next = metric.value;
         break;
     }
-    cumulativeState.set(stateKey, next);
+    cumulativeState.set(stateKey, { value: next, labels: fullLabels, tenantId });
     return next;
   }
 
@@ -88,7 +95,7 @@ export async function pushMetricToMimir({ name, type, value, labels = {}, operat
 
   const fullName = `user_metric_${name}`;
   const metricLabels = { ...labels, __name__: fullName };
-  const resolved = resolveValue({ name, type, value, labels, operation }, String(userId));
+  const resolved = resolveValue({ name, type, value, labels, operation }, String(userId), metricLabels);
 
   try {
     await pushTimeseries(
@@ -128,9 +135,10 @@ export async function pushMetricsToMimir(metrics) {
 
   for (const [tenantId, tenantMetrics] of byTenant) {
     const timeseries = tenantMetrics.map((m) => {
-      const resolved = resolveValue(m, tenantId);
+      const fullLabels = { ...(m.labels || {}), __name__: `user_metric_${m.name}` };
+      const resolved = resolveValue(m, tenantId, fullLabels);
       return {
-        labels: { ...(m.labels || {}), __name__: `user_metric_${m.name}` },
+        labels: fullLabels,
         samples: [{ value: resolved, timestamp: Date.now() }],
       };
     });
@@ -156,5 +164,52 @@ export function clearTenantState(tenantId) {
   const prefix = `${tenantId}::`;
   for (const key of cumulativeState.keys()) {
     if (key.startsWith(prefix)) cumulativeState.delete(key);
+  }
+}
+
+/**
+ * Counter heartbeat — periodically re-pushes the current cumulative value
+ * for every tracked series so that PromQL increase() has dense samples and
+ * does not over-extrapolate on sparse event data (e.g. a few orders/day).
+ */
+let _heartbeatTimer = null;
+
+export function startCounterHeartbeat(intervalMs = 60_000) {
+  if (_heartbeatTimer) return;
+  const mimirUrl = config.urls.mimir?.replace(/\/$/, '');
+  if (!mimirUrl) return;
+  const pushUrl = `${mimirUrl}/api/v1/push`;
+
+  _heartbeatTimer = setInterval(async () => {
+    if (cumulativeState.size === 0) return;
+
+    const byTenant = new Map();
+    for (const [, entry] of cumulativeState) {
+      if (!entry.labels || !entry.tenantId) continue;
+      const tid = entry.tenantId;
+      if (!byTenant.has(tid)) byTenant.set(tid, []);
+      byTenant.get(tid).push({
+        labels: entry.labels,
+        samples: [{ value: entry.value, timestamp: Date.now() }],
+      });
+    }
+
+    for (const [tenantId, timeseries] of byTenant) {
+      try {
+        await pushTimeseries(timeseries, {
+          url: pushUrl,
+          headers: { 'X-Scope-OrgID': tenantId, 'Content-Encoding': 'snappy' },
+        });
+      } catch (err) {
+        logger.warn({ err, tenantId }, 'Counter heartbeat push failed');
+      }
+    }
+  }, intervalMs);
+}
+
+export function stopCounterHeartbeat() {
+  if (_heartbeatTimer) {
+    clearInterval(_heartbeatTimer);
+    _heartbeatTimer = null;
   }
 }

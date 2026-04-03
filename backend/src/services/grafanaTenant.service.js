@@ -1,6 +1,10 @@
 /**
  * Grafana tenant provisioning for Mimir hard isolation.
  * Creates org + datasource per user with X-Scope-OrgID so each user only sees their metrics.
+ *
+ * Product-facing charts are rendered in the React app (Recharts) via /api/v1/metrics/dashboard;
+ * Grafana here is an optional ops / power-user surface — see docs/VISUALIZATION_AND_GRAFANA.md.
+ * Do not treat provisioned Grafana JSON as the source of truth for customer KPI layouts.
  */
 import fs from 'fs';
 import path from 'path';

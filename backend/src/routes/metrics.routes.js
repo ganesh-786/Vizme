@@ -96,25 +96,33 @@ router.post('/',
           continue;
         }
 
-        // Record metric in Prometheus registry
+        // Record metric in Prometheus registry + Mimir (labels must match for cardinality)
         try {
-          recordMetric({
-            name: metric.name,
-            type: metric.type,
-            value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
-            labels: metric.labels || {},
-            operation: metric.operation
-          }, userId);
+          const mergedLabels = { ...(metric.labels || {}) };
+          if (req.apiKey.site_id != null) {
+            mergedLabels.site_id = String(req.apiKey.site_id);
+          }
+
+          recordMetric(
+            {
+              name: metric.name,
+              type: metric.type,
+              value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
+              labels: mergedLabels,
+              operation: metric.operation,
+            },
+            userId
+          );
 
           validMetrics.push({
             name: metric.name,
             type: metric.type,
             value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
             labels: {
-              ...metric.labels,
-              user_id: userId.toString()
+              ...mergedLabels,
+              user_id: userId.toString(),
             },
-            operation: metric.operation
+            operation: metric.operation,
           });
         } catch (error) {
           errors_list.push({
@@ -189,7 +197,7 @@ router.get('/dashboard',
   async (req, res, next) => {
     try {
       const userId = req.user.id;
-      const data = await fetchDashboardMetrics(userId);
+      const data = await fetchDashboardMetrics(userId, req.query.site_id);
       res.json({ success: true, data });
     } catch (error) {
       next(error);

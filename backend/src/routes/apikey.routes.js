@@ -5,6 +5,7 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
+import { ensureSiteOwnedByUser } from '../services/dashboardWidget.service.js';
 
 const router = express.Router();
 
@@ -36,7 +37,7 @@ const maskApiKey = (key) => {
 router.get('/', async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT id, key_name, metric_config_id, is_active, created_at, updated_at
+      `SELECT id, key_name, metric_config_id, site_id, is_active, created_at, updated_at
        FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user.id]
     );
@@ -65,10 +66,11 @@ router.get('/user-key', async (req, res, next) => {
   try {
     // Look for an existing active user-level key (metric_config_id IS NULL)
     const existing = await query(
-      `SELECT id, key_name, is_active, created_at, updated_at
+      `SELECT id, key_name, site_id, is_active, created_at, updated_at
        FROM api_keys
        WHERE user_id = $1
          AND metric_config_id IS NULL
+         AND site_id IS NULL
          AND is_active = true
        ORDER BY created_at ASC
        LIMIT 1`,
@@ -86,7 +88,7 @@ router.get('/user-key', async (req, res, next) => {
       });
     }
 
-    // No user-level key found
+    // No account-wide user-level key found
     res.json({
       success: true,
       data: null,
@@ -108,10 +110,11 @@ router.post('/ensure', async (req, res, next) => {
   try {
     // Look for an existing active user-level key (metric_config_id IS NULL).
     const existing = await query(
-      `SELECT id, key_name, is_active, created_at, updated_at
+      `SELECT id, key_name, site_id, is_active, created_at, updated_at
        FROM api_keys
        WHERE user_id = $1
          AND metric_config_id IS NULL
+         AND site_id IS NULL
          AND is_active = true
        ORDER BY created_at ASC
        LIMIT 1`,
@@ -129,7 +132,7 @@ router.post('/ensure', async (req, res, next) => {
       });
     }
 
-    // ---- No existing key — generate a user-level key ---------------------
+    // ---- No existing account-wide key — generate one ---------------------
     const apiKey = generateApiKey();
     const keyName = 'Account API Key';
 
@@ -145,10 +148,11 @@ router.post('/ensure', async (req, res, next) => {
       // Handle race condition: another concurrent request already created it.
       if (err.code === '23505') {
         const retry = await query(
-          `SELECT id, key_name, is_active, created_at, updated_at
+          `SELECT id, key_name, site_id, is_active, created_at, updated_at
            FROM api_keys
            WHERE user_id = $1
              AND metric_config_id IS NULL
+             AND site_id IS NULL
              AND is_active = true
            ORDER BY created_at ASC
            LIMIT 1`,
@@ -197,6 +201,7 @@ router.post(
       .trim()
       .isLength({ min: 1, max: 255 })
       .withMessage('Key name is required'),
+    body('site_id').optional({ nullable: true }),
   ],
   async (req, res, next) => {
     try {
@@ -206,11 +211,20 @@ router.post(
       }
 
       const { key_name } = req.body;
+      let siteId = null;
+      if (req.body.site_id != null && req.body.site_id !== '') {
+        const sid = parseInt(String(req.body.site_id), 10);
+        if (Number.isNaN(sid)) throw new BadRequestError('Invalid site_id');
+        const ok = await ensureSiteOwnedByUser(sid, req.user.id);
+        if (!ok) throw new BadRequestError('site_id not found');
+        siteId = sid;
+      }
+
       const apiKey = generateApiKey();
 
       const result = await query(
-        'INSERT INTO api_keys (user_id, key_name, api_key) VALUES ($1, $2, $3) RETURNING id, key_name, api_key, is_active, created_at',
-        [req.user.id, key_name, apiKey]
+        'INSERT INTO api_keys (user_id, key_name, api_key, site_id) VALUES ($1, $2, $3, $4) RETURNING id, key_name, api_key, site_id, is_active, created_at',
+        [req.user.id, key_name, apiKey, siteId]
       );
 
       const newRow = result.rows[0];
@@ -264,6 +278,7 @@ router.patch(
   [
     body('key_name').optional().trim().isLength({ min: 1, max: 255 }),
     body('is_active').optional().isBoolean(),
+    body('site_id').optional({ nullable: true }),
   ],
   async (req, res, next) => {
     try {
@@ -300,6 +315,19 @@ router.patch(
         values.push(is_active);
       }
 
+      if (req.body.site_id !== undefined) {
+        let siteId = null;
+        if (req.body.site_id != null && req.body.site_id !== '') {
+          const sid = parseInt(String(req.body.site_id), 10);
+          if (Number.isNaN(sid)) throw new BadRequestError('Invalid site_id');
+          const ok = await ensureSiteOwnedByUser(sid, req.user.id);
+          if (!ok) throw new BadRequestError('site_id not found');
+          siteId = sid;
+        }
+        updates.push(`site_id = $${paramCount++}`);
+        values.push(siteId);
+      }
+
       if (updates.length === 0) {
         throw new BadRequestError('No fields to update');
       }
@@ -309,7 +337,7 @@ router.patch(
 
       const whereClause = `WHERE id = $${paramCount++} AND user_id = $${paramCount++}`;
       const result = await query(
-        `UPDATE api_keys SET ${updates.join(', ')} ${whereClause} RETURNING id, key_name, is_active, updated_at`,
+        `UPDATE api_keys SET ${updates.join(', ')} ${whereClause} RETURNING id, key_name, site_id, is_active, updated_at`,
         values
       );
 

@@ -169,6 +169,48 @@ const runMigrations = async () => {
       END IF;
     END $$`,
 
+    // Sites (properties) per user — optional site_id label on metrics when ingesting with a site-scoped API key
+    `CREATE TABLE IF NOT EXISTS sites (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_sites_user_id ON sites(user_id)`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_keys' AND column_name = 'site_id') THEN
+        ALTER TABLE api_keys ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL;
+      END IF;
+    END $$`,
+
+    `CREATE INDEX IF NOT EXISTS idx_api_keys_site_id ON api_keys(site_id)`,
+
+    // Dashboard widgets: config-driven KPIs for Recharts (per user, optionally per site)
+    `CREATE TABLE IF NOT EXISTS dashboard_widgets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      metric_name VARCHAR(255) NOT NULL,
+      query_kind VARCHAR(50) NOT NULL CHECK (query_kind IN ('increase_24h', 'max_latest', 'custom')),
+      promql_custom TEXT,
+      title VARCHAR(255) NOT NULL,
+      subtitle TEXT,
+      section VARCHAR(100) DEFAULT 'primary',
+      sort_order INTEGER DEFAULT 0,
+      format VARCHAR(20) DEFAULT 'number' CHECK (format IN ('currency', 'number', 'percent', 'integer')),
+      currency_code VARCHAR(10) DEFAULT 'USD',
+      include_in_multi_chart BOOLEAN DEFAULT false,
+      featured_chart BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_dashboard_widgets_user_id ON dashboard_widgets(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dashboard_widgets_site_id ON dashboard_widgets(site_id)`,
+
     // Indexes
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`,

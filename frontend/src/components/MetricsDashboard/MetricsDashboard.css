@@ -33,6 +33,50 @@
   gap: 1rem;
 }
 
+.metrics-dashboard__actions--wrap {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.metrics-dashboard__site-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.metrics-dashboard__site-filter-label {
+  white-space: nowrap;
+}
+
+.metrics-dashboard__site-select {
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  max-width: 14rem;
+}
+
+.metrics-dashboard__section {
+  margin-bottom: 0.25rem;
+}
+
+.metrics-dashboard__section-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem 0;
+}
+
+.metrics-dashboard__chart-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: -0.5rem 0 0.75rem 0;
+}
+
 .metrics-dashboard__refresh {
   font-size: 0.75rem;
   color: var(--text-tertiary);
@@ -226,4 +270,142 @@
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* Section dividers for metric categories */
+.metrics-dashboard__section-divider {
+  margin: 1.5rem 0 1rem 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.metrics-dashboard__section-heading {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem 0;
+  letter-spacing: 0.01em;
+}
+
+/* 3-column grid variant for Web Vitals */
+.metrics-dashboard__stats-grid--three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1.25rem;
+}
+
+/* Stat card variants */
+.metrics-dashboard__stat--perf {
+  border-left: 3px solid #06b6d4;
+}
+
+.metrics-dashboard__stat--vitals {
+  border-left: 3px solid #14b8a6;
+}
+
+.metrics-dashboard__stat--error {
+  border-left: 3px solid #ef4444;
+}
+
+.metrics-dashboard__stat--engagement {
+  border-left: 3px solid #10b981;
+}
+
+@media (max-width: 768px) {
+  .metrics-dashboard__stats-grid--three-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .metrics-dashboard__stats-grid--three-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+/* Performance & Web Vitals radar chart */
+.metrics-dashboard__perf-chart {
+  margin-bottom: 1.25rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1rem 0.5rem;
+}
+
+.metrics-dashboard__perf-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: 0.625rem;
+  padding: 0.125rem 0.5rem;
+  border: 1.5px solid;
+  border-radius: 9999px;
+  vertical-align: middle;
+  line-height: 1.4;
+  min-width: 2rem;
+  text-align: center;
+}
+
+/* Perf/Vitals tooltip (custom Recharts tooltip) */
+.perf-vitals-tooltip {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 0.875rem 1rem;
+  min-width: 270px;
+  pointer-events: none;
+}
+
+.perf-vitals-tooltip__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.perf-vitals-tooltip__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.perf-vitals-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.perf-vitals-tooltip__indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.perf-vitals-tooltip__label {
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+}
+
+.perf-vitals-tooltip__value {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.perf-vitals-tooltip__rating {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-align: right;
+  min-width: 4.5rem;
+  white-space: nowrap;
 }

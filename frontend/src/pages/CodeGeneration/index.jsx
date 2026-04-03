@@ -22,6 +22,7 @@ function CodeGeneration() {
   const navigate = useNavigate();
   const [selectedFramework, setSelectedFramework] = useState('javascript');
   const [autoPageViews, setAutoPageViews] = useState(true);
+  const [autoInteractions, setAutoInteractions] = useState(false);
   const [scrollDepth, setScrollDepth] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('not_detected');
   const [checking, setChecking] = useState(false);
@@ -85,7 +86,7 @@ function CodeGeneration() {
     try {
       const response = await codeGenerationAPI.generate(
         selectedApiKey.id,
-        { autoTrack: autoPageViews, customEvents: true }
+        { autoTrack: autoPageViews, customEvents: true, autoInteractions }
       );
 
       setGeneratedCode(response.data.code);
@@ -97,19 +98,19 @@ function CodeGeneration() {
     } finally {
       setGenerating(false);
     }
-  }, [selectedApiKey, autoPageViews]);
+  }, [selectedApiKey, autoPageViews, autoInteractions]);
 
   // Auto-generate code when API key or tracking config changes
   useEffect(() => {
     if (selectedApiKey) {
       generateCode();
     }
-  }, [selectedApiKey, autoPageViews, generateCode]);
+  }, [selectedApiKey, autoPageViews, autoInteractions, generateCode]);
 
   // Fallback snippet template if backend is unavailable
   const getFallbackSnippet = () => {
     const appId = selectedApiKey?.masked_key || 'vz_your_api_key';
-    return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=${encodeURIComponent(appId)}&a=${autoPageViews ? '1' : '0'}&c=1';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
+    return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=${encodeURIComponent(appId)}&a=${autoPageViews ? '1' : '0'}&c=1&i=${autoInteractions ? '1' : '0'}';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
   };
 
   // Get framework-specific wrapper for the generated code
@@ -349,6 +350,21 @@ export class VizmeService {
                   <span className="cg-option-label">Auto Page Views</span>
                   <span className="cg-option-desc">
                     Automatically track navigation changes in SPAs.
+                  </span>
+                </div>
+              </label>
+              <label className="cg-config-option">
+                <input
+                  type="checkbox"
+                  checked={autoInteractions}
+                  onChange={(e) => setAutoInteractions(e.target.checked)}
+                  className="cg-checkbox"
+                />
+                <div className="cg-checkbox-custom">{autoInteractions && <CheckIcon size={14} />}</div>
+                <div className="cg-option-text">
+                  <span className="cg-option-label">Auto Interactions</span>
+                  <span className="cg-option-desc">
+                    Automatically capture clicks, inputs, and form changes with zero markup.
                   </span>
                 </div>
               </label>

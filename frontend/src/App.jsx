@@ -6,6 +6,8 @@ import Dashboard from '@/pages/Dashboard';
 import MetricConfigs, { MetricConfigForm } from '@/pages/MetricConfigs';
 import ApiKeys from '@/pages/ApiKeys';
 import CodeGeneration from '@/pages/CodeGeneration';
+import Sites from '@/pages/Sites';
+import DashboardWidgets, { DashboardWidgetForm } from '@/pages/DashboardWidgets';
 import Layout from '@/components/Layout';
 import { ToastProvider } from '@/components/ToastContainer';
 import { ConfirmModalProvider } from '@/components/ConfirmModal';
@@ -38,6 +40,10 @@ function App() {
               <Route path="metric-configs/:id/edit" element={<MetricConfigForm isEdit />} />
               <Route path="api-keys" element={<ApiKeys />} />
               <Route path="code-generation" element={<CodeGeneration />} />
+              <Route path="sites" element={<Sites />} />
+              <Route path="dashboard-widgets" element={<DashboardWidgets />} />
+              <Route path="dashboard-widgets/new" element={<DashboardWidgetForm />} />
+              <Route path="dashboard-widgets/:id/edit" element={<DashboardWidgetForm isEdit />} />
             </Route>
           </Routes>
         </ConfirmModalProvider>

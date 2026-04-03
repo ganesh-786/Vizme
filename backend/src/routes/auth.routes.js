@@ -238,7 +238,7 @@ router.get('/onboarding-status', authenticate, async (req, res, next) => {
       query('SELECT COUNT(*)::int AS count FROM metric_configs WHERE user_id = $1', [req.user.id]),
       query(
         `SELECT id FROM api_keys
-         WHERE user_id = $1 AND metric_config_id IS NULL AND is_active = true
+         WHERE user_id = $1 AND metric_config_id IS NULL AND site_id IS NULL AND is_active = true
          LIMIT 1`,
         [req.user.id]
       ),

@@ -27,7 +27,8 @@ router.post('/',
   [
     body('api_key_id').optional({ nullable: true }).isInt().withMessage('api_key_id must be an integer'),
     body('auto_track').optional().isBoolean(),
-    body('custom_events').optional().isBoolean()
+    body('custom_events').optional().isBoolean(),
+    body('auto_interactions').optional().isBoolean()
   ],
   async (req, res, next) => {
     try {
@@ -36,7 +37,7 @@ router.post('/',
         throw new BadRequestError('Validation failed', errors.array());
       }
 
-      const { api_key_id, auto_track = true, custom_events = true } = req.body;
+      const { api_key_id, auto_track = true, custom_events = true, auto_interactions = false } = req.body;
 
       // ----- Resolve API key -------------------------------------------------
       let apiKeyRow;
@@ -55,7 +56,7 @@ router.post('/',
         // Auto-resolve: pick the user's primary user-level key
         const apiKeyResult = await query(
           `SELECT id, api_key FROM api_keys
-           WHERE user_id = $1 AND metric_config_id IS NULL AND is_active = true
+           WHERE user_id = $1 AND metric_config_id IS NULL AND site_id IS NULL AND is_active = true
            ORDER BY created_at ASC LIMIT 1`,
           [req.user.id]
         );
@@ -81,7 +82,8 @@ router.post('/',
         apiKey,
         baseUrl,
         autoTrack: auto_track,
-        customEvents: custom_events
+        customEvents: custom_events,
+        autoInteractions: auto_interactions
       });
 
       // ----- Mark onboarding complete (idempotent) --------------------------

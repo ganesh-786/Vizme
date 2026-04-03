@@ -339,7 +339,7 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time(user_metric_page_view{user_id=~\"^${user_id}$\"}[24h])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"user_metric_(page_view|page_views)\", user_id=~\"^${user_id}$\"}[24h])) or vector(0)",
           "refId": "A",
           "datasource": {
             "type": "prometheus",

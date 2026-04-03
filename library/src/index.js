@@ -32,11 +32,6 @@ class VizmeClient {
             this.flushQueue();
           }
         });
-        
-        // Flush on page unload - use sendBeacon when available for reliability
-        window.addEventListener('beforeunload', () => {
-          this.flush(true);
-        });
       }
     }
     
@@ -266,11 +261,18 @@ class VizmeClient {
   
   // Auto-Tracker - automatically tracks common web events
   class AutoTracker {
-    constructor(client) {
+    constructor(client, options = {}) {
       this.client = client;
       this.isActive = false;
       this.observers = [];
-      this.startTime = Date.now();
+      this.autoInteractions = options.autoInteractions || false;
+      this._lastAutoClick = { ts: 0, id: '' };
+
+      this.currentPage = typeof window !== 'undefined' ? window.location.pathname : '/';
+      this.currentPageStartTime = Date.now();
+      this._maxScroll = 0;
+      this._clsValue = 0;
+      this._latestLcp = 0;
     }
     
     start() {
@@ -284,19 +286,20 @@ class VizmeClient {
       this.trackForms();
       this.trackScroll();
       this.trackTimeOnPage();
+      if (this.autoInteractions) {
+        this.trackAutoInteractions();
+      }
     }
     
     trackPageView() {
       if (typeof window === 'undefined') return;
       
-      // Track initial page view
-      this.client.track('page_view', 1, {
+      this.client.increment('page_view', 1, {
         page: window.location.pathname,
         referrer: document.referrer || '',
         url: window.location.href
       });
       
-      // Track SPA navigation (React Router, Vue Router, etc.)
       this.trackSPANavigation();
     }
     
@@ -306,11 +309,20 @@ class VizmeClient {
       const originalPushState = history.pushState;
       const originalReplaceState = history.replaceState;
       
-      const trackNavigation = (url) => {
+      const onNavigate = (url) => {
         const pathname = new URL(url, window.location.origin).pathname;
-        this.client.track('page_view', 1, {
+        const previousPage = this.currentPage;
+        const elapsed = Math.round((Date.now() - this.currentPageStartTime) / 1000);
+        if (elapsed > 0) {
+          this.client.track('time_on_page', elapsed, { page: previousPage });
+        }
+        this.currentPage = pathname;
+        this.currentPageStartTime = Date.now();
+        this._maxScroll = 0;
+        
+        this.client.increment('page_view', 1, {
           page: pathname,
-          referrer: window.location.pathname,
+          referrer: previousPage,
           url: url
         });
       };
@@ -318,21 +330,30 @@ class VizmeClient {
       history.pushState = function(...args) {
         originalPushState.apply(history, args);
         if (args[2]) {
-          trackNavigation(args[2]);
+          onNavigate(args[2]);
         }
       };
       
       history.replaceState = function(...args) {
         originalReplaceState.apply(history, args);
         if (args[2]) {
-          trackNavigation(args[2]);
+          onNavigate(args[2]);
         }
       };
       
       window.addEventListener('popstate', () => {
-        this.client.track('page_view', 1, {
+        const previousPage = this.currentPage;
+        const elapsed = Math.round((Date.now() - this.currentPageStartTime) / 1000);
+        if (elapsed > 0) {
+          this.client.track('time_on_page', elapsed, { page: previousPage });
+        }
+        this.currentPage = window.location.pathname;
+        this.currentPageStartTime = Date.now();
+        this._maxScroll = 0;
+        
+        this.client.increment('page_view', 1, {
           page: window.location.pathname,
-          referrer: document.referrer || '',
+          referrer: previousPage,
           url: window.location.href
         });
       });
@@ -342,34 +363,40 @@ class VizmeClient {
       if (typeof window === 'undefined' || !window.performance) return;
       
       window.addEventListener('load', () => {
-        const timing = performance.timing;
-        if (timing) {
-          const loadTime = timing.loadEventEnd - timing.navigationStart;
-          const ttfb = timing.responseStart - timing.navigationStart;
-          const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
-          
-          this.client.track('page_load_time', loadTime, {
-            page: window.location.pathname
-          });
-          
-          this.client.track('ttfb', ttfb, {
-            page: window.location.pathname
-          });
-          
-          this.client.track('dom_content_loaded', domReady, {
-            page: window.location.pathname
-          });
-        }
+        // Defer so the browser populates loadEventEnd after all load handlers complete
+        setTimeout(() => {
+          const page = window.location.pathname;
+          const navEntries = performance.getEntriesByType('navigation');
+          if (navEntries && navEntries.length > 0) {
+            const nav = navEntries[0];
+            const pageLoad = Math.round(nav.loadEventEnd - nav.startTime);
+            const ttfb = Math.round(nav.responseStart - nav.startTime);
+            const domReady = Math.round(nav.domContentLoadedEventEnd - nav.startTime);
+            if (pageLoad > 0) this.client.track('page_load_time', pageLoad, { page });
+            if (ttfb > 0) this.client.track('ttfb', ttfb, { page });
+            if (domReady > 0) this.client.track('dom_content_loaded', domReady, { page });
+          } else if (performance.timing) {
+            const timing = performance.timing;
+            const pageLoad = timing.loadEventEnd - timing.navigationStart;
+            const ttfb = timing.responseStart - timing.navigationStart;
+            const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
+            if (pageLoad > 0) this.client.track('page_load_time', pageLoad, { page });
+            if (ttfb > 0) this.client.track('ttfb', ttfb, { page });
+            if (domReady > 0) this.client.track('dom_content_loaded', domReady, { page });
+          }
+
+          if (this._latestLcp > 0) {
+            this.client.track('lcp', this._latestLcp, { page });
+          }
+        }, 0);
       });
       
-      // Track Web Vitals if available
       if ('PerformanceObserver' in window) {
         this.trackWebVitals();
       }
     }
     
     trackWebVitals() {
-      // First Contentful Paint (FCP)
       try {
         const fcpObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
@@ -382,26 +409,18 @@ class VizmeClient {
         });
         fcpObserver.observe({ entryTypes: ['paint'] });
         this.observers.push(fcpObserver);
-      } catch (e) {
-        // PerformanceObserver not supported
-      }
+      } catch (e) { /* not supported */ }
       
-      // Largest Contentful Paint (LCP)
       try {
         const lcpObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
           const lastEntry = entries[entries.length - 1];
-          this.client.track('lcp', Math.round(lastEntry.renderTime || lastEntry.loadTime), {
-            page: window.location.pathname
-          });
+          this._latestLcp = Math.round(lastEntry.renderTime || lastEntry.loadTime);
         });
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
         this.observers.push(lcpObserver);
-      } catch (e) {
-        // Not supported
-      }
+      } catch (e) { /* not supported */ }
       
-      // First Input Delay (FID)
       try {
         const fidObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
@@ -412,31 +431,19 @@ class VizmeClient {
         });
         fidObserver.observe({ entryTypes: ['first-input'] });
         this.observers.push(fidObserver);
-      } catch (e) {
-        // Not supported
-      }
+      } catch (e) { /* not supported */ }
       
-      // Cumulative Layout Shift (CLS)
       try {
-        let clsValue = 0;
         const clsObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
             if (!entry.hadRecentInput) {
-              clsValue += entry.value;
+              this._clsValue += entry.value;
             }
           });
         });
         clsObserver.observe({ entryTypes: ['layout-shift'] });
         this.observers.push(clsObserver);
-        
-        window.addEventListener('beforeunload', () => {
-          this.client.track('cls', Math.round(clsValue * 1000), {
-            page: window.location.pathname
-          });
-        });
-      } catch (e) {
-        // Not supported
-      }
+      } catch (e) { /* not supported */ }
     }
     
     trackErrors() {
@@ -515,7 +522,6 @@ class VizmeClient {
     trackScroll() {
       if (typeof window === 'undefined') return;
       
-      let maxScroll = 0;
       let ticking = false;
       
       const trackScrollDepth = () => {
@@ -528,10 +534,10 @@ class VizmeClient {
           const clientHeight = document.documentElement.clientHeight;
           const scrollPercent = Math.round((scrollTop + clientHeight) / scrollHeight * 100);
           
-          if (scrollPercent > maxScroll) {
-            maxScroll = scrollPercent;
+          if (scrollPercent > this._maxScroll) {
+            this._maxScroll = scrollPercent;
             this.client.set('scroll_depth', scrollPercent, {
-              page: window.location.pathname
+              page: this.currentPage || window.location.pathname
             });
           }
           
@@ -540,26 +546,91 @@ class VizmeClient {
       };
       
       window.addEventListener('scroll', trackScrollDepth, { passive: true });
-      
-      // Track final scroll depth on page unload
-      window.addEventListener('beforeunload', () => {
-        this.client.set('max_scroll_depth', maxScroll, {
-          page: window.location.pathname
-        });
-      });
     }
     
     trackTimeOnPage() {
-      if (typeof window === 'undefined') return;
-      
-      window.addEventListener('beforeunload', () => {
-        const timeOnPage = Math.round((Date.now() - this.startTime) / 1000);
-        this.client.track('time_on_page', timeOnPage, {
-          page: window.location.pathname
-        });
-      });
+      // Handled by trackSPANavigation (on route change) and collectFinalMetrics (on unload)
     }
     
+    collectFinalMetrics() {
+      if (typeof window === 'undefined') return;
+      const page = this.currentPage || window.location.pathname;
+      
+      const elapsed = Math.round((Date.now() - this.currentPageStartTime) / 1000);
+      if (elapsed > 0) {
+        this.client.track('time_on_page', elapsed, { page });
+      }
+      
+      if (this._maxScroll > 0) {
+        this.client.set('max_scroll_depth', this._maxScroll, { page });
+      }
+      
+      if (this._clsValue > 0) {
+        this.client.track('cls', Math.round(this._clsValue * 1000), { page });
+      }
+    }
+    
+    trackAutoInteractions() {
+      if (typeof document === 'undefined') return;
+
+      const DEDUP_MS = 300;
+
+      document.addEventListener('click', (e) => {
+        const el = this.findTrackableAncestor(e.target);
+        if (!el) return;
+        // Skip elements already handled by the opt-in data-vizme-track path
+        if (el.hasAttribute('data-vizme-track')) return;
+
+        const elId = (el.id || '') + '|' + (el.tagName || '');
+        const now = Date.now();
+        if (elId === this._lastAutoClick.id && now - this._lastAutoClick.ts < DEDUP_MS) return;
+        this._lastAutoClick = { ts: now, id: elId };
+
+        const labels = {
+          page: window.location.pathname,
+          element: el.tagName.toLowerCase(),
+          interaction_type: 'click'
+        };
+        if (el.id) labels.element_id = el.id;
+        const text = (el.innerText || '').substring(0, 50).trim();
+        if (text) labels.element_text = text;
+        if (el.href) labels.element_href = el.href.substring(0, 200);
+
+        this.client.increment('user_interaction', 1, labels);
+      }, true);
+
+      document.addEventListener('change', (e) => {
+        const el = e.target;
+        if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
+        if (el.hasAttribute('data-vizme-track')) return;
+
+        const labels = {
+          page: window.location.pathname,
+          element: el.tagName.toLowerCase(),
+          interaction_type: 'input_change'
+        };
+        if (el.id) labels.element_id = el.id;
+        else if (el.name) labels.element_id = el.name;
+        if (el.type) labels.input_type = el.type;
+
+        this.client.increment('user_interaction', 1, labels);
+      }, true);
+    }
+
+    findTrackableAncestor(target) {
+      const TRACKABLE = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
+      let el = target;
+      let depth = 0;
+      while (el && el !== document && depth < 5) {
+        if (TRACKABLE.includes(el.tagName) || el.getAttribute('role') === 'button') {
+          return el;
+        }
+        el = el.parentNode;
+        depth++;
+      }
+      return null;
+    }
+
     stop() {
       this.isActive = false;
       // Cleanup observers
@@ -621,7 +692,9 @@ class VizmeClient {
       
       // Initialize auto-tracker if enabled
       if (this.config.autoTrack) {
-        this.autoTracker = new AutoTracker(this.client);
+        this.autoTracker = new AutoTracker(this.client, {
+          autoInteractions: this.config.autoInteractions || false
+        });
         this.autoTracker.start();
       }
 
@@ -641,6 +714,15 @@ class VizmeClient {
           }
         };
         window.addEventListener('vizme:track', this._vizmeTrackHandler);
+      }
+
+      // Unified beforeunload: collect final metrics THEN flush via sendBeacon
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        this._beforeUnloadHandler = () => {
+          if (this.autoTracker) this.autoTracker.collectFinalMetrics();
+          this.client.flush(true);
+        };
+        window.addEventListener('beforeunload', this._beforeUnloadHandler);
       }
     }
 
@@ -704,8 +786,13 @@ class VizmeClient {
     
     // Destroy/cleanup
     destroy() {
-      if (typeof window !== 'undefined' && this._vizmeTrackHandler) {
-        window.removeEventListener('vizme:track', this._vizmeTrackHandler);
+      if (typeof window !== 'undefined') {
+        if (this._vizmeTrackHandler) {
+          window.removeEventListener('vizme:track', this._vizmeTrackHandler);
+        }
+        if (this._beforeUnloadHandler) {
+          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+        }
       }
       if (this.autoTracker) {
         this.autoTracker.stop();

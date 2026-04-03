@@ -19,10 +19,11 @@ const router = express.Router();
  * - k: API key (required)
  * - a: Auto-track enabled (0 or 1, default: 1)
  * - c: Custom events enabled (0 or 1, default: 1)
+ * - i: Auto-interactions enabled (0 or 1, default: 0)
  */
 router.get('/tracker.js', async (req, res, next) => {
   try {
-    const { k: apiKey, a: autoTrackParam, c: customEventsParam } = req.query;
+    const { k: apiKey, a: autoTrackParam, c: customEventsParam, i: autoInteractionsParam } = req.query;
     
     // Validate API key is provided
     if (!apiKey) {
@@ -78,6 +79,7 @@ router.get('/tracker.js', async (req, res, next) => {
     // Parse boolean parameters
     const autoTrack = autoTrackParam !== '0';
     const customEvents = customEventsParam !== '0';
+    const autoInteractions = autoInteractionsParam === '1';
 
     // Build endpoint URL
     const baseUrl = config.api.baseUrl || `${req.protocol}://${req.get('host')}`;
@@ -89,7 +91,8 @@ router.get('/tracker.js', async (req, res, next) => {
       endpoint,
       metrics,
       autoTrack,
-      customEvents
+      customEvents,
+      autoInteractions
     });
 
     // Set proper headers for JavaScript file

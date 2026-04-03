@@ -12,6 +12,8 @@ import { apiKeyRoutes } from './src/routes/apikey.routes.js';
 import { metricConfigRoutes } from './src/routes/metricconfig.routes.js';
 import { codeGenerationRoutes } from './src/routes/codeGeneration.routes.js';
 import { metricsRoutes } from './src/routes/metrics.routes.js';
+import { sitesRoutes } from './src/routes/sites.routes.js';
+import { dashboardWidgetsRoutes } from './src/routes/dashboardWidgets.routes.js';
 import { healthRoutes } from './src/routes/health.routes.js';
 import { trackerRoutes } from './src/routes/tracker.routes.js';
 import {
@@ -22,6 +24,7 @@ import {
 import { initDatabase } from './src/database/connection.js';
 import { config, validateConfig } from './src/config.js';
 import { logger } from './src/logger.js';
+import { startCounterHeartbeat } from './src/services/mimir.service.js';
 import pinoHttp from 'pino-http';
 
 dotenv.config();
@@ -146,6 +149,8 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/api-keys', apiKeyRoutes);
 app.use('/api/v1/metric-configs', metricConfigRoutes);
 app.use('/api/v1/code-generation', codeGenerationRoutes);
+app.use('/api/v1/sites', sitesRoutes);
+app.use('/api/v1/dashboard-widgets', dashboardWidgetsRoutes);
 app.use('/api/v1/metrics', metricsRoutes);
 app.use('/api/v1', trackerRoutes);
 app.use('/api/v1/grafana', grafanaRoutes);
@@ -181,6 +186,8 @@ const server = app.listen(PORT, () => {
 });
 
 setupGrafanaWebSocketProxy(server);
+
+startCounterHeartbeat(60_000);
 
 export { dbInitialized, dbInitPromise };
 export default app;
