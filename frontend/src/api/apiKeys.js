@@ -17,10 +17,10 @@ export const apiKeysAPI = {
   },
 
   /** Manually create a new API key. Raw key is in the response for one-time clipboard copy. */
-  create: async (keyName) => {
-    const response = await client.post('/api-keys', {
-      key_name: keyName,
-    });
+  create: async (keyName, siteId = null) => {
+    const body = { key_name: keyName };
+    if (siteId != null && siteId !== '') body.site_id = siteId;
+    const response = await client.post('/api-keys', body);
     return response.data;
   },
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
 import { onboardingAPI } from '@/api/onboarding';
+import { getEmbedUrl } from '@/api/grafana';
 import {
   AnalyticsIcon,
   CheckIcon,
@@ -14,10 +15,12 @@ import {
   TrendUpIcon,
 } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
-import { GrafanaEmbed } from '@/components/GrafanaEmbed';
+import { MetricsDashboard } from '@/components/MetricsDashboard';
+import { useToast } from '@/components/ToastContainer';
 import './Dashboard.css';
 
 function Dashboard() {
+  const { showToast } = useToast();
   const [stats, setStats] = useState({
     metricConfigs: 0,
     apiKeys: 0,
@@ -41,7 +44,9 @@ function Dashboard() {
         ]);
 
         setStats({
-          metricConfigs: Array.isArray(configsRes) ? configsRes.length : (configsRes?.data?.length ?? 0),
+          metricConfigs: Array.isArray(configsRes)
+            ? configsRes.length
+            : (configsRes?.data?.length ?? 0),
           apiKeys: Array.isArray(keysRes) ? keysRes.length : (keysRes?.data?.length ?? 0),
           loading: false,
         });
@@ -60,7 +65,27 @@ function Dashboard() {
     fetchData();
   }, []);
 
-  const grafanaUrl = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3001';
+  const handleOpenGrafana = async () => {
+    try {
+      const url = await getEmbedUrl({
+        dashboard: 'metrics',
+        from: 'now-1h',
+        to: 'now',
+        refresh: '10s',
+        kiosk: 'tv',
+      });
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const isUnauthorized = err.response?.status === 401;
+      showToast(
+        isUnauthorized
+          ? 'Session expired. Please log in again to open Grafana.'
+          : 'Unable to load Grafana. Please try again.',
+        'error',
+        4000
+      );
+    }
+  };
 
   // Determine which Quick-Start steps are completed
   const step1Done = onboarding.has_metric_configs;
@@ -87,8 +112,8 @@ function Dashboard() {
             <h3 className="setup-complete-title">Setup Complete</h3>
             <p className="setup-complete-text">
               Your API key and tracking snippet are active. All metrics — current and future — are
-              automatically covered by your single API key. No additional setup needed when you create
-              new metric configurations.
+              automatically covered by your single API key. No additional setup needed when you
+              create new metric configurations.
             </p>
           </div>
           <Link to="/api-keys" className="setup-complete-link">
@@ -137,7 +162,10 @@ function Dashboard() {
               <span className="overview-status">{step2Done ? 'Active' : 'Not Created'}</span>
             </div>
             <div className={`overview-note ${step2Done ? '' : 'overview-note--muted'}`}>
-              <span className={`status-dot ${step2Done ? 'status-dot--good' : ''}`} aria-hidden="true" />
+              <span
+                className={`status-dot ${step2Done ? 'status-dot--good' : ''}`}
+                aria-hidden="true"
+              />
               <p>{step2Done ? 'Covers all metrics' : 'Generate to get started'}</p>
             </div>
           </div>
@@ -174,7 +202,13 @@ function Dashboard() {
                 data in real-time.
               </p>
               <Link to="/metric-configs" className={step1Done ? 'text-link' : 'primary-inline-btn'}>
-                {step1Done ? 'Manage Configurations →' : <>Configure Source <span aria-hidden="true">→</span></>}
+                {step1Done ? (
+                  'Manage Configurations →'
+                ) : (
+                  <>
+                    Configure Source <span aria-hidden="true">→</span>
+                  </>
+                )}
               </Link>
             </div>
           </div>
@@ -242,9 +276,13 @@ function Dashboard() {
                 Connect your VIZME endpoint to your Grafana dashboard via our native plugin for
                 visualization.
               </p>
-              <a href={grafanaUrl} target="_blank" rel="noopener noreferrer" className="text-link">
+              <button
+                type="button"
+                onClick={handleOpenGrafana}
+                className="text-link button-as-link"
+              >
                 Open Grafana →
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -259,26 +297,17 @@ function Dashboard() {
               Real-time telemetry data from your connected applications
             </p>
           </div>
-          <a
-            href={grafanaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="metrics-visualization__link"
+          <button
+            type="button"
+            onClick={handleOpenGrafana}
+            className="metrics-visualization__link button-as-link"
           >
             Open Full Dashboard →
-          </a>
+          </button>
         </div>
 
         <div className="metrics-visualization__container">
-          <GrafanaEmbed
-            dashboardUid="metrics"
-            from="now-1h"
-            to="now"
-            refresh="10s"
-            height={450}
-            title="Vizme Metrics Dashboard"
-            kiosk={true}
-          />
+          <MetricsDashboard height={500} showGrafanaLink />
         </div>
 
         <p className="metrics-visualization__hint">

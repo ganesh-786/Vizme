@@ -1,0 +1,5 @@
+# Minimal Alertmanager config for Mimir (fallback when no config uploaded)
+route:
+  receiver: 'default'
+receivers:
+  - name: 'default'

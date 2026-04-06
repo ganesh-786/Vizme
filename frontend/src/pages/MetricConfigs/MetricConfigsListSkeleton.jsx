@@ -31,8 +31,6 @@ function MetricConfigsListSkeleton() {
                 <tr>
                   <th>Config Name</th>
                   <th>Metric Type</th>
-                  <th>Description</th>
-                  <th>Labels</th>
                   <th>Status</th>
                   <th className="actions-header">Actions</th>
                 </tr>
@@ -45,25 +43,6 @@ function MetricConfigsListSkeleton() {
                     </td>
                     <td className="config-type-cell">
                       <Skeleton width="80px" height="16px" stagger={(i % 5) + 1} />
-                    </td>
-                    <td className="config-description-cell">
-                      <Skeleton width="180px" height="14px" stagger={(i % 5) + 1} />
-                    </td>
-                    <td className="config-labels-cell">
-                      <div className="labels-wrapper">
-                        <Skeleton
-                          variant="badge"
-                          width="55px"
-                          height="20px"
-                          stagger={(i % 5) + 1}
-                        />
-                        <Skeleton
-                          variant="badge"
-                          width="48px"
-                          height="20px"
-                          stagger={(i % 5) + 1}
-                        />
-                      </div>
                     </td>
                     <td className="config-status-cell">
                       <Skeleton variant="badge" width="72px" height="24px" stagger={(i % 5) + 1} />

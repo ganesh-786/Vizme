@@ -3,7 +3,10 @@ import { body, validationResult } from 'express-validator';
 import { authenticateApiKey, authenticate } from '../middleware/auth.middleware.js';
 import { metricsLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError } from '../middleware/errorHandler.js';
-import { recordMetric, getMetrics } from '../services/metrics.service.js';
+import { recordMetric } from '../services/metrics.service.js';
+import { pushMetricsToMimir } from '../services/mimir.service.js';
+import { fetchDashboardMetrics } from '../services/mimirQuery.service.js';
+import { config } from '../config.js';
 
 const router = express.Router();
 
@@ -93,23 +96,33 @@ router.post('/',
           continue;
         }
 
-        // Record metric in Prometheus registry
+        // Record metric in Prometheus registry + Mimir (labels must match for cardinality)
         try {
-          recordMetric({
-            name: metric.name,
-            type: metric.type,
-            value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
-            labels: metric.labels || {}
-          }, userId);
+          const mergedLabels = { ...(metric.labels || {}) };
+          if (req.apiKey.site_id != null) {
+            mergedLabels.site_id = String(req.apiKey.site_id);
+          }
+
+          recordMetric(
+            {
+              name: metric.name,
+              type: metric.type,
+              value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
+              labels: mergedLabels,
+              operation: metric.operation,
+            },
+            userId
+          );
 
           validMetrics.push({
             name: metric.name,
             type: metric.type,
             value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
             labels: {
-              ...metric.labels,
-              user_id: userId.toString()
-            }
+              ...mergedLabels,
+              user_id: userId.toString(),
+            },
+            operation: metric.operation,
           });
         } catch (error) {
           errors_list.push({
@@ -122,6 +135,20 @@ router.post('/',
       if (validMetrics.length === 0) {
         throw new BadRequestError('No valid metrics to process', errors_list);
       }
+
+      // Batch push to Mimir (hard tenant isolation)
+      pushMetricsToMimir(
+        validMetrics.map((m) => ({
+          name: m.name,
+          type: m.type,
+          value: m.value,
+          labels: m.labels || {},
+          operation: m.operation,
+          userId: String(req.user.id),
+        }))
+      ).catch((err) => {
+        console.error('Mimir batch push failed:', err);
+      });
 
       res.json({
         success: true,
@@ -149,11 +176,29 @@ router.get('/',
     try {
       res.json({
         success: true,
-        message: 'View your metrics in Grafana or query Prometheus',
-        prometheusUrl: process.env.PROMETHEUS_URL || 'http://localhost:9090',
-        grafanaUrl: process.env.GRAFANA_URL || 'http://localhost:3001',
-        metricsEndpoint: '/metrics'
+        message: 'View your metrics in Grafana (Mimir). User metrics are isolated per tenant.',
+        grafanaUrl: config.urls.grafana,
+        mimirUrl: config.urls.mimir
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/metrics/dashboard
+ *
+ * Fetch dashboard metrics from Mimir (tenant-isolated).
+ * Returns stats and timeseries for the custom metrics dashboard.
+ */
+router.get('/dashboard',
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const data = await fetchDashboardMetrics(userId, req.query.site_id);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }

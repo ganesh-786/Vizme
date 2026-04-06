@@ -15,6 +15,12 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true
+      },
+      // Grafana embed: proxy so iframe loads same-origin (cookie works, avoids 401)
+      '/grafana': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        ws: true
       }
     }
   }

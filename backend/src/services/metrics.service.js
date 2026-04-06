@@ -1,16 +1,13 @@
 import { Registry, Counter, Gauge, Histogram, Summary } from 'prom-client';
+import { config } from '../config.js';
 
 /**
  * Prometheus Metrics Service
- * 
- * This service manages Prometheus metrics using the prom-client library.
- * Metrics are stored in memory and exposed via /metrics endpoint for Prometheus scraping.
- * 
- * Best Practices:
- * - Use appropriate metric types (Counter, Gauge, Histogram, Summary)
- * - Label metrics with user_id for multi-tenancy
- * - Register all metrics in a single registry
- * - Expose metrics endpoint for Prometheus scraping
+ *
+ * Manages user-submitted metrics with multi-tenant isolation.
+ * - Validates and records in prom-client (for cardinality tracking)
+ * - User metrics are pushed to Mimir only (via metrics.routes batch push)
+ * - /metrics endpoint exposes app metrics only (no user data) for Prometheus scrape
  */
 
 // Create a custom registry for application metrics
@@ -27,6 +24,32 @@ register.setDefaultLabels({
 // Track metric instances to avoid duplicates
 // Key: `${userId}_${metricName}_${labelHash}`
 const metricInstances = new Map();
+
+/**
+ * Validate and sanitize labels (max keys, max value length). Prevents cardinality explosion.
+ * @param {Object} labels - Raw labels
+ * @returns {Object} - Sanitized labels
+ * @throws {Error} - If validation fails
+ */
+const validateAndSanitizeLabels = (labels) => {
+  const maxKeys = config.metrics.maxLabelsPerMetric;
+  const maxLen = config.metrics.maxLabelValueLength;
+  const keys = Object.keys(labels || {}).filter(k => k !== '_type' && k !== '_operation');
+  if (keys.length > maxKeys) {
+    throw new Error(`Too many labels: max ${maxKeys}, got ${keys.length}`);
+  }
+  const sanitized = {};
+  for (const [key, value] of Object.entries(labels || {})) {
+    if (key === '_type' || key === '_operation') continue;
+    const strKey = String(key);
+    let strVal = String(value);
+    if (strVal.length > maxLen) {
+      strVal = strVal.slice(0, maxLen);
+    }
+    sanitized[strKey] = strVal;
+  }
+  return sanitized;
+};
 
 /**
  * Generate a hash from labels object for consistent key generation
@@ -113,10 +136,25 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
  * @param {Object} metricData.labels - Metric labels
  * @param {string} userId - User ID
  */
+/** Count unique series per user for cardinality limit. */
+const userSeriesCount = new Map();
+
 export const recordMetric = (metricData, userId) => {
   const { name, type, value, labels = {} } = metricData;
   if (process.env.NODE_ENV === 'development') {
     console.log(`[DEBUG] recordMetric called: name=${name}, type=${type}, value=${value}`);
+  }
+
+  // Validate and sanitize labels
+  const sanitizedLabels = validateAndSanitizeLabels(labels);
+
+  // Cardinality limit: reject if user exceeds max series
+  const maxSeries = config.metrics.maxSeriesPerUser;
+  const labelHash = hashLabels(sanitizedLabels);
+  const seriesKey = `${userId}_${name}_${labelHash}`;
+  const currentCount = userSeriesCount.get(userId) ?? new Set();
+  if (!currentCount.has(seriesKey) && currentCount.size >= maxSeries) {
+    throw new Error(`Cardinality limit exceeded: max ${maxSeries} series per user`);
   }
 
   // Validate value
@@ -131,11 +169,11 @@ export const recordMetric = (metricData, userId) => {
   }
 
   // Get or create the metric instance
-  const metric = getOrCreateMetric(name, type, Object.keys(labels));
+  const metric = getOrCreateMetric(name, type, Object.keys(sanitizedLabels));
 
   // Prepare labels with user_id
   const metricLabels = {
-    ...labels,
+    ...sanitizedLabels,
     user_id: userId.toString()
   };
 
@@ -172,7 +210,19 @@ export const recordMetric = (metricData, userId) => {
         // Summaries observe values
         metric.observe(metricLabels, numValue);
         break;
-    }    
+    }
+
+    // Store in memory for reference (optional, for debugging/querying)
+    const key = `${userId}_${name}_${labelHash}`;
+    metricsStore.set(key, {
+      name,
+      type,
+      value: numValue,
+      labels: metricLabels,
+      timestamp: Date.now()
+    });
+    currentCount.add(seriesKey);
+    userSeriesCount.set(userId, currentCount);
 
   } catch (error) {
     console.error(`Error recording metric ${name}:`, error);
@@ -196,4 +246,33 @@ export const getMetrics = async () => {
  */
 export const getRegistry = () => {
   return register;
+};
+
+/**
+ * Clear metrics for a specific user (optional cleanup).
+ * Note: Clears metricsStore and userSeriesCount only. prom-client does not support
+ * removing metrics from the registry; existing series remain until backend restart.
+ * @param {string} userId - User ID
+ */
+export const clearUserMetrics = (userId) => {
+  const keysToDelete = [];
+  for (const [key] of metricsStore) {
+    if (key.startsWith(`${userId}_`)) {
+      keysToDelete.push(key);
+    }
+  }
+  keysToDelete.forEach(key => metricsStore.delete(key));
+  userSeriesCount.delete(userId);
+};
+
+/**
+ * Get metrics statistics (for debugging/monitoring)
+ * @returns {Object} - Statistics about stored metrics
+ */
+export const getMetricsStats = () => {
+  return {
+    totalMetrics: metricsStore.size,
+    totalInstances: metricInstances.size,
+    registryMetrics: register.getMetricsAsArray().length
+  };
 };

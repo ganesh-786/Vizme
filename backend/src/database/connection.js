@@ -1,40 +1,34 @@
-import pg from "pg";
-import dotenv from "dotenv";
+import pg from 'pg';
+import dotenv from 'dotenv';
+import { config } from '../config.js';
 
 dotenv.config();
 
 const { Pool } = pg;
 
-// SSL configuration for external databases
-const sslConfig =
-  process.env.DB_SSL === "true"
-    ? {
-        rejectUnauthorized: false, // Set to true in production with proper certs
-      }
-    : false;
+const sslConfig = config.db.ssl ? { rejectUnauthorized: config.db.sslRejectUnauthorized } : false;
 
 const pool = new Pool({
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
-  database: process.env.DB_NAME || "metrics_db",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
+  host: config.db.host,
+  port: config.db.port,
+  database: config.db.database,
+  user: config.db.user,
+  password: config.db.password,
   ssl: sslConfig,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased from 2000ms to 10s for external DB
-  // Connection pool settings for external databases
+  connectionTimeoutMillis: 10000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
 });
 
 // Test connection
-pool.on("connect", () => {
-  console.log("✅ Connected to PostgreSQL database");
+pool.on('connect', () => {
+  console.log('✅ Connected to PostgreSQL database');
 });
 
-pool.on("error", (err) => {
-  console.error("❌ Unexpected error on idle client", err);
+pool.on('error', (err) => {
+  console.error('❌ Unexpected error on idle client', err);
   process.exit(-1);
 });
 
@@ -43,10 +37,10 @@ export const query = async (text, params) => {
   try {
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
-    console.log("Executed query", { text, duration, rows: res.rowCount });
+    console.log('Executed query', { text, duration, rows: res.rowCount });
     return res;
   } catch (error) {
-    console.error("Query error", { text, error: error.message });
+    console.error('Query error', { text, error: error.message });
     throw error;
   }
 };
@@ -54,21 +48,17 @@ export const query = async (text, params) => {
 export const initDatabase = async (retries = 5, delay = 5000) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(
-        `🔄 Attempting database connection (${attempt}/${retries})...`
-      );
-      console.log(
-        `📡 Connecting to: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
-      );
+      console.log(`🔄 Attempting database connection (${attempt}/${retries})...`);
+      console.log(`📡 Connecting to: ${config.db.host}:${config.db.port}/${config.db.database}`);
 
       // Test connection
-      await query("SELECT NOW()");
-      console.log("✅ Database connection successful");
+      await query('SELECT NOW()');
+      console.log('✅ Database connection successful');
 
       // Run migrations
       await runMigrations();
 
-      console.log("✅ Database initialized successfully");
+      console.log('✅ Database initialized successfully');
       return true;
     } catch (error) {
       console.error(
@@ -77,31 +67,26 @@ export const initDatabase = async (retries = 5, delay = 5000) => {
       );
 
       // Provide specific guidance for DNS errors
-      if (
-        error.message.includes("ENOTFOUND") ||
-        error.message.includes("getaddrinfo")
-      ) {
-        console.error("🔍 DNS Resolution Error Detected:");
-        console.error(`   - Hostname: ${process.env.DB_HOST}`);
-        console.error("   - This hostname cannot be resolved");
-        console.error("💡 Common issues:");
-        console.error("   1. Hostname is incomplete (missing domain suffix)");
-        console.error("   2. Hostname is incorrect");
-        console.error("   3. Network connectivity issue");
-        console.error("💡 For Render.com databases, use full hostname like:");
-        console.error("   dpg-xxxxx-xxxxx-a.oregon-postgres.render.com");
+      if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+        console.error('🔍 DNS Resolution Error Detected:');
+        console.error(`   - Hostname: ${config.db.host}`);
+        console.error('   - This hostname cannot be resolved');
+        console.error('💡 Common issues:');
+        console.error('   1. Hostname is incomplete (missing domain suffix)');
+        console.error('   2. Hostname is incorrect');
+        console.error('   3. Network connectivity issue');
+        console.error('💡 For Render.com databases, use full hostname like:');
+        console.error('   dpg-xxxxx-xxxxx-a.oregon-postgres.render.com');
         console.error(
           "💡 Check your database provider's connection string for the complete hostname"
         );
       }
 
       if (attempt === retries) {
-        console.error("❌ All database connection attempts failed");
-        console.error("💡 Check your database credentials in .env file");
-        console.error("💡 Verify database is accessible from container");
-        console.error(
-          "💡 Test DNS resolution: nslookup " + process.env.DB_HOST
-        );
+        console.error('❌ All database connection attempts failed');
+        console.error('💡 Check your database credentials in .env file');
+        console.error('💡 Verify database is accessible from container');
+        console.error('💡 Test DNS resolution: nslookup ' + config.db.host);
         throw error;
       }
 
@@ -184,6 +169,48 @@ const runMigrations = async () => {
       END IF;
     END $$`,
 
+    // Sites (properties) per user — optional site_id label on metrics when ingesting with a site-scoped API key
+    `CREATE TABLE IF NOT EXISTS sites (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_sites_user_id ON sites(user_id)`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_keys' AND column_name = 'site_id') THEN
+        ALTER TABLE api_keys ADD COLUMN site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL;
+      END IF;
+    END $$`,
+
+    `CREATE INDEX IF NOT EXISTS idx_api_keys_site_id ON api_keys(site_id)`,
+
+    // Dashboard widgets: config-driven KPIs for Recharts (per user, optionally per site)
+    `CREATE TABLE IF NOT EXISTS dashboard_widgets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+      metric_name VARCHAR(255) NOT NULL,
+      query_kind VARCHAR(50) NOT NULL CHECK (query_kind IN ('increase_24h', 'max_latest', 'custom')),
+      promql_custom TEXT,
+      title VARCHAR(255) NOT NULL,
+      subtitle TEXT,
+      section VARCHAR(100) DEFAULT 'primary',
+      sort_order INTEGER DEFAULT 0,
+      format VARCHAR(20) DEFAULT 'number' CHECK (format IN ('currency', 'number', 'percent', 'integer')),
+      currency_code VARCHAR(10) DEFAULT 'USD',
+      include_in_multi_chart BOOLEAN DEFAULT false,
+      featured_chart BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_dashboard_widgets_user_id ON dashboard_widgets(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dashboard_widgets_site_id ON dashboard_widgets(site_id)`,
+
     // Indexes
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`,
@@ -197,7 +224,7 @@ const runMigrations = async () => {
     await query(migration);
   }
 
-  console.log("✅ Migrations completed");
+  console.log('✅ Migrations completed');
 };
 
 export default pool;

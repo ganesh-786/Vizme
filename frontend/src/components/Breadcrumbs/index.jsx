@@ -106,6 +106,37 @@ function buildCrumbs(pathname) {
     return items;
   }
 
+  if (pathname === '/sites') {
+    items.push({ path: '/sites', label: 'Properties', isLast: true, iconId: 'document' });
+    return items;
+  }
+
+  if (pathname.startsWith('/dashboard-widgets')) {
+    items.push({
+      path: '/dashboard-widgets',
+      label: 'Dashboard Widgets',
+      isLast: pathname === '/dashboard-widgets',
+      iconId: 'barChart',
+    });
+    if (pathname === '/dashboard-widgets/new') {
+      items.push({
+        path: '/dashboard-widgets/new',
+        label: 'New Widget',
+        isLast: true,
+        iconId: 'plus',
+      });
+    } else if (pathname.match(/^\/dashboard-widgets\/[^/]+\/edit$/)) {
+      items[items.length - 1].isLast = false;
+      items.push({
+        path: pathname,
+        label: 'Edit Widget',
+        isLast: true,
+        iconId: 'edit',
+      });
+    }
+    return items;
+  }
+
   const label =
     {
       '/': 'Dashboard',

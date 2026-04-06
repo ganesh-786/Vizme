@@ -179,8 +179,6 @@ function MetricConfigsList() {
                 <tr>
                   <th>Config Name</th>
                   <th>Metric Type</th>
-                  <th>Description</th>
-                  <th>Labels</th>
                   <th>Status</th>
                   <th className="actions-header">Actions</th>
                 </tr>
@@ -188,7 +186,7 @@ function MetricConfigsList() {
               <tbody>
                 {paginatedConfigs.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="empty-state">
+                    <td colSpan="4" className="empty-state">
                       <p>No configurations found.</p>
                       <button className="btn-create-new-inline" onClick={handleCreateNew}>
                         Create your first configuration
@@ -202,30 +200,6 @@ function MetricConfigsList() {
                         <span className="config-name">{config.name}</span>
                       </td>
                       <td className="config-type-cell">{formatMetricType(config.metric_type)}</td>
-                      <td className="config-description-cell">
-                        <div className="description-truncate" title={config.description}>
-                          {config.description || 'No description'}
-                        </div>
-                      </td>
-                      <td className="config-labels-cell">
-                        <div className="labels-wrapper">
-                          {(() => {
-                            const labels = parseLabels(config.labels);
-                            return labels.length > 0 ? (
-                              labels.map((label, idx) => {
-                                const text = getLabelText(label);
-                                return text ? (
-                                  <span key={idx} className={`config-label ${getLabelStyle(text)}`}>
-                                    {text}
-                                  </span>
-                                ) : null;
-                              })
-                            ) : (
-                              <span className="no-labels">—</span>
-                            );
-                          })()}
-                        </div>
-                      </td>
                       <td className="config-status-cell">
                         <StatusBadge status={config.status || 'active'} />
                       </td>

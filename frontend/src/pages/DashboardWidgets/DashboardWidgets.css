@@ -1,0 +1,160 @@
+.dw-page {
+  max-width: 960px;
+}
+
+.dw-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dw-page__title {
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.dw-page__intro {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 40rem;
+}
+
+.dw-page__new {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.dw-page__filters {
+  margin-bottom: 1rem;
+}
+
+.dw-page__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.dw-page__select {
+  max-width: 280px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.dw-page--loading {
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.dw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.dw-table th,
+.dw-table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dw-table th {
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.dw-table__empty {
+  color: var(--text-secondary);
+}
+
+.dw-table__actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.dw-table__actions a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.dw-table__actions button {
+  background: none;
+  border: none;
+  color: var(--error, #dc2626);
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+}
+
+.dw-form {
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.dw-field--check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dw-input,
+.dw-textarea {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.dw-form__actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.dw-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.dw-btn--primary {
+  background: var(--primary);
+  color: white;
+}
+
+.dw-btn--ghost {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}

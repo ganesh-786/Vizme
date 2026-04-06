@@ -1,24 +1,30 @@
 global:
-  scrape_interval: 3s
-  evaluation_interval: 3s
+  scrape_interval: 15s
+  evaluation_interval: 15s
   external_labels:
-    monitor: 'metrics-monitor'
+    monitor: 'vizme'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alerts.yml
 
 # Scrape configurations
 scrape_configs:
-  # Scrape metrics from backend application
-  # The backend exposes metrics at /metrics endpoint
   - job_name: 'backend'
-    scrape_interval: 3s
-    scrape_timeout: 2s
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
     static_configs:
       - targets: ['backend:3000']
         labels:
-          service: 'unified-visibility-platform'
+          service: 'vizme-backend'
           environment: 'production'
 
-  # Scrape Prometheus itself (doesn't need to be fast)
   - job_name: 'prometheus'
-    scrape_interval: 10s
+    scrape_interval: 30s
     static_configs:
       - targets: ['localhost:9090']

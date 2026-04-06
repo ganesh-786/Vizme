@@ -8,6 +8,9 @@ class VizmeClient {
       this.endpoint = config.endpoint || 'http://localhost:3000/api/v1/metrics';
       this.batchSize = config.batchSize || 5;
       this.flushInterval = config.flushInterval || 1000;
+      this.maxRetries = config.maxRetries ?? 5;
+      this.retryBaseMs = config.retryBaseMs ?? 1000;
+      this.sampleRate = config.sampleRate ?? 1;
 
       //store metric configurations (metric name -> type mapping )
       this.metricConfigs = config.metricConfigs || {};
@@ -16,20 +19,18 @@ class VizmeClient {
       this.queue = [];
       this.flushTimer = null;
       this.isDestroyed = false;
+      this.retryAttempt = 0;
+      this.retryTimer = null;
       
       this.startFlushTimer();
       
       // Handle online/offline events
       if (typeof window !== 'undefined' && window.addEventListener) {
         window.addEventListener('online', () => {
+          this.retryAttempt = 0;
           if (this.queue.length > 0) {
             this.flushQueue();
           }
-        });
-        
-        // Flush on page unload
-        window.addEventListener('beforeunload', () => {
-          this.flush();
         });
       }
     }
@@ -104,39 +105,72 @@ class VizmeClient {
     }
     
     sanitizeLabels(labels) {
+      const maxLen = 128;
       const sanitized = {};
-      for (const [key, value] of Object.entries(labels)) {
-        if (key !== '_type' && key !== '_operation') {
-          sanitized[String(key)] = String(value);
-        }
+      const keys = Object.keys(labels || {}).filter(k => k !== '_type' && k !== '_operation').slice(0, 10);
+      for (const key of keys) {
+        let val = String(labels[key]);
+        if (val.length > maxLen) val = val.slice(0, maxLen);
+        sanitized[String(key)] = val;
       }
       return sanitized;
     }
     
     addToBatch(metric) {
+      if (this.sampleRate < 1 && Math.random() >= this.sampleRate) return;
       this.batch.push(metric);
       
       if (this.batch.length >= this.batchSize) {
         this.flush();
+      } else if (metric.operation === 'set') {
+        // Flush gauge set immediately for real-time dashboard updates
+        this.flush();
       }
     }
     
-    async flush() {
-      if (this.batch.length === 0) return;
-      
+    async flush(useSendBeacon = false) {
       const metricsToSend = [...this.batch];
-      this.batch = [];
+      if (metricsToSend.length > 0) this.batch = [];
+      
+      if (useSendBeacon) {
+        const all = metricsToSend.length > 0 ? [...metricsToSend, ...this.queue] : [...this.queue];
+        this.queue = [];
+        if (all.length > 0) this.sendMetricsSync(all);
+        return;
+      }
+      
+      if (metricsToSend.length === 0) return;
       
       try {
         await this.sendMetrics(metricsToSend);
+        this.retryAttempt = 0;
       } catch (error) {
-        console.warn('Vizme: Failed to send metrics, queuing for retry', error);
-        // Add to queue for retry
         this.queue.push(...metricsToSend);
-        if (this.queue.length > 100) {
-          this.queue.shift(); // Remove oldest if queue is full
-        }
+        if (this.queue.length > 100) this.queue.shift();
+        this.scheduleRetryWithBackoff();
       }
+    }
+    
+    sendMetricsSync(metrics) {
+      if (!this.apiKey || !metrics.length) return;
+      const payload = JSON.stringify({ metrics });
+      const url = `${this.endpoint}?api_key=${encodeURIComponent(this.apiKey)}`;
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      }
+    }
+    
+    scheduleRetryWithBackoff() {
+      if (this.retryTimer || this.queue.length === 0) return;
+      const delay = Math.min(
+        this.retryBaseMs * Math.pow(2, this.retryAttempt),
+        30000
+      );
+      this.retryAttempt = Math.min(this.retryAttempt + 1, this.maxRetries);
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        this.flushQueue();
+      }, delay);
     }
     
     async flushQueue() {
@@ -147,10 +181,10 @@ class VizmeClient {
       
       try {
         await this.sendMetrics(metricsToSend);
+        this.retryAttempt = 0;
       } catch (error) {
-        console.warn('Vizme: Failed to flush queue', error);
-        // Re-add to queue if still failing
         this.queue.unshift(...metricsToSend);
+        this.scheduleRetryWithBackoff();
       }
     }
     
@@ -159,14 +193,14 @@ class VizmeClient {
         throw new Error('Vizme: API key not configured');
       }
       
-      // Regular fetch request
+      const payload = JSON.stringify({ metrics });
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey
         },
-        body: JSON.stringify({ metrics }),
+        body: payload,
         keepalive: true,
         credentials: 'omit'
       });
@@ -227,11 +261,18 @@ class VizmeClient {
   
   // Auto-Tracker - automatically tracks common web events
   class AutoTracker {
-    constructor(client) {
+    constructor(client, options = {}) {
       this.client = client;
       this.isActive = false;
       this.observers = [];
-      this.startTime = Date.now();
+      this.autoInteractions = options.autoInteractions || false;
+      this._lastAutoClick = { ts: 0, id: '' };
+
+      this.currentPage = typeof window !== 'undefined' ? window.location.pathname : '/';
+      this.currentPageStartTime = Date.now();
+      this._maxScroll = 0;
+      this._clsValue = 0;
+      this._latestLcp = 0;
     }
     
     start() {
@@ -245,19 +286,20 @@ class VizmeClient {
       this.trackForms();
       this.trackScroll();
       this.trackTimeOnPage();
+      if (this.autoInteractions) {
+        this.trackAutoInteractions();
+      }
     }
     
     trackPageView() {
       if (typeof window === 'undefined') return;
       
-      // Track initial page view
-      this.client.track('page_view', 1, {
+      this.client.increment('page_view', 1, {
         page: window.location.pathname,
         referrer: document.referrer || '',
         url: window.location.href
       });
       
-      // Track SPA navigation (React Router, Vue Router, etc.)
       this.trackSPANavigation();
     }
     
@@ -267,11 +309,20 @@ class VizmeClient {
       const originalPushState = history.pushState;
       const originalReplaceState = history.replaceState;
       
-      const trackNavigation = (url) => {
+      const onNavigate = (url) => {
         const pathname = new URL(url, window.location.origin).pathname;
-        this.client.track('page_view', 1, {
+        const previousPage = this.currentPage;
+        const elapsed = Math.round((Date.now() - this.currentPageStartTime) / 1000);
+        if (elapsed > 0) {
+          this.client.track('time_on_page', elapsed, { page: previousPage });
+        }
+        this.currentPage = pathname;
+        this.currentPageStartTime = Date.now();
+        this._maxScroll = 0;
+        
+        this.client.increment('page_view', 1, {
           page: pathname,
-          referrer: window.location.pathname,
+          referrer: previousPage,
           url: url
         });
       };
@@ -279,21 +330,30 @@ class VizmeClient {
       history.pushState = function(...args) {
         originalPushState.apply(history, args);
         if (args[2]) {
-          trackNavigation(args[2]);
+          onNavigate(args[2]);
         }
       };
       
       history.replaceState = function(...args) {
         originalReplaceState.apply(history, args);
         if (args[2]) {
-          trackNavigation(args[2]);
+          onNavigate(args[2]);
         }
       };
       
       window.addEventListener('popstate', () => {
-        this.client.track('page_view', 1, {
+        const previousPage = this.currentPage;
+        const elapsed = Math.round((Date.now() - this.currentPageStartTime) / 1000);
+        if (elapsed > 0) {
+          this.client.track('time_on_page', elapsed, { page: previousPage });
+        }
+        this.currentPage = window.location.pathname;
+        this.currentPageStartTime = Date.now();
+        this._maxScroll = 0;
+        
+        this.client.increment('page_view', 1, {
           page: window.location.pathname,
-          referrer: document.referrer || '',
+          referrer: previousPage,
           url: window.location.href
         });
       });
@@ -303,34 +363,40 @@ class VizmeClient {
       if (typeof window === 'undefined' || !window.performance) return;
       
       window.addEventListener('load', () => {
-        const timing = performance.timing;
-        if (timing) {
-          const loadTime = timing.loadEventEnd - timing.navigationStart;
-          const ttfb = timing.responseStart - timing.navigationStart;
-          const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
-          
-          this.client.track('page_load_time', loadTime, {
-            page: window.location.pathname
-          });
-          
-          this.client.track('ttfb', ttfb, {
-            page: window.location.pathname
-          });
-          
-          this.client.track('dom_content_loaded', domReady, {
-            page: window.location.pathname
-          });
-        }
+        // Defer so the browser populates loadEventEnd after all load handlers complete
+        setTimeout(() => {
+          const page = window.location.pathname;
+          const navEntries = performance.getEntriesByType('navigation');
+          if (navEntries && navEntries.length > 0) {
+            const nav = navEntries[0];
+            const pageLoad = Math.round(nav.loadEventEnd - nav.startTime);
+            const ttfb = Math.round(nav.responseStart - nav.startTime);
+            const domReady = Math.round(nav.domContentLoadedEventEnd - nav.startTime);
+            if (pageLoad > 0) this.client.track('page_load_time', pageLoad, { page });
+            if (ttfb > 0) this.client.track('ttfb', ttfb, { page });
+            if (domReady > 0) this.client.track('dom_content_loaded', domReady, { page });
+          } else if (performance.timing) {
+            const timing = performance.timing;
+            const pageLoad = timing.loadEventEnd - timing.navigationStart;
+            const ttfb = timing.responseStart - timing.navigationStart;
+            const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
+            if (pageLoad > 0) this.client.track('page_load_time', pageLoad, { page });
+            if (ttfb > 0) this.client.track('ttfb', ttfb, { page });
+            if (domReady > 0) this.client.track('dom_content_loaded', domReady, { page });
+          }
+
+          if (this._latestLcp > 0) {
+            this.client.track('lcp', this._latestLcp, { page });
+          }
+        }, 0);
       });
       
-      // Track Web Vitals if available
       if ('PerformanceObserver' in window) {
         this.trackWebVitals();
       }
     }
     
     trackWebVitals() {
-      // First Contentful Paint (FCP)
       try {
         const fcpObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
@@ -343,26 +409,18 @@ class VizmeClient {
         });
         fcpObserver.observe({ entryTypes: ['paint'] });
         this.observers.push(fcpObserver);
-      } catch (e) {
-        // PerformanceObserver not supported
-      }
+      } catch (e) { /* not supported */ }
       
-      // Largest Contentful Paint (LCP)
       try {
         const lcpObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries();
           const lastEntry = entries[entries.length - 1];
-          this.client.track('lcp', Math.round(lastEntry.renderTime || lastEntry.loadTime), {
-            page: window.location.pathname
-          });
+          this._latestLcp = Math.round(lastEntry.renderTime || lastEntry.loadTime);
         });
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
         this.observers.push(lcpObserver);
-      } catch (e) {
-        // Not supported
-      }
+      } catch (e) { /* not supported */ }
       
-      // First Input Delay (FID)
       try {
         const fidObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
@@ -373,31 +431,19 @@ class VizmeClient {
         });
         fidObserver.observe({ entryTypes: ['first-input'] });
         this.observers.push(fidObserver);
-      } catch (e) {
-        // Not supported
-      }
+      } catch (e) { /* not supported */ }
       
-      // Cumulative Layout Shift (CLS)
       try {
-        let clsValue = 0;
         const clsObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
             if (!entry.hadRecentInput) {
-              clsValue += entry.value;
+              this._clsValue += entry.value;
             }
           });
         });
         clsObserver.observe({ entryTypes: ['layout-shift'] });
         this.observers.push(clsObserver);
-        
-        window.addEventListener('beforeunload', () => {
-          this.client.track('cls', Math.round(clsValue * 1000), {
-            page: window.location.pathname
-          });
-        });
-      } catch (e) {
-        // Not supported
-      }
+      } catch (e) { /* not supported */ }
     }
     
     trackErrors() {
@@ -476,7 +522,6 @@ class VizmeClient {
     trackScroll() {
       if (typeof window === 'undefined') return;
       
-      let maxScroll = 0;
       let ticking = false;
       
       const trackScrollDepth = () => {
@@ -489,10 +534,10 @@ class VizmeClient {
           const clientHeight = document.documentElement.clientHeight;
           const scrollPercent = Math.round((scrollTop + clientHeight) / scrollHeight * 100);
           
-          if (scrollPercent > maxScroll) {
-            maxScroll = scrollPercent;
+          if (scrollPercent > this._maxScroll) {
+            this._maxScroll = scrollPercent;
             this.client.set('scroll_depth', scrollPercent, {
-              page: window.location.pathname
+              page: this.currentPage || window.location.pathname
             });
           }
           
@@ -501,26 +546,91 @@ class VizmeClient {
       };
       
       window.addEventListener('scroll', trackScrollDepth, { passive: true });
-      
-      // Track final scroll depth on page unload
-      window.addEventListener('beforeunload', () => {
-        this.client.set('max_scroll_depth', maxScroll, {
-          page: window.location.pathname
-        });
-      });
     }
     
     trackTimeOnPage() {
-      if (typeof window === 'undefined') return;
-      
-      window.addEventListener('beforeunload', () => {
-        const timeOnPage = Math.round((Date.now() - this.startTime) / 1000);
-        this.client.track('time_on_page', timeOnPage, {
-          page: window.location.pathname
-        });
-      });
+      // Handled by trackSPANavigation (on route change) and collectFinalMetrics (on unload)
     }
     
+    collectFinalMetrics() {
+      if (typeof window === 'undefined') return;
+      const page = this.currentPage || window.location.pathname;
+      
+      const elapsed = Math.round((Date.now() - this.currentPageStartTime) / 1000);
+      if (elapsed > 0) {
+        this.client.track('time_on_page', elapsed, { page });
+      }
+      
+      if (this._maxScroll > 0) {
+        this.client.set('max_scroll_depth', this._maxScroll, { page });
+      }
+      
+      if (this._clsValue > 0) {
+        this.client.track('cls', Math.round(this._clsValue * 1000), { page });
+      }
+    }
+    
+    trackAutoInteractions() {
+      if (typeof document === 'undefined') return;
+
+      const DEDUP_MS = 300;
+
+      document.addEventListener('click', (e) => {
+        const el = this.findTrackableAncestor(e.target);
+        if (!el) return;
+        // Skip elements already handled by the opt-in data-vizme-track path
+        if (el.hasAttribute('data-vizme-track')) return;
+
+        const elId = (el.id || '') + '|' + (el.tagName || '');
+        const now = Date.now();
+        if (elId === this._lastAutoClick.id && now - this._lastAutoClick.ts < DEDUP_MS) return;
+        this._lastAutoClick = { ts: now, id: elId };
+
+        const labels = {
+          page: window.location.pathname,
+          element: el.tagName.toLowerCase(),
+          interaction_type: 'click'
+        };
+        if (el.id) labels.element_id = el.id;
+        const text = (el.innerText || '').substring(0, 50).trim();
+        if (text) labels.element_text = text;
+        if (el.href) labels.element_href = el.href.substring(0, 200);
+
+        this.client.increment('user_interaction', 1, labels);
+      }, true);
+
+      document.addEventListener('change', (e) => {
+        const el = e.target;
+        if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
+        if (el.hasAttribute('data-vizme-track')) return;
+
+        const labels = {
+          page: window.location.pathname,
+          element: el.tagName.toLowerCase(),
+          interaction_type: 'input_change'
+        };
+        if (el.id) labels.element_id = el.id;
+        else if (el.name) labels.element_id = el.name;
+        if (el.type) labels.input_type = el.type;
+
+        this.client.increment('user_interaction', 1, labels);
+      }, true);
+    }
+
+    findTrackableAncestor(target) {
+      const TRACKABLE = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
+      let el = target;
+      let depth = 0;
+      while (el && el !== document && depth < 5) {
+        if (TRACKABLE.includes(el.tagName) || el.getAttribute('role') === 'button') {
+          return el;
+        }
+        el = el.parentNode;
+        depth++;
+      }
+      return null;
+    }
+
     stop() {
       this.isActive = false;
       // Cleanup observers
@@ -548,8 +658,11 @@ class VizmeClient {
         autoTrack: config.autoTrack !== false, // Default: true
         batchSize: config.batchSize || 5,
         flushInterval: config.flushInterval || 1000,
-        metricConfigs: config.metricConfigs || {}, //store metric configurations
-        autofetchConfigs: config.autofetchConfigs !== false, // Default: true
+        metricConfigs: config.metricConfigs || {},
+        autofetchConfigs: config.autofetchConfigs !== false,
+        sampleRate: config.sampleRate ?? 1,
+        maxRetries: config.maxRetries ?? 5,
+        retryBaseMs: config.retryBaseMs ?? 1000,
         ...config
       };
       
@@ -559,7 +672,10 @@ class VizmeClient {
         endpoint: this.config.endpoint,
         batchSize: this.config.batchSize,
         flushInterval: this.config.flushInterval,
-        metricConfigs: this.config.metricConfigs //pass metric configurations to the client
+        metricConfigs: this.config.metricConfigs,
+        sampleRate: this.config.sampleRate,
+        maxRetries: this.config.maxRetries,
+        retryBaseMs: this.config.retryBaseMs
       });
 
           // Auto-fetch metric configs from backend
@@ -576,8 +692,37 @@ class VizmeClient {
       
       // Initialize auto-tracker if enabled
       if (this.config.autoTrack) {
-        this.autoTracker = new AutoTracker(this.client);
+        this.autoTracker = new AutoTracker(this.client, {
+          autoInteractions: this.config.autoInteractions || false
+        });
         this.autoTracker.start();
+      }
+
+      // Listen for vizme:track CustomEvent (minimal-code API for dynamic flows)
+      // Supports operation: "increment" (default), "set", "decrement" for gauges
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        this._vizmeTrackHandler = (e) => {
+          const { event, value = 1, operation = 'increment', ...labels } = e.detail || {};
+          if (!event) return;
+          const numValue = typeof value === 'number' && isFinite(value) ? value : parseFloat(value) || 0;
+          if (operation === 'set') {
+            this.client.set(event, numValue, labels);
+          } else if (operation === 'decrement') {
+            this.client.decrement(event, Math.abs(numValue), labels);
+          } else {
+            this.client.increment(event, numValue, labels);
+          }
+        };
+        window.addEventListener('vizme:track', this._vizmeTrackHandler);
+      }
+
+      // Unified beforeunload: collect final metrics THEN flush via sendBeacon
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        this._beforeUnloadHandler = () => {
+          if (this.autoTracker) this.autoTracker.collectFinalMetrics();
+          this.client.flush(true);
+        };
+        window.addEventListener('beforeunload', this._beforeUnloadHandler);
       }
     }
 
@@ -641,6 +786,14 @@ class VizmeClient {
     
     // Destroy/cleanup
     destroy() {
+      if (typeof window !== 'undefined') {
+        if (this._vizmeTrackHandler) {
+          window.removeEventListener('vizme:track', this._vizmeTrackHandler);
+        }
+        if (this._beforeUnloadHandler) {
+          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+        }
+      }
       if (this.autoTracker) {
         this.autoTracker.stop();
       }

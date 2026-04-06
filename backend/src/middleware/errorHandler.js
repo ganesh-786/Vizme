@@ -1,12 +1,27 @@
+import { logger } from '../logger.js';
+import { config } from '../config.js';
+
 export const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err);
+  const requestId = req.id || '-';
+  const logPayload = {
+    err: { message: err.message, name: err.name, code: err.code },
+    requestId,
+    path: req.path,
+    method: req.method,
+  };
+  if (config.isProduction) {
+    logger.error(logPayload, err.message);
+  } else {
+    logger.error({ ...logPayload, stack: err.stack }, err.message);
+  }
 
   // Validation errors
   if (err.name === 'ValidationError' || err.name === 'BadRequestError') {
     return res.status(400).json({
       success: false,
       error: err.message || 'Validation error',
-      details: err.errors || []
+      details: err.errors || [],
+      ...(requestId !== '-' && { requestId }),
     });
   }
 
@@ -15,33 +30,38 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(401).json({
       success: false,
       error: 'Unauthorized',
-      message: err.message || 'Invalid or expired token'
+      message: err.message || 'Invalid or expired token',
+      ...(requestId !== '-' && { requestId }),
     });
   }
 
   // Database errors
-  if (err.code === '23505') { // Unique violation
+  if (err.code === '23505') {
     return res.status(409).json({
       success: false,
       error: 'Conflict',
-      message: 'Resource already exists'
+      message: 'Resource already exists',
+      ...(requestId !== '-' && { requestId }),
     });
   }
 
-  if (err.code === '23503') { // Foreign key violation
+  if (err.code === '23503') {
     return res.status(400).json({
       success: false,
       error: 'Invalid reference',
-      message: 'Referenced resource does not exist'
+      message: 'Referenced resource does not exist',
+      ...(requestId !== '-' && { requestId }),
     });
   }
 
-  // Default error
-  res.status(err.status || 500).json({
+  const status = err.status || 500;
+  const body = {
     success: false,
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
+    error: config.isProduction ? 'Internal server error' : err.message,
+    ...(requestId !== '-' && { requestId }),
+  };
+  if (!config.isProduction && err.stack) body.stack = err.stack;
+  res.status(status).json(body);
 };
 
 export class AppError extends Error {

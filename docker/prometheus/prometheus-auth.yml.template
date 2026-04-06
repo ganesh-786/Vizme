@@ -1,0 +1,34 @@
+# Prometheus config with basic auth for /metrics scrape.
+# Generated from env METRICS_SCRAPE_USER and METRICS_SCRAPE_PASSWORD when set.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'vizme'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: 'backend'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    basic_auth:
+      username: ${METRICS_SCRAPE_USER}
+      password: ${METRICS_SCRAPE_PASSWORD}
+    static_configs:
+      - targets: ['backend:3000']
+        labels:
+          service: 'vizme-backend'
+          environment: 'production'
+
+  - job_name: 'prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9090']

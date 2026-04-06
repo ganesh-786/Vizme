@@ -116,6 +116,15 @@ function Layout() {
             >
               Code Gen
             </Link>
+            <Link to="/sites" className={`nav-link ${isActive('/sites') ? 'active' : ''}`}>
+              Properties
+            </Link>
+            <Link
+              to="/dashboard-widgets"
+              className={`nav-link ${isActive('/dashboard-widgets') ? 'active' : ''}`}
+            >
+              Dashboard Widgets
+            </Link>
           </div>
           <div className="nav-user">
             <button

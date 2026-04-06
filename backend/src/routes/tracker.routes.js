@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../database/connection.js';
 import { generateLibraryCode } from '../services/codeGenerator.service.js';
+import { config } from '../config.js';
 
 const router = express.Router();
 
@@ -18,23 +19,11 @@ const router = express.Router();
  * - k: API key (required)
  * - a: Auto-track enabled (0 or 1, default: 1)
  * - c: Custom events enabled (0 or 1, default: 1)
+ * - i: Auto-interactions enabled (0 or 1, default: 0)
  */
 router.get('/tracker.js', async (req, res, next) => {
   try {
-        // ADD THIS: Set CORS headers to allow any origin (for testing)
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // ADD THIS LINE
-       res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none'); // ADD THIS LINE
-    
-        
-        // Handle preflight OPTIONS request
-        if (req.method === 'OPTIONS') {
-          return res.status(200).end();
-        }
-        
-    const { k: apiKey, a: autoTrackParam, c: customEventsParam } = req.query;
+    const { k: apiKey, a: autoTrackParam, c: customEventsParam, i: autoInteractionsParam } = req.query;
     
     // Validate API key is provided
     if (!apiKey) {
@@ -90,9 +79,10 @@ router.get('/tracker.js', async (req, res, next) => {
     // Parse boolean parameters
     const autoTrack = autoTrackParam !== '0';
     const customEvents = customEventsParam !== '0';
+    const autoInteractions = autoInteractionsParam === '1';
 
     // Build endpoint URL
-    const baseUrl = process.env.API_BASE_URL || req.protocol + '://' + req.get('host');
+    const baseUrl = config.api.baseUrl || `${req.protocol}://${req.get('host')}`;
     const endpoint = `${baseUrl}/api/v1/metrics`;
 
     // Generate the full library code
@@ -101,7 +91,8 @@ router.get('/tracker.js', async (req, res, next) => {
       endpoint,
       metrics,
       autoTrack,
-      customEvents
+      customEvents,
+      autoInteractions
     });
 
     // Set proper headers for JavaScript file

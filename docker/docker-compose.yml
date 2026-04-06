@@ -22,10 +22,45 @@ services:
     profiles:
       - local-db # Only start with: docker compose --profile local-db up
 
-  # ... (prometheus, pushgateway, grafana stay the same) ...
+  # MinIO - S3-compatible storage for Mimir (required for Mimir)
+  minio:
+    image: minio/minio:latest
+    container_name: metrics_minio
+    command: server --quiet /data
+    environment:
+      MINIO_ROOT_USER: mimir
+      MINIO_ROOT_PASSWORD: supersecret
+    volumes:
+      - minio_data:/data
+    networks:
+      - metrics_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Grafana Mimir - multi-tenant metrics backend with hard isolation (X-Scope-OrgID = user_id)
+  mimir:
+    image: grafana/mimir:latest
+    container_name: metrics_mimir
+    command: ["-config.file=/etc/mimir/mimir.yaml"]
+    ports:
+      - "9009:8080"
+    volumes:
+      - ./mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      - ./mimir/alertmanager-fallback-config.yaml:/etc/alertmanager-fallback-config.yaml:ro
+      - mimir_data:/data
+    networks:
+      - metrics_network
+    depends_on:
+      - minio
+
   prometheus:
     image: prom/prometheus:latest
     container_name: metrics_prometheus
+    entrypoint: ["/bin/sh", "/etc/prometheus/entrypoint.sh"]
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -33,13 +68,32 @@ services:
       - "--web.enable-lifecycle"
     ports:
       - "9090:9090"
+    environment:
+      - METRICS_SCRAPE_USER=${METRICS_SCRAPE_USER:-}
+      - METRICS_SCRAPE_PASSWORD=${METRICS_SCRAPE_PASSWORD:-}
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus-auth.yml.template:/etc/prometheus/prometheus-auth.yml.template
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - ./prometheus/entrypoint.sh:/etc/prometheus/entrypoint.sh
       - prometheus_data:/prometheus
     networks:
       - metrics_network
     depends_on:
       - backend
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: metrics_alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    networks:
+      - metrics_network
 
   # pushgateway:
   #   image: prom/pushgateway:latest
@@ -55,27 +109,42 @@ services:
   #     - "--persistence.interval=5m"
 
   grafana:
-    image: grafana/grafana:latest
+    # Pin to 11.4.0 to avoid 11.5.x URL/orgId bugs; 11.6.x has auth proxy user sync issues
+    image: grafana/grafana:11.4.0
     container_name: metrics_grafana
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-      # Enable iframe embedding in frontend
+      # Enable iframe embedding in frontend (via backend proxy)
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      # Disable anonymous access - Grafana only reachable via backend proxy with user isolation
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Auth proxy: backend adds X-WEBAUTH-USER, Grafana auto-logs in (no manual login)
+      - GF_AUTH_PROXY_ENABLED=true
+      - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
+      - GF_AUTH_PROXY_HEADER_PROPERTY=username
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=true
+      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Admin
+      # Serve from /grafana subpath for backend proxy
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # Root URL must match how users access (via backend proxy at :3000)
+      - GF_SERVER_ROOT_URL=${API_BASE_URL:-http://localhost:3000}/grafana
       - GF_SECURITY_COOKIE_SAMESITE=disabled
+      # Disable unified alerting - stops AlertStatesDataLayer 404s on /api/prometheus/grafana/api/v1/rules
+      - GF_UNIFIED_ALERTING_ENABLED=false
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - metrics_network
     depends_on:
       - prometheus
+      - mimir
 
   backend:
     build:
@@ -96,15 +165,30 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_SSL=${DB_SSL:-false}
-      # Application config
-      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      # Application config (for production set JWT_SECRET in .env to a strong random value)
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-do-not-use-in-production}
+      - DB_SSL_REJECT_UNAUTHORIZED=${DB_SSL_REJECT_UNAUTHORIZED:-false}
       - PUSHGATEWAY_URL=${PUSHGATEWAY_URL:-http://pushgateway:9091}
-      - GRAFANA_URL=${GRAFANA_URL:-http://localhost:3001}
+      - MIMIR_URL=${MIMIR_URL:-http://mimir:8080}
+      - PROMETHEUS_INTERNAL_URL=${PROMETHEUS_INTERNAL_URL:-http://prometheus:9090}
+      - GRAFANA_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GRAFANA_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      # Backend must use grafana:3000 from inside Docker (localhost = container itself)
+      - GRAFANA_INTERNAL_URL=http://grafana:3000
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - API_BASE_URL=${API_BASE_URL:-http://localhost:3000}
+      - METRICS_SCRAPE_USER=${METRICS_SCRAPE_USER:-}
+      - METRICS_SCRAPE_PASSWORD=${METRICS_SCRAPE_PASSWORD:-}
+      # Dashboard fallback path for tenant setup (resilient after grafana volume reset)
+      - DASHBOARD_JSON_PATH=/app/dashboards/metrics-dashboard.json
     volumes:
       - ../backend:/app
-      - /app/node_modules
+      # Dashboard JSON for tenant setup fallback (when Grafana org 1 provisioning is slow after volume reset)
+      - ./grafana/dashboards:/app/dashboards:ro
+      # Use image's node_modules (from npm ci) - anonymous volume can cache stale deps.
+      # Removed /app/node_modules to ensure rebuilt image deps are used.
+    # Note: Cannot add depends_on: grafana (cycle: backend->grafana->prometheus->backend).
+    # Retry logic in grafanaTenant.service handles Grafana startup delay.
     # Remove postgres dependency if using external DB only
     # depends_on:
     #   postgres:
@@ -113,15 +197,7 @@ services:
       - metrics_network
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:3000/health",
-        ]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -132,6 +208,8 @@ volumes:
   prometheus_data:
   pushgateway_data:
   grafana_data:
+  minio_data:
+  mimir_data:
 
 networks:
   metrics_network:

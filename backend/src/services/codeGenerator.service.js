@@ -2,20 +2,20 @@
  * Generates minimal tracking snippet (Google Analytics style)
  * This is what users paste into their HTML - only ~150 bytes
  */
-export const generateMinimalSnippet = ({ apiKey, baseUrl, autoTrack, customEvents }) => {
+export const generateMinimalSnippet = ({ apiKey, baseUrl, autoTrack, customEvents, autoInteractions }) => {
   // Ultra-minimal snippet that loads the full library asynchronously
   // Similar to Google Analytics' gtag.js approach
-  return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='${baseUrl}/api/v1/tracker.js?k=${encodeURIComponent(apiKey)}&a=${autoTrack ? '1' : '0'}&c=${customEvents ? '1' : '0'}';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
+  return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='${baseUrl}/api/v1/tracker.js?k=${encodeURIComponent(apiKey)}&a=${autoTrack ? '1' : '0'}&c=${customEvents ? '1' : '0'}&i=${autoInteractions ? '1' : '0'}';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
 };
 
 /**
  * Generates the full tracking library code
  * This is served by the tracker.js route and loaded dynamically
  */
-export const generateLibraryCode = ({ apiKey, endpoint, metrics, autoTrack, customEvents }) => {
+export const generateLibraryCode = ({ apiKey, endpoint, metrics, autoTrack, customEvents, autoInteractions }) => {
   // Compact, minified library code with all tracking functionality
   return `(function(){
-var c={k:'${apiKey.replace(/'/g, "\\'")}',e:'${endpoint.replace(/'/g, "\\'")}',m:${JSON.stringify(metrics)},a:${autoTrack},x:${customEvents}},q=[],b=[],s=10,t=5e3,bt,st=Date.now(),rt=[1e3,2e3,4e3],mxr=3;
+var c={k:'${apiKey.replace(/'/g, "\\'")}',e:'${endpoint.replace(/'/g, "\\'")}',m:${JSON.stringify(metrics)},a:${autoTrack},x:${customEvents},i:${!!autoInteractions}},q=[],b=[],s=10,t=5e3,bt,st=Date.now(),rt=[1e3,2e3,4e3],mxr=3;
 function sm(m,r){if(!m||!m.length)return;var p={metrics:m.map(function(item){return{name:item.n,type:item.t,value:item.v,labels:item.l||{}};})};var op={method:'POST',headers:{'Content-Type':'application/json','X-API-Key':c.k},body:JSON.stringify(p),keepalive:true};fetch(c.e,op).then(function(resp){if(resp.ok){return resp.json();}throw new Error('HTTP '+resp.status);}).catch(function(e){if(r<mxr){setTimeout(function(){sm(m,r+1);},rt[r]);}else{if(q.length<100){q.push(...m);}}})}
 function pb(){if(b.length){var m=[...b];b=[];sm(m,0)}}
 function am(m){b.push(m);b.length>=s?pb():(clearTimeout(bt),bt=setTimeout(pb,t))}
@@ -50,6 +50,12 @@ d.addEventListener('submit',function(e){var el=e.target.closest('form');if(el&&e
 if(typeof window!=='undefined'&&w.addEventListener){
 w.addEventListener('online',function(){if(q.length){var m=q.splice(0,s);sm(m,0)}});
 w.addEventListener('visibilitychange',function(){if(d.hidden){pb()}})
+}
+if(c.i&&typeof window!=='undefined'&&typeof document!=='undefined'){
+var _d=document,_lc={ts:0,id:''},DD=300,TT=['BUTTON','A','INPUT','SELECT','TEXTAREA'];
+function fta(t){var el=t,dp=0;while(el&&el!==_d&&dp<5){if(TT.indexOf(el.tagName)!==-1||(el.getAttribute&&el.getAttribute('role')==='button'))return el;el=el.parentNode;dp++}return null}
+_d.addEventListener('click',function(e){var el=fta(e.target);if(!el)return;if(el.hasAttribute&&el.hasAttribute('data-track'))return;var eid=(el.id||'')+'|'+(el.tagName||''),now=Date.now();if(eid===_lc.id&&now-_lc.ts<DD)return;_lc={ts:now,id:eid};var l={page:location.pathname,element:el.tagName.toLowerCase(),interaction_type:'click'};if(el.id)l.element_id=el.id;var tx=(el.innerText||'').substring(0,50).trim();if(tx)l.element_text=tx;if(el.href)l.element_href=el.href.substring(0,200);am({n:'user_interaction',t:'counter',v:1,l:l})},true);
+_d.addEventListener('change',function(e){var el=e.target;if(TT.indexOf(el.tagName)===-1||el.tagName==='BUTTON'||el.tagName==='A')return;if(el.hasAttribute&&el.hasAttribute('data-track'))return;var l={page:location.pathname,element:el.tagName.toLowerCase(),interaction_type:'input_change'};if(el.id)l.element_id=el.id;else if(el.name)l.element_id=el.name;if(el.type)l.input_type=el.type;am({n:'user_interaction',t:'counter',v:1,l:l})},true)
 }
 if(typeof window!=='undefined'){
 w.MetricsTracker={track:tm,increment:inc,decrement:dec,flush:pb,getQueueSize:function(){return q.length},getBatchSize:function(){return b.length}}

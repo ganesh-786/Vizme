@@ -1,0 +1,35 @@
+# Vizme Grafana datasources for Org 1.
+# Per-user orgs get Mimir only (via grafanaTenant.service) with X-Scope-OrgID = user_id.
+# All datasources provisioned here - no manual steps required. Idempotent across restarts.
+apiVersion: 1
+
+datasources:
+  # Prometheus: infra metrics only (scraped from backend /metrics). No tenant isolation.
+  # NOT for user dashboards - use Mimir for user metrics.
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    editable: true
+    version: 1
+    jsonData:
+      timeInterval: "3s"
+
+  # Mimir: user metrics for Org 1 (admin/testing). Tenant 1 for org 1.
+  # Per-user orgs get Mimir via grafanaTenant.service with their tenant ID.
+  # X-Scope-OrgID value in secureJsonData (Grafana stores/forwards it correctly).
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    access: proxy
+    url: http://mimir:8080/prometheus
+    isDefault: true
+    editable: false
+    version: 2
+    jsonData:
+      timeInterval: "3s"
+      httpHeaderName1: "X-Scope-OrgID"
+    secureJsonData:
+      httpHeaderValue1: "1"

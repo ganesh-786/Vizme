@@ -1,17 +1,18 @@
 import jwt from 'jsonwebtoken';
 import { query } from '../database/connection.js';
 import { UnauthorizedError } from './errorHandler.js';
+import { config } from '../config.js';
 
 export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedError('No token provided');
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+    const decoded = jwt.verify(token, config.jwt.secret);
 
     // Verify user still exists
     const result = await query('SELECT id, email, name FROM users WHERE id = $1', [decoded.userId]);

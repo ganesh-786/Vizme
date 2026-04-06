@@ -12,6 +12,7 @@ export const codeGenerationAPI = {
     const body = {
       auto_track: options.autoTrack !== false,
       custom_events: options.customEvents !== false,
+      auto_interactions: options.autoInteractions || false,
     };
 
     if (apiKeyId != null) {
