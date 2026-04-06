@@ -21,11 +21,6 @@ register.setDefaultLabels({
   version: '1.0.0'
 });
 
-// In-memory storage for user-submitted metrics
-// Key: `${userId}_${metricName}_${labelHash}`
-// Value: { type, value, labels, timestamp }
-const metricsStore = new Map();
-
 // Track metric instances to avoid duplicates
 // Key: `${userId}_${metricName}_${labelHash}`
 const metricInstances = new Map();
