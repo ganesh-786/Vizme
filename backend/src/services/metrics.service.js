@@ -25,6 +25,10 @@ register.setDefaultLabels({
 // Key: `${userId}_${metricName}_${labelHash}`
 const metricInstances = new Map();
 
+// In-memory last-known snapshot per series (debug, clearUserMetrics, getMetricsStats).
+// Must exist before recordMetric uses it; prom-client remains source of truth for export.
+const metricsStore = new Map();
+
 /**
  * Validate and sanitize labels (max keys, max value length). Prevents cardinality explosion.
  * @param {Object} labels - Raw labels
