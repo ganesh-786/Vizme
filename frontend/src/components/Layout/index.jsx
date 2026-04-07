@@ -102,6 +102,12 @@ function Layout() {
               Dashboard
             </Link>
             <Link
+              to="/live-metrics"
+              className={`nav-link ${isActive('/live-metrics') ? 'active' : ''}`}
+            >
+              Live Metrics
+            </Link>
+            <Link
               to="/metric-configs"
               className={`nav-link ${isActive('/metric-configs') ? 'active' : ''}`}
             >

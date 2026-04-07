@@ -23,6 +23,50 @@
   color: var(--text-secondary);
 }
 
+.dashboard-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .dashboard-load-error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.dashboard-load-error__text {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--danger);
+  flex: 1;
+  min-width: 12rem;
+}
+
+.dashboard-load-error__retry {
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.875rem;
+  background: var(--danger);
+  color: #fff;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.dashboard-load-error__retry:hover {
+  filter: brightness(1.05);
+}
+
 /* ── Setup Complete Banner ─────────────────────────────────────── */
 .setup-complete-banner {
   display: flex;
@@ -337,6 +381,13 @@
   color: var(--text-secondary);
   margin-bottom: 0.75rem;
   max-width: 56ch;
+}
+
+.timeline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
 }
 
 .primary-inline-btn {

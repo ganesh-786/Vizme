@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
@@ -15,9 +15,10 @@ import {
   TrendUpIcon,
 } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
-import { MetricsDashboard } from '@/components/MetricsDashboard';
 import { useToast } from '@/components/ToastContainer';
 import './Dashboard.css';
+
+const DASHBOARD_TITLE = 'Dashboard · Vizme';
 
 function Dashboard() {
   const { showToast } = useToast();
@@ -26,6 +27,7 @@ function Dashboard() {
     apiKeys: 0,
     loading: true,
   });
+  const [loadError, setLoadError] = useState(null);
   const [onboarding, setOnboarding] = useState({
     loading: true,
     is_setup_complete: false,
@@ -34,36 +36,48 @@ function Dashboard() {
     onboarding_completed_at: null,
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [configsRes, keysRes, onboardingRes] = await Promise.all([
-          metricConfigsAPI.getAll(),
-          apiKeysAPI.getAll(),
-          onboardingAPI.getStatus(),
-        ]);
+  const fetchDashboard = useCallback(async () => {
+    setLoadError(null);
+    setStats((prev) => ({ ...prev, loading: true }));
+    setOnboarding((prev) => ({ ...prev, loading: true }));
+    try {
+      const [configsRes, keysRes, onboardingRes] = await Promise.all([
+        metricConfigsAPI.getAll(),
+        apiKeysAPI.getAll(),
+        onboardingAPI.getStatus(),
+      ]);
 
-        setStats({
-          metricConfigs: Array.isArray(configsRes)
-            ? configsRes.length
-            : (configsRes?.data?.length ?? 0),
-          apiKeys: Array.isArray(keysRes) ? keysRes.length : (keysRes?.data?.length ?? 0),
-          loading: false,
-        });
+      setStats({
+        metricConfigs: Array.isArray(configsRes)
+          ? configsRes.length
+          : (configsRes?.data?.length ?? 0),
+        apiKeys: Array.isArray(keysRes) ? keysRes.length : (keysRes?.data?.length ?? 0),
+        loading: false,
+      });
 
-        setOnboarding({
-          loading: false,
-          ...(onboardingRes.data || {}),
-        });
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-        setStats((prev) => ({ ...prev, loading: false }));
-        setOnboarding((prev) => ({ ...prev, loading: false }));
-      }
-    };
-
-    fetchData();
+      setOnboarding({
+        loading: false,
+        ...(onboardingRes.data || {}),
+      });
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      setLoadError(error?.response?.data?.error || error?.message || 'Failed to load dashboard');
+      setStats((prev) => ({ ...prev, loading: false }));
+      setOnboarding((prev) => ({ ...prev, loading: false }));
+    }
   }, []);
+
+  useEffect(() => {
+    const prevTitle = document.title;
+    document.title = DASHBOARD_TITLE;
+    return () => {
+      document.title = prevTitle;
+    };
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
 
   const handleOpenGrafana = async () => {
     try {
@@ -95,6 +109,15 @@ function Dashboard() {
 
   return (
     <div className="dashboard">
+      {loadError && (
+        <div className="dashboard-load-error" role="alert">
+          <p className="dashboard-load-error__text">{loadError}</p>
+          <button type="button" className="dashboard-load-error__retry" onClick={fetchDashboard}>
+            Retry
+          </button>
+        </div>
+      )}
+
       <div className="dashboard-header">
         <h1 className="dashboard-title">Dashboard Overview</h1>
         <p className="dashboard-subtitle">
@@ -276,62 +299,31 @@ function Dashboard() {
                 Connect your VIZME endpoint to your Grafana dashboard via our native plugin for
                 visualization.
               </p>
-              <button
-                type="button"
-                onClick={handleOpenGrafana}
-                className="text-link button-as-link"
-              >
-                Open Grafana →
-              </button>
+              <div className="timeline-actions">
+                <Link to="/live-metrics" className="primary-inline-btn">
+                  Live metrics →
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleOpenGrafana}
+                  className="text-link button-as-link"
+                >
+                  Open Grafana →
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Live Metrics Visualization Section */}
-      <section className="metrics-visualization">
-        <div className="metrics-visualization__header">
-          <div>
-            <h2>Live Metrics</h2>
-            <p className="metrics-visualization__subtitle">
-              Real-time telemetry data from your connected applications
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleOpenGrafana}
-            className="metrics-visualization__link button-as-link"
-          >
-            Open Full Dashboard →
-          </button>
-        </div>
-
-        <div className="metrics-visualization__container">
-          <MetricsDashboard height={500} showGrafanaLink />
-        </div>
-
-        <p className="metrics-visualization__hint">
-          Not seeing data? Make sure you have configured metrics and integrated the tracking code.
-        </p>
-      </section>
-
       <footer className="dashboard-footer">
         <div className="footer-left">
           <span className="footer-status">
-            <span className="status-dot status-dot--good" aria-hidden="true" /> System Status: All
-            Systems Operational
+            Data shown reflects your workspace and configured telemetry.
           </span>
-          <span className="footer-sep" aria-hidden="true" />
-          <span>Region: us-east-1</span>
         </div>
         <div className="footer-right">
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            Documentation
-          </a>
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            Support Portal
-          </a>
-          <span className="footer-version">v2.4.1-stable</span>
+          <span className="footer-version">Vizme</span>
         </div>
       </footer>
     </div>

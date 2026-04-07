@@ -4,6 +4,7 @@ import { dashboardWidgetsAPI } from '@/api/dashboardWidgets';
 import { sitesAPI } from '@/api/sites';
 import { useToast } from '@/components/ToastContainer';
 import { useConfirm } from '@/components/ConfirmModal';
+import DashboardWidgetsSkeleton from './DashboardWidgetsSkeleton';
 import './DashboardWidgets.css';
 
 function DashboardWidgetsList() {
@@ -50,7 +51,7 @@ function DashboardWidgetsList() {
     }
   };
 
-  if (loading) return <div className="dw-page dw-page--loading">Loading…</div>;
+  if (loading) return <DashboardWidgetsSkeleton />;
 
   return (
     <div className="dw-page">

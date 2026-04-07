@@ -14,6 +14,7 @@ import './Breadcrumbs.css';
 /** Icon id per route path for contextual breadcrumb icons */
 const PATH_ICONS = {
   '/': 'home',
+  '/live-metrics': 'barChart',
   '/metric-configs': 'barChart',
   '/metric-configs/new': 'plus',
   '/api-keys': 'key',
@@ -64,6 +65,17 @@ function buildCrumbs(pathname) {
   });
 
   if (pathname === '/') return items;
+
+  if (pathname === '/live-metrics') {
+    items[0].isLast = false;
+    items.push({
+      path: '/live-metrics',
+      label: 'Live Metrics',
+      isLast: true,
+      iconId: 'barChart',
+    });
+    return items;
+  }
 
   if (pathname.startsWith('/metric-configs')) {
     items.push({
