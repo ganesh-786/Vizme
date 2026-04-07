@@ -16,8 +16,34 @@ import {
   storeRefreshToken,
   verifyRefreshToken,
 } from '../services/authSession.service.js';
+import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
+import { logger } from '../logger.js';
 
 const router = express.Router();
+
+function grafanaLoginFromUser(user) {
+  const raw = (user?.email || '').trim().toLowerCase();
+  if (raw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+    return raw.replace(/[^a-z0-9@._+-]/gi, '_').slice(0, 190);
+  }
+  return `vizme_user_${user?.id}`;
+}
+
+function warmGrafanaTenant(user) {
+  if (!user?.id) return;
+  ensureGrafanaTenant(user.id, { grafanaLogin: grafanaLoginFromUser(user) })
+    .then((orgId) => {
+      if (!orgId) {
+        logger.warn({ userId: user.id }, 'warmGrafanaTenant: tenant not ready during auth');
+      }
+    })
+    .catch((error) => {
+      logger.warn(
+        { err: error?.message, userId: user.id },
+        'warmGrafanaTenant: tenant provisioning warm-up failed'
+      );
+    });
+}
 
 // Signup
 router.post(
@@ -56,6 +82,7 @@ router.post(
       const { accessToken, refreshToken } = generateTokens(user.id);
       await storeRefreshToken(user.id, refreshToken);
       setAuthCookies(res, { accessToken, refreshToken });
+      warmGrafanaTenant(user);
 
       res.status(201).json({
         success: true,
@@ -113,6 +140,7 @@ router.post(
       await query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
       await storeRefreshToken(user.id, refreshToken);
       setAuthCookies(res, { accessToken, refreshToken });
+      warmGrafanaTenant(user);
 
       res.json({
         success: true,

@@ -210,8 +210,18 @@ export async function ensureGrafanaTenant(userId, options = {}) {
       return null;
     }
 
-    await ensurePrometheusDatasource(orgId, base);
-    await ensureMimirDatasource(orgId, uid, base);
+    const prometheusOk = await ensurePrometheusDatasource(orgId, base);
+    if (!prometheusOk) {
+      logger.error({ orgId, userId: uid }, 'ensureGrafanaTenant: prometheus datasource not ready');
+      return null;
+    }
+
+    const mimirOk = await ensureMimirDatasource(orgId, uid, base);
+    if (!mimirOk) {
+      logger.error({ orgId, userId: uid }, 'ensureGrafanaTenant: mimir datasource not ready');
+      return null;
+    }
+
     const dashboardOk = await ensureDashboardInOrg(orgId, uid, base);
     if (!dashboardOk) {
       logger.error({ orgId, userId: uid }, 'ensureGrafanaTenant: dashboard setup failed, not returning org');
@@ -316,15 +326,89 @@ async function createOrg(name, baseOverride = null) {
   return data?.orgId ?? data?.id ?? null;
 }
 
-async function ensurePrometheusDatasource(orgId, baseOverride = null) {
+async function listOrgDatasources(orgId, baseOverride = null) {
   const listRes = await grafanaFetch(
     '/api/datasources',
     { headers: { 'X-Grafana-Org-Id': String(orgId) } },
     baseOverride
   );
-  if (!listRes.ok) return;
-  const list = await listRes.json();
-  const existing = list.find((d) => d.uid === 'prometheus' || d.name === 'Prometheus');
+  if (!listRes.ok) {
+    logger.warn({ status: listRes.status, orgId }, 'listOrgDatasources failed');
+    return null;
+  }
+  return listRes.json();
+}
+
+async function getDatasourceByUid(orgId, uid, baseOverride = null) {
+  const res = await grafanaFetch(
+    `/api/datasources/uid/${encodeURIComponent(uid)}`,
+    { headers: { 'X-Grafana-Org-Id': String(orgId) } },
+    baseOverride
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text();
+    logger.warn(
+      { status: res.status, orgId, uid, body: text?.slice(0, 200) },
+      'getDatasourceByUid failed'
+    );
+    return null;
+  }
+  return res.json();
+}
+
+async function deleteDatasourceById(orgId, datasourceId, baseOverride = null) {
+  const res = await grafanaFetch(
+    `/api/datasources/${datasourceId}`,
+    {
+      method: 'DELETE',
+      headers: { 'X-Grafana-Org-Id': String(orgId) },
+    },
+    baseOverride
+  );
+  if (res.ok || res.status === 404) return true;
+  const text = await res.text();
+  logger.warn(
+    { status: res.status, orgId, datasourceId, body: text?.slice(0, 200) },
+    'deleteDatasourceById failed'
+  );
+  return false;
+}
+
+async function verifyDatasourceHealth(orgId, uid, baseOverride = null) {
+  const res = await grafanaFetch(
+    `/api/datasources/uid/${encodeURIComponent(uid)}/health`,
+    { headers: { 'X-Grafana-Org-Id': String(orgId) } },
+    baseOverride
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    logger.warn(
+      { status: res.status, orgId, uid, body: text?.slice(0, 200) },
+      'verifyDatasourceHealth failed'
+    );
+    return false;
+  }
+  const data = await res.json().catch(() => null);
+  return data?.status === 'OK';
+}
+
+async function ensurePrometheusDatasource(orgId, baseOverride = null) {
+  const list = await listOrgDatasources(orgId, baseOverride);
+  if (!list) return false;
+
+  const expectedUid = 'prometheus';
+  const legacyByName = list.find((d) => d.name === 'Prometheus' && d.uid !== expectedUid);
+  if (legacyByName) {
+    logger.warn(
+      { orgId, foundUid: legacyByName.uid },
+      'ensurePrometheusDatasource: deleting datasource with unexpected uid'
+    );
+    const deleted = await deleteDatasourceById(orgId, legacyByName.id, baseOverride);
+    if (!deleted) return false;
+  }
+
+  const existing = list.find((d) => d.uid === expectedUid);
   const correctUrl = PROMETHEUS_URL;
 
   if (existing) {
@@ -340,9 +424,10 @@ async function ensurePrometheusDatasource(orgId, baseOverride = null) {
       );
       if (!updateRes.ok) {
         logger.warn({ status: updateRes.status, orgId }, 'ensurePrometheusDatasource: update failed');
+        return false;
       }
     }
-    return;
+    return Boolean(await getDatasourceByUid(orgId, expectedUid, baseOverride));
   }
 
   const createRes = await grafanaFetch(
@@ -370,24 +455,27 @@ async function ensurePrometheusDatasource(orgId, baseOverride = null) {
       { status: createRes.status, text: text?.slice(0, 200), orgId },
       'ensurePrometheusDatasource: create failed'
     );
+    return false;
   }
+  return Boolean(await getDatasourceByUid(orgId, expectedUid, baseOverride));
 }
 
 async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
-  const listRes = await grafanaFetch(
-    '/api/datasources',
-    { headers: { 'X-Grafana-Org-Id': String(orgId) } },
-    baseOverride
-  );
-  if (!listRes.ok) {
+  const list = await listOrgDatasources(orgId, baseOverride);
+  if (!list) return false;
+
+  const expectedUid = `mimir-${tenantId}`;
+  const legacyByName = list.find((d) => d.name === 'Mimir' && d.uid !== expectedUid);
+  if (legacyByName) {
     logger.warn(
-      { status: listRes.status, orgId },
-      'ensureMimirDatasource: list datasources failed'
+      { orgId, tenantId, foundUid: legacyByName.uid },
+      'ensureMimirDatasource: deleting datasource with unexpected uid'
     );
-    return;
+    const deleted = await deleteDatasourceById(orgId, legacyByName.id, baseOverride);
+    if (!deleted) return false;
   }
-  const list = await listRes.json();
-  const existing = list.find((d) => d.name === 'Mimir' || d.uid === `mimir-${tenantId}`);
+
+  const existing = list.find((d) => d.uid === expectedUid);
   const correctUrl = `${MIMIR_URL}/prometheus`;
   const correctJsonData = {
     ...(existing?.jsonData || {}),
@@ -420,6 +508,7 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
           { status: updateRes.status, orgId, tenantId },
           'ensureMimirDatasource: update failed'
         );
+        return false;
       }
     } else {
       const updateRes = await grafanaFetch(
@@ -440,9 +529,10 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
           { status: updateRes.status, orgId, tenantId },
           'ensureMimirDatasource: update X-Scope-OrgID failed'
         );
+        return false;
       }
     }
-    return;
+    return Boolean(await getDatasourceByUid(orgId, expectedUid, baseOverride));
   }
 
   const createRes = await grafanaFetch(
@@ -453,7 +543,7 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
       body: JSON.stringify({
         name: 'Mimir',
         type: 'prometheus',
-        uid: `mimir-${tenantId}`,
+        uid: expectedUid,
         url: correctUrl,
         access: 'proxy',
         isDefault: true,
@@ -471,7 +561,9 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
       { status: createRes.status, text: text?.slice(0, 300), orgId, tenantId, mimirUrl: MIMIR_URL },
       'ensureMimirDatasource: create failed - verify MIMIR_URL is reachable from Grafana (e.g. http://mimir:8080 in Docker)'
     );
+    return false;
   }
+  return Boolean(await getDatasourceByUid(orgId, expectedUid, baseOverride));
 }
 
 /**
@@ -718,6 +810,15 @@ export async function reprovisionTenantDashboard(userId) {
       logger.warn({ userId: uid, base }, 'reprovisionTenantDashboard: org not found');
       continue;
     }
+    const prometheusOk = await ensurePrometheusDatasource(orgId, base);
+    const mimirOk = await ensureMimirDatasource(orgId, uid, base);
+    if (!prometheusOk || !mimirOk) {
+      logger.error(
+        { userId: uid, orgId, prometheusOk, mimirOk },
+        'reprovisionTenantDashboard: datasources not ready'
+      );
+      continue;
+    }
     dashboardLastUpdated.delete(orgId);
     const ok = await ensureDashboardInOrg(orgId, uid, base, true);
     if (ok) {
@@ -743,4 +844,11 @@ export async function verifyMetricsDashboardInOrg(orgId, baseOverride = null) {
   } catch {
     return false;
   }
+}
+
+export async function verifyMimirDatasourceInOrg(orgId, tenantId, baseOverride = null) {
+  const uid = `mimir-${tenantId}`;
+  const ds = await getDatasourceByUid(orgId, uid, baseOverride);
+  if (!ds) return false;
+  return verifyDatasourceHealth(orgId, uid, baseOverride);
 }

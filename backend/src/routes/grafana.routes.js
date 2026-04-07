@@ -10,6 +10,7 @@ import {
   ensureGrafanaTenant,
   reprovisionTenantDashboard,
   verifyMetricsDashboardInOrg,
+  verifyMimirDatasourceInOrg,
 } from '../services/grafanaTenant.service.js';
 import { resolveGrafanaConnection } from '../services/grafanaConnection.service.js';
 
@@ -104,7 +105,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
       });
     }
 
-    const orgId = await ensureGrafanaTenant(userId, { grafanaLogin });
+    let orgId = await ensureGrafanaTenant(userId, { grafanaLogin });
     if (!orgId) {
       return res.status(503).json({
         success: false,
@@ -126,6 +127,20 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
         error: 'Grafana dashboard missing',
         message:
           'Dashboard uid=metrics is not present in your Grafana org. Ensure docker/grafana/dashboards/metrics-dashboard.json is mounted and Grafana provisioning completed.',
+      });
+    }
+
+    let mimirDatasourceOk = await verifyMimirDatasourceInOrg(orgId, userId);
+    if (!mimirDatasourceOk) {
+      orgId = await ensureGrafanaTenant(userId, { grafanaLogin });
+      mimirDatasourceOk = orgId ? await verifyMimirDatasourceInOrg(orgId, userId) : false;
+    }
+    if (!mimirDatasourceOk) {
+      return res.status(503).json({
+        success: false,
+        error: 'Grafana datasource missing',
+        message:
+          'Your tenant Mimir datasource is not ready in Grafana yet. Retry in a few seconds; if it persists, verify MIMIR_URL reachability and Grafana admin credentials.',
       });
     }
 
@@ -244,7 +259,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
   }
   const upstreamOrigin = grafanaConn.origin;
 
-  const orgId = await ensureGrafanaTenant(userId);
+  const orgId = await ensureGrafanaTenant(userId, { grafanaLogin: session.grafanaLogin });
   if (!orgId) {
     // Send 503 directly with frame-allowing headers so iframe can display the message
     // (Helmet sets X-Frame-Options: sameorigin, which blocks cross-origin iframes)
@@ -429,7 +444,7 @@ export function setupGrafanaWebSocketProxy(server) {
     }
     const userId = session.userId;
 
-    const orgId = await ensureGrafanaTenant(userId);
+    const orgId = await ensureGrafanaTenant(userId, { grafanaLogin: session.grafanaLogin });
     if (!orgId) {
       socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
       socket.destroy();
