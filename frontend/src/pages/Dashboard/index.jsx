@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
@@ -15,18 +15,13 @@ import {
   TrendUpIcon,
 } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
-import { GrafanaDashboardEmbed } from '@/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed';
 import { useToast } from '@/components/ToastContainer';
 import './Dashboard.css';
 
 const DASHBOARD_TITLE = 'Dashboard · Vizme';
 
-const GRAFANA_SECTION_MIN_HEIGHT = 560;
-
 function Dashboard() {
   const { showToast } = useToast();
-  const grafanaSectionRef = useRef(null);
-  const [grafanaSectionVisible, setGrafanaSectionVisible] = useState(false);
   const [stats, setStats] = useState({
     metricConfigs: 0,
     apiKeys: 0,
@@ -83,29 +78,6 @@ function Dashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
-
-  /** Load Grafana iframe only when the section is near the viewport (fewer token fetches, lighter first paint). */
-  useEffect(() => {
-    const el = grafanaSectionRef.current;
-    if (!el) return undefined;
-
-    const margin = 180;
-    const maybeVisible = () => {
-      const rect = el.getBoundingClientRect();
-      const vh = window.innerHeight || document.documentElement.clientHeight;
-      if (rect.top < vh + margin && rect.bottom > -margin) setGrafanaSectionVisible(true);
-    };
-    maybeVisible();
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setGrafanaSectionVisible(true);
-      },
-      { root: null, rootMargin: `${margin}px 0px`, threshold: 0 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   const handleOpenGrafana = async () => {
     try {
@@ -231,52 +203,6 @@ function Dashboard() {
         </div>
       </div>
 
-      <section
-        ref={grafanaSectionRef}
-        className="dashboard-grafana"
-        aria-labelledby="dashboard-grafana-heading"
-      >
-        <div className="dashboard-grafana__head">
-          <div className="dashboard-grafana__titles">
-            <h2 id="dashboard-grafana-heading" className="dashboard-grafana__title">
-              Grafana workspace
-            </h2>
-            <p className="dashboard-grafana__subtitle">
-              Grafana is the primary visualization surface for charts and time series. Use{' '}
-              <Link to="/live-metrics">Live metrics</Link> for KPI summaries and filters, or open the
-              full Grafana UI in a new tab if the embed path is unavailable.
-            </p>
-          </div>
-          <div className="dashboard-grafana__actions">
-            <Link to="/live-metrics" className="dashboard-grafana__link">
-              KPI summary view →
-            </Link>
-            <button
-              type="button"
-              className="dashboard-grafana__btn"
-              onClick={handleOpenGrafana}
-            >
-              Open Grafana workspace
-            </button>
-          </div>
-        </div>
-        {grafanaSectionVisible ? (
-          <GrafanaDashboardEmbed
-            minHeight={GRAFANA_SECTION_MIN_HEIGHT}
-            title="Grafana metrics dashboard"
-            kiosk="tv"
-          />
-        ) : (
-          <div
-            className="dashboard-grafana__placeholder"
-            style={{ minHeight: GRAFANA_SECTION_MIN_HEIGHT }}
-            aria-hidden
-          >
-            <Skeleton width="100%" height={GRAFANA_SECTION_MIN_HEIGHT} />
-          </div>
-        )}
-      </section>
-
       {/* ── Quick Start Guide (shows progress for returning users) ──── */}
       <section className="quickstart">
         <div className="quickstart-head">
@@ -373,14 +299,14 @@ function Dashboard() {
               <TrendUpIcon size={22} />
             </div>
             <div className="timeline-content">
-              <h3>View in Grafana</h3>
+              <h3>Open Live Metrics</h3>
               <p>
-                Grafana is the primary visualization surface. Use Live metrics for KPI summaries, or
-                open the full Grafana workspace when you want the dedicated UI.
+                Live Metrics is the dedicated Grafana workspace for tenant-scoped charts and time
+                series. Open that page for the embedded dashboard, or launch Grafana in a new tab.
               </p>
               <div className="timeline-actions">
                 <Link to="/live-metrics" className="primary-inline-btn">
-                  Live metrics →
+                  Live Metrics workspace →
                 </Link>
                 <button
                   type="button"

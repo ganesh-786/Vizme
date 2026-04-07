@@ -85,7 +85,7 @@ function hasAnyMetrics(data, flavor) {
   return hasNonZeroStats(data.stats);
 }
 
-function MetricsDashboard({ height = 500, showGrafanaLink = true }) {
+function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmbed = true }) {
   const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [sites, setSites] = useState([]);
@@ -201,6 +201,9 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true }) {
       : key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
   const embedMinHeight = Math.max(height, 480);
+  const refreshMessage = showGrafanaEmbed
+    ? `Summary cards poll every ${REFRESH_MS / 1000}s. Grafana is the primary visualization surface for charts and time series.`
+    : `Summary cards poll every ${REFRESH_MS / 1000}s and update automatically from the dashboard API.`;
 
   return (
     <div className="metrics-dashboard" style={{ minHeight: height }}>
@@ -228,10 +231,7 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true }) {
               </select>
             </label>
           )}
-          <span className="metrics-dashboard__refresh">
-            Summary cards poll every {REFRESH_MS / 1000}s. Grafana is the primary visualization
-            surface for charts and time series.
-          </span>
+          <span className="metrics-dashboard__refresh">{refreshMessage}</span>
           {showGrafanaLink && (
             <button
               type="button"
@@ -442,15 +442,21 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true }) {
         </>
       )}
 
-      <div className="metrics-dashboard__section-divider metrics-dashboard__grafana-block">
-        <h4 className="metrics-dashboard__section-heading">Primary charts &amp; time series (Grafana)</h4>
-        <p className="metrics-dashboard__grafana-note">
-          Grafana is the primary visualization surface. These KPI cards are lightweight summaries from
-          the dashboard API; tenant isolation still comes from the Vizme proxy and server-side{' '}
-          <code>X-Scope-OrgID</code> handling.
-        </p>
-      </div>
-      <GrafanaDashboardEmbed minHeight={embedMinHeight} from="now-24h" to="now" />
+      {showGrafanaEmbed && (
+        <>
+          <div className="metrics-dashboard__section-divider metrics-dashboard__grafana-block">
+            <h4 className="metrics-dashboard__section-heading">
+              Primary charts &amp; time series (Grafana)
+            </h4>
+            <p className="metrics-dashboard__grafana-note">
+              Grafana is the primary visualization surface. These KPI cards are lightweight summaries
+              from the dashboard API; tenant isolation still comes from the Vizme proxy and
+              server-side <code>X-Scope-OrgID</code> handling.
+            </p>
+          </div>
+          <GrafanaDashboardEmbed minHeight={embedMinHeight} from="now-24h" to="now" />
+        </>
+      )}
 
       {mode === 'legacy' && showLegacyEmpty && (
         <div className="metrics-dashboard__empty">

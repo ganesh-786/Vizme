@@ -1,16 +1,20 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { openPrimaryGrafanaWindow } from '@/api/grafana';
-import { BarChartIcon, ArrowBackIcon, RefreshIcon } from '@/assets/icons';
-import { MetricsDashboard } from '@/components/MetricsDashboard';
+import { ArrowBackIcon } from '@/assets/icons';
+import { GrafanaDashboardEmbed } from '@/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed';
+import { Skeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/ToastContainer';
 import '@/pages/Dashboard/Dashboard.css';
 import './LiveMetrics.css';
 
 const PAGE_TITLE = 'Live Metrics · Vizme';
+const GRAFANA_SECTION_MIN_HEIGHT = 560;
 
 function LiveMetrics() {
   const { showToast } = useToast();
+  const grafanaSectionRef = useRef(null);
+  const [grafanaSectionVisible, setGrafanaSectionVisible] = useState(false);
 
   useEffect(() => {
     const previous = document.title;
@@ -18,6 +22,29 @@ function LiveMetrics() {
     return () => {
       document.title = previous;
     };
+  }, []);
+
+  /** Delay iframe work until the Grafana section is near the viewport. */
+  useEffect(() => {
+    const el = grafanaSectionRef.current;
+    if (!el) return undefined;
+
+    const margin = 180;
+    const maybeVisible = () => {
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (rect.top < vh + margin && rect.bottom > -margin) setGrafanaSectionVisible(true);
+    };
+    maybeVisible();
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setGrafanaSectionVisible(true);
+      },
+      { root: null, rootMargin: `${margin}px 0px`, threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const handleOpenGrafana = async () => {
@@ -36,7 +63,7 @@ function LiveMetrics() {
         );
       }
     } catch (err) {
-      const isUnauthorized = err.response?.status === 401;
+      const isUnauthorized = err?.response?.status === 401;
       showToast(
         isUnauthorized
           ? 'Session expired. Please log in again to open Grafana.'
@@ -58,14 +85,11 @@ function LiveMetrics() {
 
       <header className="live-metrics-hero">
         <div className="live-metrics-hero__intro">
-          <div className="live-metrics-hero__icon" aria-hidden>
-            <BarChartIcon size={28} />
-          </div>
           <div className="live-metrics-hero__titles">
             <h1 className="live-metrics-hero__title">Live Metrics</h1>
             <p className="live-metrics-hero__subtitle">
-              Grafana is the primary visualization surface for tenant-scoped telemetry. This page adds
-              KPI summaries and filters over the same underlying metrics.
+              Grafana workspace for tenant-scoped charts and time series. Open the full UI in a new
+              tab if the embed path is unavailable.
             </p>
           </div>
         </div>
@@ -82,25 +106,24 @@ function LiveMetrics() {
       <div className="live-metrics-page__meta" aria-label="Data freshness">
         <span>
           <span className="live-metrics-page__meta-dot" aria-hidden />
-          Grafana panels stay primary; KPI cards poll the API for quick summaries
+          Embedded Grafana refreshes every 10 seconds
         </span>
         <span>
-          <RefreshIcon size={14} aria-hidden style={{ opacity: 0.8 }} />
-          Filter by property in the panel below when multiple sites exist
+          Tenant scoping is enforced server-side for this workspace
         </span>
       </div>
 
       <section
+        ref={grafanaSectionRef}
         className="metrics-visualization live-metrics-page__panel"
         aria-labelledby="live-metrics-panel-heading"
       >
         <div className="metrics-visualization__header">
           <div>
-            <h2 id="live-metrics-panel-heading">Telemetry overview</h2>
+            <h2 id="live-metrics-panel-heading">Grafana workspace</h2>
             <p className="metrics-visualization__subtitle">
-              Grafana remains the primary dashboard. Commerce vs ticketing KPI summaries are chosen
-              automatically from your 24h telemetry, and widget configs still take precedence when
-              defined.
+              Live Metrics now hosts the primary Grafana workspace for telemetry charts and time
+              series.
             </p>
           </div>
           <button
@@ -108,17 +131,30 @@ function LiveMetrics() {
             onClick={handleOpenGrafana}
             className="metrics-visualization__link button-as-link"
           >
-            Open primary Grafana dashboard →
+            Open in new tab →
           </button>
         </div>
 
         <div className="metrics-visualization__container">
-          <MetricsDashboard height={560} showGrafanaLink />
+          {grafanaSectionVisible ? (
+            <GrafanaDashboardEmbed
+              minHeight={GRAFANA_SECTION_MIN_HEIGHT}
+              title="Grafana metrics dashboard"
+              kiosk="tv"
+            />
+          ) : (
+            <div
+              className="dashboard-grafana__placeholder"
+              style={{ minHeight: GRAFANA_SECTION_MIN_HEIGHT }}
+              aria-hidden
+            >
+              <Skeleton width="100%" height={GRAFANA_SECTION_MIN_HEIGHT} />
+            </div>
+          )}
         </div>
 
         <p className="metrics-visualization__hint">
-          No data yet? Add metric configurations, create an API key, integrate the SDK, and send a
-          few events. Then open Grafana or return here for KPI summaries.
+          If the embed path is unavailable, use the button above to open the full Grafana UI.
         </p>
       </section>
     </div>

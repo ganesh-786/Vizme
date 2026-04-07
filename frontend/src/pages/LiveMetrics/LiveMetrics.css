@@ -36,27 +36,8 @@
 
 .live-metrics-hero__intro {
   display: flex;
-  gap: 1rem;
   align-items: flex-start;
   min-width: 0;
-}
-
-.live-metrics-hero__icon {
-  flex-shrink: 0;
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--primary);
-  border: 1px solid rgba(59, 130, 246, 0.22);
-}
-
-[data-theme='dark'] .live-metrics-hero__icon {
-  background: rgba(59, 130, 246, 0.18);
-  border-color: rgba(59, 130, 246, 0.35);
 }
 
 .live-metrics-hero__titles {
