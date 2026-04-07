@@ -53,7 +53,7 @@ function LiveMetrics() {
         dashboard: 'metrics',
         from: 'now-24h',
         to: 'now',
-        refresh: '10s',
+        refresh: '15s',
       });
       if (result?.mode === 'standalone') {
         showToast(
@@ -106,7 +106,7 @@ function LiveMetrics() {
       <div className="live-metrics-page__meta" aria-label="Data freshness">
         <span>
           <span className="live-metrics-page__meta-dot" aria-hidden />
-          Embedded Grafana refreshes every 10 seconds
+          Embedded Grafana refreshes every 15 seconds
         </span>
         <span>
           Tenant scoping is enforced server-side for this workspace

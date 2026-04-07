@@ -8,6 +8,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { grafanaEmbedLimiter } from '../middleware/rateLimiter.js';
 import {
   ensureGrafanaTenant,
+  inspectDatasourceHealthInOrg,
   reprovisionTenantDashboard,
   verifyMetricsDashboardInOrg,
   verifyMimirDatasourceInOrg,
@@ -136,11 +137,17 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
       mimirDatasourceOk = orgId ? await verifyMimirDatasourceInOrg(orgId, userId) : false;
     }
     if (!mimirDatasourceOk) {
+      const datasourceHealth = orgId
+        ? await inspectDatasourceHealthInOrg(orgId, `mimir-${userId}`)
+        : null;
       return res.status(503).json({
         success: false,
-        error: 'Grafana datasource missing',
-        message:
-          'Your tenant Mimir datasource is not ready in Grafana yet. Retry in a few seconds; if it persists, verify MIMIR_URL reachability and Grafana admin credentials.',
+        error: 'Grafana datasource unhealthy',
+        code: 'grafana_mimir_datasource_unhealthy',
+        message: datasourceHealth?.message
+          ? `Your tenant Mimir datasource is not ready in Grafana yet. ${datasourceHealth.message}`
+          : 'Your tenant Mimir datasource is not ready in Grafana yet. Retry in a few seconds; if it persists, verify GRAFANA_MIMIR_DATASOURCE_URL and Grafana admin credentials.',
+        details: datasourceHealth,
       });
     }
 
@@ -270,7 +277,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
       success: false,
       error: 'Dashboard unavailable',
       message:
-        'Tenant setup failed. Restart backend after code changes: docker compose restart backend. Ensure: (1) Grafana is running, (2) GRAFANA_ADMIN_USER/PASSWORD match Grafana, (3) MIMIR_URL is reachable from Grafana. Verify: GET /health/grafana',
+        'Tenant setup failed. Restart backend after code changes: docker compose restart backend. Ensure: (1) Grafana is running, (2) GRAFANA_ADMIN_USER/PASSWORD match Grafana, (3) GRAFANA_MIMIR_DATASOURCE_URL is reachable from Grafana. Verify: GET /health/grafana',
     });
   }
 

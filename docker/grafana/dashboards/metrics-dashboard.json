@@ -10,7 +10,7 @@
   "timezone": "browser",
   "schemaVersion": 38,
   "version": 3,
-  "refresh": "10s",
+  "refresh": "15s",
   "templating": {
     "list": [
       {
@@ -45,7 +45,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{service=\"vizme-backend\"}[5m])) by (method, route, status)",
+          "expr": "vizme:http_requests:rate1m{service=\"vizme-backend\"}",
           "refId": "A",
           "legendFormat": "{{method}} {{route}} {{status}}",
           "datasource": {
@@ -54,7 +54,7 @@
           }
         }
       ],
-      "description": "Backend request rate (PromQL)"
+      "description": "Backend request rate from a 1-minute recording rule"
     },
     {
       "id": 2,
@@ -72,7 +72,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"vizme-backend\"}[5m])) by (le, route))",
+          "expr": "vizme:http_request_duration:p99_1m{service=\"vizme-backend\"}",
           "refId": "A",
           "legendFormat": "{{route}}",
           "datasource": {
@@ -81,7 +81,7 @@
           }
         }
       ],
-      "description": "99th percentile request duration"
+      "description": "99th percentile request duration from a 1-minute recording rule"
     },
     {
       "id": 7,
@@ -499,7 +499,7 @@
     },
     {
       "id": 3,
-      "title": "User metric series count",
+      "title": "Tracked metrics",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -513,7 +513,7 @@
       },
       "targets": [
         {
-          "expr": "count({__name__=~\"user_metric_.+\", user_id=~\"^${user_id}$\"}) or vector(0)",
+          "expr": "count(count by (__name__) ({__name__=~\"user_metric_(total_revenue|revenue|totalRevenue|orders_completed|products_sold|product_sold|page_view|page_views|add_to_cart|addtocart|checkout_started|cart_items_count|cart_value_total|ticket_purchase_completed|movie_book_now|featured_movie_book|javascript_errors|promise_rejections|scroll_depth|max_scroll_depth|time_on_page|user_interaction)\", user_id=~\"^${user_id}$\"})) or vector(0)",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -521,11 +521,11 @@
           }
         }
       ],
-      "description": "Total number of distinct metric series for this user"
+      "description": "Distinct dashboard metric names for this user"
     },
     {
       "id": 4,
-      "title": "User metrics over time",
+      "title": "Core activity over time",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -539,7 +539,7 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"user_metric_.+\", user_id=~\"^${user_id}$\"}",
+          "expr": "{__name__=~\"user_metric_(total_revenue|revenue|totalRevenue|orders_completed|products_sold|product_sold|page_view|page_views|add_to_cart|addtocart|checkout_started|ticket_purchase_completed|movie_book_now|featured_movie_book|javascript_errors|promise_rejections|user_interaction)\", user_id=~\"^${user_id}$\"}",
           "refId": "A",
           "legendFormat": "{{__name__}}",
           "datasource": {
@@ -548,7 +548,7 @@
           }
         }
       ],
-      "description": "All user metrics over time (filtered to your user)"
+      "description": "Primary commerce, ticketing, error, and interaction metrics over time"
     },
     {
       "id": 5,
@@ -706,7 +706,7 @@
     },
     {
       "id": 17,
-      "title": "LCP — Largest Contentful Paint (ms)",
+      "title": "LCP — Largest Contentful Paint (15m avg)",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -720,7 +720,7 @@
       },
       "targets": [
         {
-          "expr": "avg(avg_over_time(user_metric_lcp{user_id=~\"^${user_id}$\"}[1h])) or vector(0)",
+          "expr": "avg(avg_over_time(user_metric_lcp{user_id=~\"^${user_id}$\"}[15m])) or vector(0)",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -728,7 +728,7 @@
           }
         }
       ],
-      "description": "Average Largest Contentful Paint over the last hour (lower is better, target < 2500ms)",
+      "description": "Average Largest Contentful Paint over the last 15 minutes (lower is better, target < 2500ms)",
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
@@ -768,7 +768,7 @@
     },
     {
       "id": 18,
-      "title": "FCP — First Contentful Paint (ms)",
+      "title": "FCP — First Contentful Paint (15m avg)",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -782,7 +782,7 @@
       },
       "targets": [
         {
-          "expr": "avg(avg_over_time(user_metric_fcp{user_id=~\"^${user_id}$\"}[1h])) or vector(0)",
+          "expr": "avg(avg_over_time(user_metric_fcp{user_id=~\"^${user_id}$\"}[15m])) or vector(0)",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -790,7 +790,7 @@
           }
         }
       ],
-      "description": "Average First Contentful Paint over the last hour (lower is better, target < 1800ms)",
+      "description": "Average First Contentful Paint over the last 15 minutes (lower is better, target < 1800ms)",
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
@@ -830,7 +830,7 @@
     },
     {
       "id": 19,
-      "title": "JavaScript errors over time",
+      "title": "Recent JavaScript errors",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -844,25 +844,25 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(user_metric_javascript_errors{user_id=~\"^${user_id}$\"}[5m])) or vector(0)",
+          "expr": "sum(increase(user_metric_javascript_errors{user_id=~\"^${user_id}$\"}[$__rate_interval])) or vector(0)",
           "refId": "A",
-          "legendFormat": "JS errors/sec",
+          "legendFormat": "JS errors / interval",
           "datasource": {
             "type": "prometheus",
             "uid": "mimir"
           }
         },
         {
-          "expr": "sum(rate(user_metric_promise_rejections{user_id=~\"^${user_id}$\"}[5m])) or vector(0)",
+          "expr": "sum(increase(user_metric_promise_rejections{user_id=~\"^${user_id}$\"}[$__rate_interval])) or vector(0)",
           "refId": "B",
-          "legendFormat": "Promise rejections/sec",
+          "legendFormat": "Promise rejections / interval",
           "datasource": {
             "type": "prometheus",
             "uid": "mimir"
           }
         }
       ],
-      "description": "JavaScript error and unhandled promise rejection rate"
+      "description": "Recent JavaScript error and unhandled promise rejection counts"
     },
     {
       "id": 20,

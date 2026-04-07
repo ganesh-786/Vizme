@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { recordGrafanaDatasourceHealth } from '../middleware/appMetrics.js';
 import {
   resolveGrafanaConnection,
   clearGrafanaConnectionCache,
@@ -36,6 +37,11 @@ const MIMIR_URL = (config.urls.mimir || process.env.MIMIR_URL || 'http://localho
   /\/$/,
   ''
 );
+const GRAFANA_MIMIR_URL = (
+  config.grafana?.mimirDatasourceUrl ||
+  process.env.GRAFANA_MIMIR_DATASOURCE_URL ||
+  'http://mimir:8080'
+).replace(/\/$/, '');
 // Use internal hostname when backend runs in Docker (Grafana proxies to this URL)
 const PROMETHEUS_URL = (
   process.env.PROMETHEUS_INTERNAL_URL ||
@@ -49,13 +55,27 @@ const RETRY_DELAY_MS = 1000;
 const DASHBOARD_UPDATE_COOLDOWN_MS = 60_000; // Skip overwrite if done in last 60s (reduces Grafana API load)
 const PROVISION_RETRIES = 10; // Increased for post-volume-reset: Grafana provisioning can be slow
 const PROVISION_DELAY_MS = 3000; // Wait longer between retries for Grafana to finish provisioning
+const DATASOURCE_INTERVAL = '15s';
 
 const dashboardLastUpdated = new Map(); // orgId -> timestamp
 
 logger.info(
-  { grafanaCandidates: buildGrafanaBasesToTry(), mimirUrl: MIMIR_URL, adminUser: ADMIN_USER },
+  {
+    grafanaCandidates: buildGrafanaBasesToTry(),
+    mimirUrl: MIMIR_URL,
+    grafanaMimirUrl: GRAFANA_MIMIR_URL,
+    adminUser: ADMIN_USER,
+  },
   'Grafana tenant service initialized (connection resolved on first use)'
 );
+
+export function getExpectedMimirDatasourceUrl() {
+  return `${GRAFANA_MIMIR_URL}/prometheus`;
+}
+
+export function getExpectedPrometheusDatasourceUrl() {
+  return PROMETHEUS_URL;
+}
 
 // Warmup: bootstrap org 1 dashboard on startup (async, non-blocking)
 bootstrapOrg1Dashboard().catch((err) =>
@@ -375,7 +395,59 @@ async function deleteDatasourceById(orgId, datasourceId, baseOverride = null) {
   return false;
 }
 
-async function verifyDatasourceHealth(orgId, uid, baseOverride = null) {
+export async function inspectDatasourceHealthInOrg(orgId, uid, baseOverride = null) {
+  const startedAt = Date.now();
+  const datasource = await getDatasourceByUid(orgId, uid, baseOverride);
+  const metricDatasource =
+    uid.startsWith('mimir-') ? 'mimir_tenant' : uid;
+  const expectedUrl =
+    uid === 'prometheus'
+      ? getExpectedPrometheusDatasourceUrl()
+      : uid === 'mimir' || uid.startsWith('mimir-')
+        ? getExpectedMimirDatasourceUrl()
+        : null;
+  if (!datasource) {
+    recordGrafanaDatasourceHealth({
+      datasource: metricDatasource,
+      durationMs: Date.now() - startedAt,
+      outcome: 'error',
+      status: 'missing',
+      error: 'Datasource not found',
+      url: null,
+    });
+    return {
+      ok: false,
+      uid,
+      orgId,
+      status: 'missing',
+      httpStatus: 404,
+      message: 'Datasource not found',
+      url: null,
+    };
+  }
+
+  if (expectedUrl && datasource.url !== expectedUrl) {
+    const message = `Datasource URL mismatch: expected ${expectedUrl}, found ${datasource.url}`;
+    recordGrafanaDatasourceHealth({
+      datasource: metricDatasource,
+      durationMs: Date.now() - startedAt,
+      outcome: 'error',
+      status: 'misconfigured',
+      error: message,
+      url: datasource.url || null,
+    });
+    return {
+      ok: false,
+      uid,
+      orgId,
+      status: 'misconfigured',
+      httpStatus: 200,
+      message,
+      url: datasource.url || null,
+      expectedUrl,
+    };
+  }
+
   const res = await grafanaFetch(
     `/api/datasources/uid/${encodeURIComponent(uid)}/health`,
     { headers: { 'X-Grafana-Org-Id': String(orgId) } },
@@ -383,14 +455,54 @@ async function verifyDatasourceHealth(orgId, uid, baseOverride = null) {
   );
   if (!res.ok) {
     const text = await res.text();
+    recordGrafanaDatasourceHealth({
+      datasource: metricDatasource,
+      durationMs: Date.now() - startedAt,
+      outcome: 'error',
+      status: `HTTP ${res.status}`,
+      error: text,
+      url: datasource.url || null,
+    });
     logger.warn(
       { status: res.status, orgId, uid, body: text?.slice(0, 200) },
       'verifyDatasourceHealth failed'
     );
-    return false;
+    return {
+      ok: false,
+      uid,
+      orgId,
+      status: 'error',
+      httpStatus: res.status,
+      message: text?.slice(0, 200) || 'Grafana datasource health failed',
+      url: datasource.url || null,
+    };
   }
+
   const data = await res.json().catch(() => null);
-  return data?.status === 'OK';
+  const ok = data?.status === 'OK';
+  recordGrafanaDatasourceHealth({
+    datasource: metricDatasource,
+    durationMs: Date.now() - startedAt,
+    outcome: ok ? 'success' : 'error',
+    status: data?.status || 'unknown',
+    error: ok ? null : data?.message || 'Grafana datasource returned unhealthy status',
+    url: datasource.url || null,
+  });
+  return {
+    ok,
+    uid,
+    orgId,
+    status: data?.status || 'unknown',
+    httpStatus: 200,
+    message: data?.message || null,
+    url: datasource.url || null,
+    expectedUrl,
+  };
+}
+
+async function verifyDatasourceHealth(orgId, uid, baseOverride = null) {
+  const health = await inspectDatasourceHealthInOrg(orgId, uid, baseOverride);
+  return health.ok;
 }
 
 async function ensurePrometheusDatasource(orgId, baseOverride = null) {
@@ -409,16 +521,23 @@ async function ensurePrometheusDatasource(orgId, baseOverride = null) {
   }
 
   const existing = list.find((d) => d.uid === expectedUid);
-  const correctUrl = PROMETHEUS_URL;
+  const correctUrl = getExpectedPrometheusDatasourceUrl();
+  const correctJsonData = {
+    ...(existing?.jsonData || {}),
+    timeInterval: DATASOURCE_INTERVAL,
+  };
 
   if (existing) {
-    if (existing.url !== correctUrl) {
+    const needsUpdate =
+      existing.url !== correctUrl ||
+      existing?.jsonData?.timeInterval !== DATASOURCE_INTERVAL;
+    if (needsUpdate) {
       const updateRes = await grafanaFetch(
         `/api/datasources/${existing.id}`,
         {
           method: 'PUT',
           headers: { 'X-Grafana-Org-Id': String(orgId) },
-          body: JSON.stringify({ ...existing, url: correctUrl }),
+          body: JSON.stringify({ ...existing, url: correctUrl, jsonData: correctJsonData }),
         },
         baseOverride
       );
@@ -444,7 +563,7 @@ async function ensurePrometheusDatasource(orgId, baseOverride = null) {
         isDefault: false,
         version: 1,
         editable: false,
-        jsonData: { timeInterval: '3s' },
+        jsonData: { timeInterval: DATASOURCE_INTERVAL },
       }),
     },
     baseOverride
@@ -476,10 +595,10 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
   }
 
   const existing = list.find((d) => d.uid === expectedUid);
-  const correctUrl = `${MIMIR_URL}/prometheus`;
+  const correctUrl = getExpectedMimirDatasourceUrl();
   const correctJsonData = {
     ...(existing?.jsonData || {}),
-    timeInterval: '3s',
+    timeInterval: DATASOURCE_INTERVAL,
     httpHeaderName1: 'X-Scope-OrgID',
   };
   const correctSecureJsonData = { httpHeaderValue1: tenantId };
@@ -558,8 +677,8 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
   if (!createRes.ok) {
     const text = await createRes.text();
     logger.error(
-      { status: createRes.status, text: text?.slice(0, 300), orgId, tenantId, mimirUrl: MIMIR_URL },
-      'ensureMimirDatasource: create failed - verify MIMIR_URL is reachable from Grafana (e.g. http://mimir:8080 in Docker)'
+      { status: createRes.status, text: text?.slice(0, 300), orgId, tenantId, grafanaMimirUrl: GRAFANA_MIMIR_URL },
+      'ensureMimirDatasource: create failed - verify GRAFANA_MIMIR_DATASOURCE_URL is reachable from Grafana (e.g. http://mimir:8080 in Docker)'
     );
     return false;
   }
@@ -848,7 +967,6 @@ export async function verifyMetricsDashboardInOrg(orgId, baseOverride = null) {
 
 export async function verifyMimirDatasourceInOrg(orgId, tenantId, baseOverride = null) {
   const uid = `mimir-${tenantId}`;
-  const ds = await getDatasourceByUid(orgId, uid, baseOverride);
-  if (!ds) return false;
-  return verifyDatasourceHealth(orgId, uid, baseOverride);
+  const health = await inspectDatasourceHealthInOrg(orgId, uid, baseOverride);
+  return health.ok;
 }

@@ -15,7 +15,7 @@ datasources:
     editable: true
     version: 1
     jsonData:
-      timeInterval: "3s"
+      timeInterval: "15s"
 
   # Mimir: user metrics for Org 1 (admin/testing). Tenant 1 for org 1.
   # Per-user orgs get Mimir via grafanaTenant.service with their tenant ID.
@@ -29,7 +29,7 @@ datasources:
     editable: false
     version: 2
     jsonData:
-      timeInterval: "3s"
+      timeInterval: "15s"
       httpHeaderName1: "X-Scope-OrgID"
     secureJsonData:
       httpHeaderValue1: "1"

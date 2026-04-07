@@ -133,7 +133,7 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
         dashboard: 'metrics',
         from: 'now-24h',
         to: 'now',
-        refresh: '10s',
+        refresh: '15s',
       });
       if (result?.mode === 'standalone') {
         showToast(
@@ -202,7 +202,7 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
 
   const embedMinHeight = Math.max(height, 480);
   const refreshMessage = showGrafanaEmbed
-    ? `Summary cards poll every ${REFRESH_MS / 1000}s. Grafana is the primary visualization surface for charts and time series.`
+    ? `Summary cards poll every ${REFRESH_MS / 1000}s. Grafana charts refresh every 15s and favor recent windows for faster visibility.`
     : `Summary cards poll every ${REFRESH_MS / 1000}s and update automatically from the dashboard API.`;
 
   return (
@@ -359,9 +359,9 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
                   value={Number(data?.stats?.checkoutStarted ?? 0).toLocaleString()}
                 />
                 <StatCard
-                  title="Metric Series"
+                  title="Tracked Metrics"
                   value={Number(data?.stats?.metricSeriesCount ?? 0).toLocaleString()}
-                  subtitle="Active"
+                  subtitle="Distinct names"
                 />
               </div>
 
@@ -385,9 +385,9 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
                 value={Number(data?.stats?.pageViews ?? 0).toLocaleString()}
               />
               <StatCard
-                title="Metric Series"
+                title="Tracked Metrics"
                 value={Number(data?.stats?.metricSeriesCount ?? 0).toLocaleString()}
-                subtitle="Active"
+                subtitle="Distinct names"
               />
             </div>
           )}

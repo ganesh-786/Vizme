@@ -187,7 +187,7 @@ const server = app.listen(PORT, () => {
 
 setupGrafanaWebSocketProxy(server);
 
-startCounterHeartbeat(60_000);
+startCounterHeartbeat(config.metrics.heartbeatIntervalMs);
 
 export { dbInitialized, dbInitPromise };
 export default app;

@@ -12,18 +12,22 @@
 import { pushTimeseries } from 'prometheus-remote-write';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { recordMimirWrite } from '../middleware/appMetrics.js';
 
-const MIMIR_PUSH_URL = `${config.urls.mimir.replace(/\/$/, '')}/api/v1/push`;
+const DEFAULT_HEARTBEAT_INTERVAL_MS = Math.max(
+  parseInt(String(config.metrics?.heartbeatIntervalMs ?? 15_000), 10) || 15_000,
+  5_000
+);
 
 /**
  * In-memory cumulative state for Mimir remote-write values.
  * Key: `${tenantId}::user_metric_${name}::${sortedLabelPairs}`
  */
 /**
- * Stores cumulative counter/gauge values AND the full label set so the
- * heartbeat can re-push current values periodically, keeping increase()
- * accurate even when real events are sparse.
- * Value: { value: number, labels: object } (labels include __name__)
+ * Stores cumulative values and the full label set for series that need
+ * periodic re-pushes. We only heartbeat counters because gauges are read
+ * directly and do not require synthetic density for increase().
+ * Value: { value: number, labels: object, tenantId: string, heartbeatEligible: boolean }
  */
 const cumulativeState = new Map();
 
@@ -35,18 +39,12 @@ function hashLabels(labels) {
     .join(',') || '_';
 }
 
-/**
- * Resolve the value to push to Mimir based on metric type and operation.
- * - counter: accumulate into monotonically increasing value
- * - gauge set: store absolute value
- * - gauge inc/dec: accumulate relative change
- * - histogram/summary: pass raw observation
- */
-function resolveValue(metric, tenantId, fullLabels) {
+function prepareSample(metric, tenantId) {
   const type = (metric.type || 'gauge').toLowerCase();
   const operation = metric.operation || 'set';
   const fullName = `user_metric_${metric.name}`;
-  const labelHash = hashLabels({ ...(metric.labels || {}), __name__: fullName });
+  const fullLabels = { ...(metric.labels || {}), __name__: fullName };
+  const labelHash = hashLabels(fullLabels);
   const stateKey = `${tenantId}::${fullName}::${labelHash}`;
 
   const entry = cumulativeState.get(stateKey);
@@ -54,8 +52,14 @@ function resolveValue(metric, tenantId, fullLabels) {
 
   if (type === 'counter') {
     const next = currentValue + Math.abs(metric.value);
-    cumulativeState.set(stateKey, { value: next, labels: fullLabels, tenantId });
-    return next;
+    return {
+      labels: fullLabels,
+      sampleValue: next,
+      nextState: {
+        stateKey,
+        entry: { value: next, labels: fullLabels, tenantId, heartbeatEligible: true },
+      },
+    };
   }
 
   if (type === 'gauge') {
@@ -72,11 +76,28 @@ function resolveValue(metric, tenantId, fullLabels) {
         next = metric.value;
         break;
     }
-    cumulativeState.set(stateKey, { value: next, labels: fullLabels, tenantId });
-    return next;
+    return {
+      labels: fullLabels,
+      sampleValue: next,
+      nextState: {
+        stateKey,
+        entry: { value: next, labels: fullLabels, tenantId, heartbeatEligible: false },
+      },
+    };
   }
 
-  return metric.value;
+  return {
+    labels: fullLabels,
+    sampleValue: metric.value,
+    nextState: null,
+  };
+}
+
+function commitPreparedStates(preparedSeries) {
+  for (const prepared of preparedSeries) {
+    if (!prepared?.nextState?.stateKey || !prepared?.nextState?.entry) continue;
+    cumulativeState.set(prepared.nextState.stateKey, prepared.nextState.entry);
+  }
 }
 
 /**
@@ -90,58 +111,72 @@ function resolveValue(metric, tenantId, fullLabels) {
  * @param {string} params.userId - Tenant ID = X-Scope-OrgID
  */
 export async function pushMetricToMimir({ name, type, value, labels = {}, operation, userId }) {
-  const base = config.urls.mimir || '';
-  if (!base) return;
-
-  const fullName = `user_metric_${name}`;
-  const metricLabels = { ...labels, __name__: fullName };
-  const resolved = resolveValue({ name, type, value, labels, operation }, String(userId), metricLabels);
-
-  try {
-    await pushTimeseries(
-      {
-        labels: metricLabels,
-        samples: [{ value: resolved, timestamp: Date.now() }],
-      },
-      {
-        url: MIMIR_PUSH_URL,
-        headers: {
-          'X-Scope-OrgID': String(userId),
-          'Content-Encoding': 'snappy',
-        },
-      }
-    );
-  } catch (err) {
-    logger.warn({ err, userId, metric: name }, 'Mimir push failed');
-  }
+  return pushMetricsToMimir(
+    [{ name, type, value, labels, operation, userId }],
+    { mode: 'single', throwOnFailure: false }
+  );
 }
 
 /**
  * Push multiple metrics to Mimir in a single request per tenant (batched).
  * @param {Array<{name, type, value, labels, operation, userId}>} metrics
  */
-export async function pushMetricsToMimir(metrics) {
-  if (!metrics.length) return;
+export async function pushMetricsToMimir(metrics, options = {}) {
+  const { mode = 'batch', throwOnFailure = false } = options;
+  if (!metrics.length) {
+    return {
+      ok: true,
+      mode,
+      sampleCount: 0,
+      tenantCount: 0,
+      successfulTenants: [],
+      failedTenants: [],
+      durationMs: 0,
+    };
+  }
   const mimirUrl = config.urls.mimir?.replace(/\/$/, '');
-  if (!mimirUrl) return;
+  if (!mimirUrl) {
+    const missingUrlError = new Error('MIMIR_URL is not configured');
+    missingUrlError.status = 503;
+    if (throwOnFailure) throw missingUrlError;
+    return {
+      ok: false,
+      mode,
+      sampleCount: metrics.length,
+      tenantCount: 0,
+      successfulTenants: [],
+      failedTenants: [{ tenantId: null, error: missingUrlError.message }],
+      durationMs: 0,
+    };
+  }
 
   const pushUrl = `${mimirUrl}/api/v1/push`;
   const byTenant = new Map();
+  const startedAt = Date.now();
   for (const m of metrics) {
     const tid = String(m.userId);
     if (!byTenant.has(tid)) byTenant.set(tid, []);
     byTenant.get(tid).push(m);
   }
 
+  const summary = {
+    ok: true,
+    mode,
+    sampleCount: metrics.length,
+    tenantCount: byTenant.size,
+    successfulTenants: [],
+    failedTenants: [],
+    durationMs: 0,
+  };
+
   for (const [tenantId, tenantMetrics] of byTenant) {
-    const timeseries = tenantMetrics.map((m) => {
-      const fullLabels = { ...(m.labels || {}), __name__: `user_metric_${m.name}` };
-      const resolved = resolveValue(m, tenantId, fullLabels);
-      return {
-        labels: fullLabels,
-        samples: [{ value: resolved, timestamp: Date.now() }],
-      };
-    });
+    const preparedSeries = tenantMetrics.map((m) => prepareSample(m, tenantId));
+    const timestamp = Date.now();
+    const timeseries = preparedSeries.map((prepared) => ({
+      labels: prepared.labels,
+      samples: [{ value: prepared.sampleValue, timestamp }],
+    }));
+    const tenantStartedAt = Date.now();
     try {
       await pushTimeseries(timeseries, {
         url: pushUrl,
@@ -150,10 +185,41 @@ export async function pushMetricsToMimir(metrics) {
           'Content-Encoding': 'snappy',
         },
       });
+      commitPreparedStates(preparedSeries);
+      summary.successfulTenants.push(tenantId);
+      recordMimirWrite({
+        mode,
+        durationMs: Date.now() - tenantStartedAt,
+        outcome: 'success',
+        sampleCount: timeseries.length,
+        tenantCount: 1,
+      });
     } catch (err) {
+      summary.ok = false;
+      summary.failedTenants.push({
+        tenantId,
+        error: err?.message || 'Mimir remote-write failed',
+      });
+      recordMimirWrite({
+        mode,
+        durationMs: Date.now() - tenantStartedAt,
+        outcome: 'error',
+        sampleCount: timeseries.length,
+        tenantCount: 1,
+        error: err,
+      });
       logger.warn({ err, tenantId, count: tenantMetrics.length }, 'Mimir batch push failed');
     }
   }
+
+  summary.durationMs = Date.now() - startedAt;
+  if (!summary.ok && throwOnFailure) {
+    const writeError = new Error('Mimir remote-write failed');
+    writeError.status = 502;
+    writeError.details = summary;
+    throw writeError;
+  }
+  return summary;
 }
 
 /**
@@ -173,38 +239,64 @@ export function clearTenantState(tenantId) {
  * does not over-extrapolate on sparse event data (e.g. a few orders/day).
  */
 let _heartbeatTimer = null;
+let _heartbeatInFlight = false;
 
-export function startCounterHeartbeat(intervalMs = 60_000) {
+export function startCounterHeartbeat(intervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS) {
   if (_heartbeatTimer) return;
   const mimirUrl = config.urls.mimir?.replace(/\/$/, '');
   if (!mimirUrl) return;
   const pushUrl = `${mimirUrl}/api/v1/push`;
+  const safeIntervalMs = Math.max(parseInt(String(intervalMs), 10) || DEFAULT_HEARTBEAT_INTERVAL_MS, 5_000);
 
   _heartbeatTimer = setInterval(async () => {
-    if (cumulativeState.size === 0) return;
+    if (cumulativeState.size === 0 || _heartbeatInFlight) return;
+    _heartbeatInFlight = true;
 
-    const byTenant = new Map();
-    for (const [, entry] of cumulativeState) {
-      if (!entry.labels || !entry.tenantId) continue;
-      const tid = entry.tenantId;
-      if (!byTenant.has(tid)) byTenant.set(tid, []);
-      byTenant.get(tid).push({
-        labels: entry.labels,
-        samples: [{ value: entry.value, timestamp: Date.now() }],
-      });
-    }
-
-    for (const [tenantId, timeseries] of byTenant) {
-      try {
-        await pushTimeseries(timeseries, {
-          url: pushUrl,
-          headers: { 'X-Scope-OrgID': tenantId, 'Content-Encoding': 'snappy' },
+    try {
+      const byTenant = new Map();
+      const timestamp = Date.now();
+      for (const [, entry] of cumulativeState) {
+        if (!entry.labels || !entry.tenantId || !entry.heartbeatEligible) continue;
+        const tid = entry.tenantId;
+        if (!byTenant.has(tid)) byTenant.set(tid, []);
+        byTenant.get(tid).push({
+          labels: entry.labels,
+          samples: [{ value: entry.value, timestamp }],
         });
-      } catch (err) {
-        logger.warn({ err, tenantId }, 'Counter heartbeat push failed');
       }
+
+      for (const [tenantId, timeseries] of byTenant) {
+        const tenantStartedAt = Date.now();
+        try {
+          await pushTimeseries(timeseries, {
+            url: pushUrl,
+            headers: { 'X-Scope-OrgID': tenantId, 'Content-Encoding': 'snappy' },
+          });
+          recordMimirWrite({
+            mode: 'heartbeat',
+            durationMs: Date.now() - tenantStartedAt,
+            outcome: 'success',
+            sampleCount: timeseries.length,
+            tenantCount: 1,
+          });
+        } catch (err) {
+          recordMimirWrite({
+            mode: 'heartbeat',
+            durationMs: Date.now() - tenantStartedAt,
+            outcome: 'error',
+            sampleCount: timeseries.length,
+            tenantCount: 1,
+            error: err,
+          });
+          logger.warn({ err, tenantId }, 'Counter heartbeat push failed');
+        }
+      }
+    } finally {
+      _heartbeatInFlight = false;
     }
-  }, intervalMs);
+  }, safeIntervalMs);
+  _heartbeatTimer.unref?.();
+  return safeIntervalMs;
 }
 
 export function stopCounterHeartbeat() {
@@ -212,4 +304,5 @@ export function stopCounterHeartbeat() {
     clearInterval(_heartbeatTimer);
     _heartbeatTimer = null;
   }
+  _heartbeatInFlight = false;
 }

@@ -85,6 +85,8 @@ export const config = {
     /** Must match Grafana admin credentials. Prefer GRAFANA_ADMIN_*, fallback to GF_SECURITY_ADMIN_*. */
     adminUser: getEnv('GRAFANA_ADMIN_USER', getEnv('GF_SECURITY_ADMIN_USER', 'admin')),
     adminPassword: getEnv('GRAFANA_ADMIN_PASSWORD', getEnv('GF_SECURITY_ADMIN_PASSWORD', 'admin')),
+    /** URL Grafana should use for its Mimir datasource. Keep separate from backend MIMIR_URL when network paths differ. */
+    mimirDatasourceUrl: getEnv('GRAFANA_MIMIR_DATASOURCE_URL', 'http://mimir:8080'),
     /**
      * Public origin where the browser loads `/grafana/*` (backend proxy). If unset: when FRONTEND_URL and
      * API_BASE_URL differ, defaults to API_BASE_URL so embed links work without a /grafana proxy on the SPA host.
@@ -118,6 +120,8 @@ export const config = {
     maxLabelsPerMetric: parseInt(getEnv('METRICS_MAX_LABELS', '10'), 10),
     maxLabelValueLength: parseInt(getEnv('METRICS_MAX_LABEL_VALUE_LENGTH', '128'), 10),
     maxSeriesPerUser: parseInt(getEnv('METRICS_MAX_SERIES_PER_USER', '1000'), 10),
+    heartbeatIntervalMs: parseInt(getEnv('METRICS_HEARTBEAT_INTERVAL_MS', '15000'), 10),
+    healthTenantId: getEnv('METRICS_HEALTH_TENANT_ID', '1'),
   },
 };
 

@@ -2,6 +2,23 @@
 # Use with Prometheus rule_files and Alertmanager for notifications.
 
 groups:
+  - name: vizme-recording
+    interval: 15s
+    rules:
+      - record: vizme:http_requests:rate1m
+        expr: |
+          sum by (service, method, route, status) (
+            rate(http_requests_total{service="vizme-backend"}[1m])
+          )
+
+      - record: vizme:http_request_duration:p99_1m
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, le, route) (
+              rate(http_request_duration_seconds_bucket{service="vizme-backend"}[1m])
+            )
+          )
+
   - name: vizme-backend
     interval: 30s
     rules:
