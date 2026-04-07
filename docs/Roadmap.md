@@ -462,11 +462,11 @@ Roadmap from MVP to enterprise scale, aligned with your current architecture. Ea
 - React-based dashboard builder
 - Dashboard storage in PostgreSQL
 - WebSocket for real-time updates
-- Custom chart components with D3.js or Recharts
+- Grafana dashboards as the primary visualization surface
 
 **Tech stack:**
 
-- **Frontend:** React + D3.js or Recharts
+- **Frontend:** React + Grafana-first dashboard experience
 - **Real-time:** WebSocket (Socket.io) or Server-Sent Events
 - **Storage:** PostgreSQL for dashboard configs
 - **Visualization:** Custom React components

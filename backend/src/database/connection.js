@@ -188,7 +188,7 @@ const runMigrations = async () => {
 
     `CREATE INDEX IF NOT EXISTS idx_api_keys_site_id ON api_keys(site_id)`,
 
-    // Dashboard widgets: config-driven KPIs for Recharts (per user, optionally per site)
+    // Dashboard widgets: config-driven KPIs for Live Metrics (per user, optionally per site)
     `CREATE TABLE IF NOT EXISTS dashboard_widgets (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

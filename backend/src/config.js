@@ -85,6 +85,15 @@ export const config = {
     /** Must match Grafana admin credentials. Prefer GRAFANA_ADMIN_*, fallback to GF_SECURITY_ADMIN_*. */
     adminUser: getEnv('GRAFANA_ADMIN_USER', getEnv('GF_SECURITY_ADMIN_USER', 'admin')),
     adminPassword: getEnv('GRAFANA_ADMIN_PASSWORD', getEnv('GF_SECURITY_ADMIN_PASSWORD', 'admin')),
+    /**
+     * Public origin where the browser loads `/grafana/*` (backend proxy). If unset: when FRONTEND_URL and
+     * API_BASE_URL differ, defaults to API_BASE_URL so embed links work without a /grafana proxy on the SPA host.
+     */
+    embedPublicBaseUrl: getEnv('GRAFANA_EMBED_PUBLIC_BASE_URL', ''),
+    /**
+     * Match GF_SERVER_SERVE_FROM_SUB_PATH / docker Grafana. If false, upstream paths are /d/... not /grafana/d/...
+     */
+    serveSubpath: getEnv('GRAFANA_SERVE_SUBPATH', 'true') === 'true',
   },
 
   /** Grafana embed token expiry (e.g. '15m', '1h'). Production: 15m. Dev: 1h for convenience. */

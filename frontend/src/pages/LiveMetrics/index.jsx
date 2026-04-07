@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getEmbedUrl } from '@/api/grafana';
+import { openPrimaryGrafanaWindow } from '@/api/grafana';
 import { BarChartIcon, ArrowBackIcon, RefreshIcon } from '@/assets/icons';
 import { MetricsDashboard } from '@/components/MetricsDashboard';
 import { useToast } from '@/components/ToastContainer';
@@ -22,14 +22,19 @@ function LiveMetrics() {
 
   const handleOpenGrafana = async () => {
     try {
-      const url = await getEmbedUrl({
+      const result = await openPrimaryGrafanaWindow({
         dashboard: 'metrics',
-        from: 'now-1h',
+        from: 'now-24h',
         to: 'now',
         refresh: '10s',
-        kiosk: 'tv',
       });
-      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      if (result?.mode === 'standalone') {
+        showToast(
+          'Opened the standalone Grafana UI because the tenant embed path is not ready yet.',
+          'info',
+          4000
+        );
+      }
     } catch (err) {
       const isUnauthorized = err.response?.status === 401;
       showToast(
@@ -59,8 +64,8 @@ function LiveMetrics() {
           <div className="live-metrics-hero__titles">
             <h1 className="live-metrics-hero__title">Live Metrics</h1>
             <p className="live-metrics-hero__subtitle">
-              Real-time telemetry from your instrumented applications. Charts refresh on a short
-              interval; open Grafana for saved views and alerting.
+              Grafana is the primary visualization surface for tenant-scoped telemetry. This page adds
+              KPI summaries and filters over the same underlying metrics.
             </p>
           </div>
         </div>
@@ -69,7 +74,7 @@ function LiveMetrics() {
             Metric configs
           </Link>
           <button type="button" className="live-metrics-page__btn-primary" onClick={handleOpenGrafana}>
-            Open Grafana
+            Open Grafana workspace
           </button>
         </div>
       </header>
@@ -77,7 +82,7 @@ function LiveMetrics() {
       <div className="live-metrics-page__meta" aria-label="Data freshness">
         <span>
           <span className="live-metrics-page__meta-dot" aria-hidden />
-          Auto-refresh on charts (~15s)
+          Grafana panels stay primary; KPI cards poll the API for quick summaries
         </span>
         <span>
           <RefreshIcon size={14} aria-hidden style={{ opacity: 0.8 }} />
@@ -93,8 +98,9 @@ function LiveMetrics() {
           <div>
             <h2 id="live-metrics-panel-heading">Telemetry overview</h2>
             <p className="metrics-visualization__subtitle">
-              Aggregates for your workspace (legacy ecommerce metrics and configured dashboard
-              widgets).
+              Grafana remains the primary dashboard. Commerce vs ticketing KPI summaries are chosen
+              automatically from your 24h telemetry, and widget configs still take precedence when
+              defined.
             </p>
           </div>
           <button
@@ -102,7 +108,7 @@ function LiveMetrics() {
             onClick={handleOpenGrafana}
             className="metrics-visualization__link button-as-link"
           >
-            Full dashboard in Grafana →
+            Open primary Grafana dashboard →
           </button>
         </div>
 
@@ -112,7 +118,7 @@ function LiveMetrics() {
 
         <p className="metrics-visualization__hint">
           No data yet? Add metric configurations, create an API key, integrate the SDK, and send a
-          few events—then return here or open Grafana.
+          few events. Then open Grafana or return here for KPI summaries.
         </p>
       </section>
     </div>

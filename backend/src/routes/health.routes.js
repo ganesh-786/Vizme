@@ -1,6 +1,9 @@
 import express from 'express';
 import { query } from '../database/connection.js';
-import { config } from '../config.js';
+import {
+  grafanaAdminApiHeaders,
+  resolveGrafanaConnection,
+} from '../services/grafanaConnection.service.js';
 
 const router = express.Router();
 
@@ -20,57 +23,57 @@ router.get('/live', (req, res) => {
 
 /** Grafana connectivity check. Useful for debugging tenant setup issues. */
 router.get('/grafana', async (req, res) => {
-  const grafanaBase =
-    process.env.GRAFANA_INTERNAL_URL || config.urls.grafana || 'http://localhost:3001';
-  const base = grafanaBase.includes('/grafana')
-    ? grafanaBase
-    : `${grafanaBase.replace(/\/$/, '')}/grafana`;
-  const url = `${base}/api/org`;
-  const adminUser = config.grafana?.adminUser || process.env.GRAFANA_ADMIN_USER || 'admin';
-  const adminPass = config.grafana?.adminPassword || process.env.GRAFANA_ADMIN_PASSWORD || 'admin';
-  const auth = Buffer.from(`${adminUser}:${adminPass}`).toString('base64');
-
   try {
-    const r = await fetch(url, {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    const ok = r.ok;
-    const status = r.status;
-    const text = await r.text();
+    const conn = await resolveGrafanaConnection({ force: true });
+    if (!conn.apiBase) {
+      return res.status(503).json({
+        success: false,
+        grafanaUrl: conn.candidates?.[0] || null,
+        candidatesTried: conn.candidates || [],
+        message: conn.authFailed
+          ? 'Grafana admin authentication failed. The backend tried the configured admin login and known Grafana fallbacks.'
+          : 'Cannot reach Grafana. Ensure Grafana is running and reachable from the backend.',
+      });
+    }
+
     res.json({
-      success: ok,
-      grafanaUrl: base,
-      status,
-      message: ok ? 'Grafana reachable' : `Grafana returned ${status}: ${text?.slice(0, 200)}`,
+      success: true,
+      grafanaUrl: conn.apiBase,
+      origin: conn.origin,
+      adminUser: conn.adminCredentials?.user || null,
+      message: 'Grafana reachable with valid admin credentials',
+      candidatesTried: conn.candidates || [],
     });
   } catch (err) {
     res.status(503).json({
       success: false,
-      grafanaUrl: base,
+      grafanaUrl: null,
       error: err.message,
       code: err.cause?.code,
-      message:
-        'Cannot reach Grafana. Ensure Grafana is running. For Docker: use GRAFANA_INTERNAL_URL=http://grafana:3000. For local dev: use GRAFANA_URL=http://localhost:3001.',
+      message: 'Cannot reach Grafana. Ensure Grafana is running and reachable from the backend.',
     });
   }
 });
 
 /** Grafana readiness: metrics dashboard provisioned in org 1. Use after volume reset to verify tenant setup will succeed. */
 router.get('/grafana-ready', async (req, res) => {
-  const grafanaBase =
-    process.env.GRAFANA_INTERNAL_URL || config.urls.grafana || 'http://localhost:3001';
-  const base = grafanaBase.includes('/grafana')
-    ? grafanaBase
-    : `${grafanaBase.replace(/\/$/, '')}/grafana`;
-  const url = `${base}/api/dashboards/uid/metrics`;
-  const adminUser = config.grafana?.adminUser || process.env.GRAFANA_ADMIN_USER || 'admin';
-  const adminPass = config.grafana?.adminPassword || process.env.GRAFANA_ADMIN_PASSWORD || 'admin';
-  const auth = Buffer.from(`${adminUser}:${adminPass}`).toString('base64');
-
   try {
+    const conn = await resolveGrafanaConnection({ force: true });
+    if (!conn.apiBase) {
+      return res.status(503).json({
+        success: false,
+        grafanaUrl: conn.candidates?.[0] || null,
+        candidatesTried: conn.candidates || [],
+        message: conn.authFailed
+          ? 'Grafana admin authentication failed before readiness checks could run.'
+          : 'Cannot reach Grafana or dashboard not yet provisioned.',
+      });
+    }
+
+    const url = `${conn.apiBase}/api/dashboards/uid/metrics`;
     const r = await fetch(url, {
       headers: {
-        Authorization: `Basic ${auth}`,
+        ...grafanaAdminApiHeaders(),
         'X-Grafana-Org-Id': '1',
       },
     });
@@ -79,8 +82,9 @@ router.get('/grafana-ready', async (req, res) => {
     const text = await r.text();
     res.status(ok ? 200 : 503).json({
       success: ok,
-      grafanaUrl: base,
+      grafanaUrl: conn.apiBase,
       status,
+      adminUser: conn.adminCredentials?.user || null,
       message: ok
         ? 'Metrics dashboard provisioned in org 1'
         : `Dashboard not ready: ${status} ${text?.slice(0, 150)}`,
@@ -88,7 +92,7 @@ router.get('/grafana-ready', async (req, res) => {
   } catch (err) {
     res.status(503).json({
       success: false,
-      grafanaUrl: base,
+      grafanaUrl: null,
       error: err.message,
       code: err.cause?.code,
       message: 'Cannot reach Grafana or dashboard not yet provisioned.',

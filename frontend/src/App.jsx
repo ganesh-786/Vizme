@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -6,6 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { authAPI } from '@/api/auth';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
 import Dashboard from '@/pages/Dashboard';
@@ -47,6 +49,24 @@ function GuestRoute({ children }) {
 }
 
 function App() {
+  const { isAuthenticated, accessToken, refreshToken } = useAuthStore();
+  const lastSyncedRef = useRef('');
+
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken) {
+      lastSyncedRef.current = '';
+      return;
+    }
+
+    const syncKey = `${accessToken}:${refreshToken || ''}`;
+    if (lastSyncedRef.current === syncKey) return;
+    lastSyncedRef.current = syncKey;
+
+    authAPI.syncSession(refreshToken).catch(() => {
+      // The normal request pipeline can still refresh/recover the session.
+    });
+  }, [isAuthenticated, accessToken, refreshToken]);
+
   return (
     <Router>
       <ToastProvider>

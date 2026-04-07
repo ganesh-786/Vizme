@@ -2,27 +2,25 @@
  * Grafana tenant provisioning for Mimir hard isolation.
  * Creates org + datasource per user with X-Scope-OrgID so each user only sees their metrics.
  *
- * Product-facing charts are rendered in the React app (Recharts) via /api/v1/metrics/dashboard;
+ * Product-facing charts are embedded Grafana (uid: metrics) via /grafana proxy; KPI summaries also use /api/v1/metrics/dashboard;
  * Grafana here is an optional ops / power-user surface — see docs/VISUALIZATION_AND_GRAFANA.md.
  * Do not treat provisioned Grafana JSON as the source of truth for customer KPI layouts.
  */
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import {
+  resolveGrafanaConnection,
+  clearGrafanaConnectionCache,
+  buildGrafanaBasesToTry,
+  grafanaAdminApiHeaders,
+} from './grafanaConnection.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const GRAFANA_BASE_RAW = (
-  process.env.GRAFANA_INTERNAL_URL ||
-  config.urls.grafana ||
-  'http://localhost:3001'
-).replace(/\/$/, '');
-// Grafana serves from /grafana subpath (serve_from_sub_path=true); API is at /grafana/api/*
-const GRAFANA_BASE = GRAFANA_BASE_RAW.includes('/grafana')
-  ? GRAFANA_BASE_RAW
-  : `${GRAFANA_BASE_RAW}/grafana`;
 // Use GRAFANA_ADMIN_* or GF_SECURITY_ADMIN_* (docker-compose uses GF_* for Grafana)
 const ADMIN_USER =
   config.grafana?.adminUser ||
@@ -46,12 +44,6 @@ const PROMETHEUS_URL = (
   'http://prometheus:9090'
 ).replace(/\/$/, '');
 
-// Fallback when GRAFANA_INTERNAL_URL fails (e.g. backend runs locally, "grafana" hostname doesn't resolve)
-const GRAFANA_FALLBACK_RAW = (config.urls.grafana || 'http://localhost:3001').replace(/\/$/, '');
-const GRAFANA_FALLBACK = GRAFANA_FALLBACK_RAW.includes('/grafana')
-  ? GRAFANA_FALLBACK_RAW
-  : `${GRAFANA_FALLBACK_RAW}/grafana`;
-
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 const DASHBOARD_UPDATE_COOLDOWN_MS = 60_000; // Skip overwrite if done in last 60s (reduces Grafana API load)
@@ -60,10 +52,9 @@ const PROVISION_DELAY_MS = 3000; // Wait longer between retries for Grafana to f
 
 const dashboardLastUpdated = new Map(); // orgId -> timestamp
 
-// Log resolved config at module load (helps debug connectivity)
 logger.info(
-  { grafanaBase: GRAFANA_BASE, mimirUrl: MIMIR_URL, adminUser: ADMIN_USER },
-  'Grafana tenant service initialized'
+  { grafanaCandidates: buildGrafanaBasesToTry(), mimirUrl: MIMIR_URL, adminUser: ADMIN_USER },
+  'Grafana tenant service initialized (connection resolved on first use)'
 );
 
 // Warmup: bootstrap org 1 dashboard on startup (async, non-blocking)
@@ -76,14 +67,20 @@ async function sleep(ms) {
 }
 
 async function grafanaFetch(path, opts = {}, baseOverride = null) {
-  const base = baseOverride || GRAFANA_BASE;
+  let base = baseOverride;
+  if (!base) {
+    const conn = await resolveGrafanaConnection();
+    base = conn.apiBase;
+  }
+  if (!base) {
+    throw new Error('GRAFANA_UNREACHABLE');
+  }
   const url = `${base}${path}`;
-  const auth = Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString('base64');
   const res = await fetch(url, {
     ...opts,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Basic ${auth}`,
+      ...grafanaAdminApiHeaders(),
       ...(opts.headers || {}),
     },
   });
@@ -91,43 +88,163 @@ async function grafanaFetch(path, opts = {}, baseOverride = null) {
 }
 
 /**
+ * Auth-proxy headers (X-WEBAUTH-ORGS) do not reliably grant access to non-default orgs in Grafana OSS.
+ * Ensures the Grafana user exists and is an Admin in the tenant org via the Admin HTTP API.
+ */
+async function ensureAuthProxyUserInOrg(grafanaLogin, orgId, baseOverride = null) {
+  if (!grafanaLogin || String(grafanaLogin).trim() === '') return;
+  const login = String(grafanaLogin).trim();
+
+  try {
+    const lookupRes = await grafanaFetch(
+      '/api/users/lookup?loginOrEmail=' + encodeURIComponent(login),
+      {},
+      baseOverride
+    );
+
+    if (lookupRes.ok) {
+      const addRes = await grafanaFetch(
+        `/api/orgs/${orgId}/users`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ loginOrEmail: login, role: 'Admin' }),
+        },
+        baseOverride
+      );
+      if (addRes.ok) {
+        logger.info({ orgId, login }, 'ensureAuthProxyUserInOrg: added existing user to tenant org');
+        return;
+      }
+      const addText = await addRes.text();
+      if (
+        addRes.status === 409 ||
+        addRes.status === 412 ||
+        /already in organization|already exists|duplicate/i.test(addText || '')
+      ) {
+        return;
+      }
+      logger.warn(
+        { status: addRes.status, orgId, login, body: addText?.slice(0, 200) },
+        'ensureAuthProxyUserInOrg: add existing user to org failed'
+      );
+      return;
+    }
+
+    if (lookupRes.status !== 404) {
+      const t = await lookupRes.text();
+      logger.warn({ status: lookupRes.status, body: t?.slice(0, 200) }, 'ensureAuthProxyUserInOrg: user lookup failed');
+      return;
+    }
+
+    const randomPass = crypto.randomBytes(32).toString('base64url');
+    const emailForGrafana = login.includes('@') ? login : `${login}@vizme.local`;
+    const adminUserPayload = {
+      name: login.includes('@') ? login.split('@')[0] : login,
+      email: emailForGrafana,
+      login,
+      password: randomPass,
+      OrgId: orgId,
+    };
+
+    const createRes = await grafanaFetch(
+      '/api/admin/users',
+      {
+        method: 'POST',
+        body: JSON.stringify(adminUserPayload),
+      },
+      baseOverride
+    );
+    if (createRes.ok) {
+      logger.info({ orgId, login }, 'ensureAuthProxyUserInOrg: created Grafana user in tenant org');
+      return;
+    }
+
+    const createText = await createRes.text();
+    if (/already exists|duplicate|login already|email already/i.test(createText || '')) {
+      const retryAdd = await grafanaFetch(
+        `/api/orgs/${orgId}/users`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ loginOrEmail: login, role: 'Admin' }),
+        },
+        baseOverride
+      );
+      if (retryAdd.ok || retryAdd.status === 409) {
+        logger.info({ orgId, login }, 'ensureAuthProxyUserInOrg: added user to org after create race');
+        return;
+      }
+      const retryText = await retryAdd.text();
+      logger.warn(
+        { status: retryAdd.status, orgId, login, body: retryText?.slice(0, 200) },
+        'ensureAuthProxyUserInOrg: add after duplicate failed'
+      );
+      return;
+    }
+
+    logger.warn(
+      { status: createRes.status, orgId, login, body: createText?.slice(0, 300) },
+      'ensureAuthProxyUserInOrg: admin create user failed'
+    );
+  } catch (err) {
+    logger.warn({ err: err.message, orgId, login }, 'ensureAuthProxyUserInOrg: error');
+  }
+}
+
+/**
  * Ensure Grafana has org and datasource for user. Creates if missing.
  * Retries with fallback URL when primary Grafana URL fails (e.g. backend local, "grafana" hostname doesn't resolve).
  * @param {string|number} userId - User ID (tenant ID)
+ * @param {{ grafanaLogin?: string }} [options] - Grafana auth-proxy login (email or vizme_user_{id}); required for tenant org access
  * @returns {Promise<number|null>} - Grafana org ID for this tenant, or null
  */
-export async function ensureGrafanaTenant(userId) {
+export async function ensureGrafanaTenant(userId, options = {}) {
   const uid = String(userId);
   const orgName = `vizme-${uid}`;
 
-  const basesToTry = [GRAFANA_BASE];
-  if (GRAFANA_FALLBACK !== GRAFANA_BASE) basesToTry.push(GRAFANA_FALLBACK);
+  const runOnce = async (base) => {
+    let orgId = await getOrgIdByName(orgName, base);
+    if (!orgId) {
+      orgId = await createOrg(orgName, base);
+    }
+    if (!orgId) {
+      return null;
+    }
 
-  for (const base of basesToTry) {
+    await ensurePrometheusDatasource(orgId, base);
+    await ensureMimirDatasource(orgId, uid, base);
+    const dashboardOk = await ensureDashboardInOrg(orgId, uid, base);
+    if (!dashboardOk) {
+      logger.error({ orgId, userId: uid }, 'ensureGrafanaTenant: dashboard setup failed, not returning org');
+      return null;
+    }
+    if (options.grafanaLogin) {
+      await ensureAuthProxyUserInOrg(options.grafanaLogin, orgId, base);
+    }
+    return orgId;
+  };
+
+  for (let round = 0; round < 2; round++) {
+    const conn = await resolveGrafanaConnection({ force: round > 0 });
+    if (!conn?.apiBase) {
+      return null;
+    }
+    const base = conn.apiBase;
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        let orgId = await getOrgIdByName(orgName, base);
-        if (!orgId) {
-          orgId = await createOrg(orgName, base);
+        const orgId = await runOnce(base);
+        if (orgId) return orgId;
+        if (attempt < MAX_RETRIES) {
+          logger.warn({ attempt, base, orgName }, 'ensureGrafanaTenant: org not ready, retrying...');
+          await sleep(RETRY_DELAY_MS * attempt);
         }
-        if (!orgId) {
-          if (attempt < MAX_RETRIES) {
-            logger.warn({ attempt, base, orgName }, 'createOrg returned null, retrying...');
-            await sleep(RETRY_DELAY_MS * attempt);
-          }
-          continue;
-        }
-
-        await ensurePrometheusDatasource(orgId, base);
-        await ensureMimirDatasource(orgId, uid, base);
-        const dashboardOk = await ensureDashboardInOrg(orgId, uid, base);
-        if (!dashboardOk) {
-          logger.error({ orgId, userId: uid }, 'ensureGrafanaTenant: dashboard setup failed, not returning org');
+      } catch (err) {
+        if (err.message === 'GRAFANA_ADMIN_AUTH_FAILED') {
+          logger.error({ userId: uid }, 'ensureGrafanaTenant: Grafana admin credentials invalid');
           return null;
         }
-        return orgId;
-      } catch (err) {
         const isConnectError =
+          err.message === 'GRAFANA_UNREACHABLE' ||
           err.cause?.code === 'ECONNREFUSED' ||
           err.cause?.code === 'ENOTFOUND' ||
           err.message?.includes('fetch failed');
@@ -135,27 +252,26 @@ export async function ensureGrafanaTenant(userId) {
           { err: err.message, errCode: err.cause?.code, attempt, base, userId: uid },
           'ensureGrafanaTenant attempt failed'
         );
+        if (isConnectError) {
+          clearGrafanaConnectionCache();
+        }
         if (attempt < MAX_RETRIES && isConnectError) {
           await sleep(RETRY_DELAY_MS * attempt);
-        } else if (
-          attempt === MAX_RETRIES &&
-          isConnectError &&
-          basesToTry.indexOf(base) < basesToTry.length - 1
-        ) {
-          // Try next base (fallback)
-          break;
         } else if (attempt === MAX_RETRIES) {
           logger.error(
             { err, userId: uid, grafanaBase: base, lastAttempt: true },
-            'ensureGrafanaTenant failed - check Grafana reachability and admin credentials'
+            'ensureGrafanaTenant failed - check Grafana reachability'
           );
+          if (isConnectError && round === 0) {
+            break;
+          }
           return null;
         }
       }
     }
   }
 
-  logger.error('ensureGrafanaTenant failed after all retries and fallbacks');
+  logger.error('ensureGrafanaTenant failed after retries');
   return null;
 }
 
@@ -163,6 +279,10 @@ async function getOrgIdByName(name, baseOverride = null) {
   const res = await grafanaFetch('/api/orgs/name/' + encodeURIComponent(name), {}, baseOverride);
   if (!res.ok) {
     if (res.status === 404) return null; // Org doesn't exist yet
+    if (res.status === 401 || res.status === 403) {
+      await res.text();
+      throw new Error('GRAFANA_ADMIN_AUTH_FAILED');
+    }
     const text = await res.text();
     logger.warn({ status: res.status, text: text?.slice(0, 200), name }, 'getOrgIdByName failed');
     return null;
@@ -179,9 +299,16 @@ async function createOrg(name, baseOverride = null) {
   );
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 401 || res.status === 403) {
+      logger.error(
+        { status: res.status, text: text?.slice(0, 300), name },
+        'createOrg: Grafana admin API rejected credentials'
+      );
+      throw new Error('GRAFANA_ADMIN_AUTH_FAILED');
+    }
     logger.error(
       { status: res.status, text: text?.slice(0, 300), name },
-      'createOrg failed - verify GRAFANA_ADMIN_USER/PASSWORD match Grafana (401=wrong credentials)'
+      'createOrg failed - verify GRAFANA_ADMIN_USER/PASSWORD match Grafana'
     );
     return null;
   }
@@ -449,10 +576,10 @@ async function bootstrapOrg1Dashboard(baseOverride = null) {
  * Explicitly binds all panels to the tenant's Mimir datasource for hard isolation.
  * Returns true on success, false on failure. Failure causes ensureGrafanaTenant to return null (503).
  */
-async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null) {
+async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null, force = false) {
   const now = Date.now();
   const last = dashboardLastUpdated.get(orgId) ?? 0;
-  if (now - last < DASHBOARD_UPDATE_COOLDOWN_MS) return true; // Already updated recently
+  if (!force && now - last < DASHBOARD_UPDATE_COOLDOWN_MS) return true; // Already updated recently
 
   let dashboard = null;
 
@@ -571,4 +698,49 @@ async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null) {
   }
   logger.error({ orgId, tenantId }, 'ensureDashboardInOrg: create failed after retries');
   return false;
+}
+
+/**
+ * Clears the per-org dashboard cooldown and re-copies uid=metrics into the tenant org.
+ * Used when Grafana returns 404 for /d/... (missing dashboard, volume reset, or manual delete).
+ */
+export async function reprovisionTenantDashboard(userId) {
+  const uid = String(userId);
+  const orgName = `vizme-${uid}`;
+  const conn = await resolveGrafanaConnection();
+  const basesToTry = conn.apiBase
+    ? [conn.apiBase, ...buildGrafanaBasesToTry().filter((b) => b !== conn.apiBase)]
+    : buildGrafanaBasesToTry();
+
+  for (const base of basesToTry) {
+    const orgId = await getOrgIdByName(orgName, base);
+    if (!orgId) {
+      logger.warn({ userId: uid, base }, 'reprovisionTenantDashboard: org not found');
+      continue;
+    }
+    dashboardLastUpdated.delete(orgId);
+    const ok = await ensureDashboardInOrg(orgId, uid, base, true);
+    if (ok) {
+      logger.info({ userId: uid, orgId }, 'reprovisionTenantDashboard: success');
+      return true;
+    }
+  }
+  logger.error({ userId: uid }, 'reprovisionTenantDashboard: failed');
+  return false;
+}
+
+/**
+ * Admin API check: uid=metrics exists in the given org (used before returning embed URLs).
+ */
+export async function verifyMetricsDashboardInOrg(orgId, baseOverride = null) {
+  try {
+    const res = await grafanaFetch(
+      '/api/dashboards/uid/metrics',
+      { headers: { 'X-Grafana-Org-Id': String(orgId) } },
+      baseOverride
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

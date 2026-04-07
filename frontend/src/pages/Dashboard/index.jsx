@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { apiKeysAPI } from '@/api/apiKeys';
 import { onboardingAPI } from '@/api/onboarding';
-import { getEmbedUrl } from '@/api/grafana';
+import { openPrimaryGrafanaWindow } from '@/api/grafana';
 import {
   AnalyticsIcon,
   CheckIcon,
@@ -15,13 +15,18 @@ import {
   TrendUpIcon,
 } from '@/assets/icons';
 import { Skeleton } from '@/components/Skeleton';
+import { GrafanaDashboardEmbed } from '@/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed';
 import { useToast } from '@/components/ToastContainer';
 import './Dashboard.css';
 
 const DASHBOARD_TITLE = 'Dashboard · Vizme';
 
+const GRAFANA_SECTION_MIN_HEIGHT = 560;
+
 function Dashboard() {
   const { showToast } = useToast();
+  const grafanaSectionRef = useRef(null);
+  const [grafanaSectionVisible, setGrafanaSectionVisible] = useState(false);
   const [stats, setStats] = useState({
     metricConfigs: 0,
     apiKeys: 0,
@@ -79,16 +84,44 @@ function Dashboard() {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  /** Load Grafana iframe only when the section is near the viewport (fewer token fetches, lighter first paint). */
+  useEffect(() => {
+    const el = grafanaSectionRef.current;
+    if (!el) return undefined;
+
+    const margin = 180;
+    const maybeVisible = () => {
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (rect.top < vh + margin && rect.bottom > -margin) setGrafanaSectionVisible(true);
+    };
+    maybeVisible();
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setGrafanaSectionVisible(true);
+      },
+      { root: null, rootMargin: `${margin}px 0px`, threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const handleOpenGrafana = async () => {
     try {
-      const url = await getEmbedUrl({
+      const result = await openPrimaryGrafanaWindow({
         dashboard: 'metrics',
-        from: 'now-1h',
+        from: 'now-24h',
         to: 'now',
         refresh: '10s',
-        kiosk: 'tv',
       });
-      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      if (result?.mode === 'standalone') {
+        showToast(
+          'Opened the standalone Grafana UI because the tenant embed path is not ready yet.',
+          'info',
+          4000
+        );
+      }
     } catch (err) {
       const isUnauthorized = err.response?.status === 401;
       showToast(
@@ -198,6 +231,52 @@ function Dashboard() {
         </div>
       </div>
 
+      <section
+        ref={grafanaSectionRef}
+        className="dashboard-grafana"
+        aria-labelledby="dashboard-grafana-heading"
+      >
+        <div className="dashboard-grafana__head">
+          <div className="dashboard-grafana__titles">
+            <h2 id="dashboard-grafana-heading" className="dashboard-grafana__title">
+              Grafana workspace
+            </h2>
+            <p className="dashboard-grafana__subtitle">
+              Grafana is the primary visualization surface for charts and time series. Use{' '}
+              <Link to="/live-metrics">Live metrics</Link> for KPI summaries and filters, or open the
+              full Grafana UI in a new tab if the embed path is unavailable.
+            </p>
+          </div>
+          <div className="dashboard-grafana__actions">
+            <Link to="/live-metrics" className="dashboard-grafana__link">
+              KPI summary view →
+            </Link>
+            <button
+              type="button"
+              className="dashboard-grafana__btn"
+              onClick={handleOpenGrafana}
+            >
+              Open Grafana workspace
+            </button>
+          </div>
+        </div>
+        {grafanaSectionVisible ? (
+          <GrafanaDashboardEmbed
+            minHeight={GRAFANA_SECTION_MIN_HEIGHT}
+            title="Grafana metrics dashboard"
+            kiosk="tv"
+          />
+        ) : (
+          <div
+            className="dashboard-grafana__placeholder"
+            style={{ minHeight: GRAFANA_SECTION_MIN_HEIGHT }}
+            aria-hidden
+          >
+            <Skeleton width="100%" height={GRAFANA_SECTION_MIN_HEIGHT} />
+          </div>
+        )}
+      </section>
+
       {/* ── Quick Start Guide (shows progress for returning users) ──── */}
       <section className="quickstart">
         <div className="quickstart-head">
@@ -296,8 +375,8 @@ function Dashboard() {
             <div className="timeline-content">
               <h3>View in Grafana</h3>
               <p>
-                Connect your VIZME endpoint to your Grafana dashboard via our native plugin for
-                visualization.
+                Grafana is the primary visualization surface. Use Live metrics for KPI summaries, or
+                open the full Grafana workspace when you want the dedicated UI.
               </p>
               <div className="timeline-actions">
                 <Link to="/live-metrics" className="primary-inline-btn">

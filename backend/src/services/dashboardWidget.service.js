@@ -1,5 +1,5 @@
 /**
- * Dashboard widget definitions for config-driven Recharts dashboards (Postgres).
+ * Dashboard widget definitions for config-driven KPI dashboards (Postgres).
  */
 import { query } from '../database/connection.js';
 

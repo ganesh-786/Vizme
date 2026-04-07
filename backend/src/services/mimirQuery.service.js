@@ -100,6 +100,147 @@ function clampTimingMs(val, max = MAX_REASONABLE_TIMING_MS) {
   return (Number.isFinite(n) && n > 0 && n <= max) ? Math.round(n) : 0;
 }
 
+/** PromQL fragment: ticketing / cinema counters from the browser SDK (Movie_ticketBooking demo). */
+const MOVIE_COUNTER_REGEX =
+  'user_metric_(ticket_purchase_completed|movie_book_now|featured_movie_book|movie_select)';
+
+/** Ecommerce-style counters used to infer store traffic vs ticketing-only (counters / typical funnel). */
+const ECOMMERCE_SIGNAL_REGEX =
+  'user_metric_(total_revenue|revenue|totalRevenue|orders_completed|products_sold|product_sold|add_to_cart|addtocart|checkout_started)';
+
+/**
+ * Infer dashboard vertical from 24h activity (no DB flag). Widget mode bypasses this.
+ * @returns {'ecommerce'|'movie'|'mixed'}
+ */
+export async function detectDashboardVertical(userId, siteId = null) {
+  const uid = String(userId);
+  const userFilter = buildTenantLabelFilter(userId, siteId);
+
+  const movieQuery = `sum(increase({__name__=~"${MOVIE_COUNTER_REGEX}", ${userFilter}}[24h])) or vector(0)`;
+  const ecoQuery = `sum(increase({__name__=~"${ECOMMERCE_SIGNAL_REGEX}", ${userFilter}}[24h])) or vector(0)`;
+
+  const [movieSig, ecoSig] = await Promise.all([
+    queryScalar(uid, movieQuery),
+    queryScalar(uid, ecoQuery),
+  ]);
+
+  const m = movieSig ?? 0;
+  const e = ecoSig ?? 0;
+
+  if (m > 0 && e === 0) return 'movie';
+  if (e > 0 && m === 0) return 'ecommerce';
+  if (m > 0 && e > 0) return 'mixed';
+  return 'ecommerce';
+}
+
+/**
+ * Ticketing / cinema-oriented dashboard (24h). Shares RUM stats with legacy layout.
+ */
+export async function fetchMovieDashboardMetrics(userId, siteId = null) {
+  const uid = String(userId);
+  const userFilter = buildTenantLabelFilter(userId, siteId);
+  const pageViewSelector = `{__name__=~"user_metric_(page_view|page_views)", ${userFilter}}`;
+  const movieSelector = `{__name__=~"${MOVIE_COUNTER_REGEX}", ${userFilter}}`;
+  const revenueForTickets = `{__name__=~"user_metric_(total_revenue|revenue|totalRevenue)", ${userFilter}}`;
+
+  const [
+    ticketsSold,
+    bookNowClicks,
+    featuredBookClicks,
+    pageViews,
+    seriesCount,
+    pageLoadTime,
+    ttfb,
+    domContentLoaded,
+    fcp,
+    lcp,
+    fid,
+    cls,
+    jsErrors,
+    promiseRejections,
+    scrollDepth,
+    maxScrollDepth,
+    timeOnPage,
+    interactions,
+    ticketRevenue,
+  ] = await Promise.all([
+    queryScalar(uid, `sum(increase(user_metric_ticket_purchase_completed{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(user_metric_movie_book_now{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(user_metric_featured_movie_book{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(${pageViewSelector}[24h])) or vector(0)`),
+    queryScalar(uid, `count({__name__=~"user_metric_.+", ${userFilter}}) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_ttfb{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_dom_content_loaded{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_fcp{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_lcp{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_fid{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_cls{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(user_metric_javascript_errors{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(user_metric_promise_rejections{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `avg(user_metric_scroll_depth{${userFilter}}) or vector(0)`),
+    queryScalar(uid, `avg(user_metric_max_scroll_depth{${userFilter}}) or vector(0)`),
+    queryScalar(uid, `avg(avg_over_time(user_metric_time_on_page{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(user_metric_user_interaction{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(${revenueForTickets}[24h])) or vector(0)`),
+  ]);
+
+  const end = Math.floor(Date.now() / 1000);
+  const start = end - 24 * 3600;
+
+  const [timeseriesData, ticketActivityOverTime, perfOverTime, errorsOverTime] = await Promise.all([
+    queryRange(uid, `{__name__=~"user_metric_.+", ${userFilter}}`, start, end, 300),
+    queryRange(
+      uid,
+      `sum(increase(${movieSelector}[15m])) or vector(0)`,
+      start,
+      end,
+      300
+    ),
+    queryRange(uid, `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[5m]))`, start, end, 300),
+    queryRange(uid, `sum(increase(user_metric_javascript_errors{${userFilter}}[5m])) or vector(0)`, start, end, 300),
+  ]);
+
+  return {
+    stats: {
+      ticketsSold: Math.round(ticketsSold ?? 0),
+      bookNowClicks: Math.round(bookNowClicks ?? 0),
+      featuredBookClicks: Math.round(featuredBookClicks ?? 0),
+      ticketRevenue: ticketRevenue ?? 0,
+      pageViews: Math.round(pageViews ?? 0),
+      metricSeriesCount: Math.round(seriesCount ?? 0),
+      pageLoadTime: clampTimingMs(pageLoadTime),
+      ttfb: clampTimingMs(ttfb),
+      domContentLoaded: clampTimingMs(domContentLoaded),
+      fcp: clampTimingMs(fcp),
+      lcp: clampTimingMs(lcp),
+      fid: clampTimingMs(fid),
+      cls: clampTimingMs(cls, 10_000),
+      jsErrors: Math.round(jsErrors ?? 0),
+      promiseRejections: Math.round(promiseRejections ?? 0),
+      avgScrollDepth: Math.round(scrollDepth ?? 0),
+      avgMaxScrollDepth: Math.round(maxScrollDepth ?? 0),
+      avgTimeOnPage: Math.round(timeOnPage ?? 0),
+      totalInteractions: Math.round(interactions ?? 0),
+    },
+    timeseries: (timeseriesData || []).map((r) => ({
+      metric: r.metric,
+      values: (r.values || []).map(([t, v]) => ({ time: t, value: parseFloat(v) })),
+    })),
+    revenueOverTime: (ticketActivityOverTime || []).flatMap((r) =>
+      (r.values || []).map(([t, v]) => ({ time: Number(t), value: parseFloat(v) }))
+    ),
+    performanceOverTime: (perfOverTime || []).flatMap((r) =>
+      (r.values || [])
+        .map(([t, v]) => ({ time: Number(t), value: parseFloat(v) }))
+        .filter((p) => p.value >= 0 && p.value <= MAX_REASONABLE_TIMING_MS)
+    ),
+    errorsOverTime: (errorsOverTime || []).flatMap((r) =>
+      (r.values || []).map(([t, v]) => ({ time: Number(t), value: parseFloat(v) }))
+    ),
+  };
+}
+
 /**
  * Legacy ecommerce-oriented dashboard (24h). Optional siteId narrows metrics by site_id label.
  */
@@ -214,7 +355,7 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null) {
 }
 
 /**
- * Config-driven dashboard from dashboard_widgets rows (Recharts contract).
+ * Config-driven dashboard from dashboard_widgets rows (widget KPI contract).
  */
 export async function fetchConfigDrivenDashboardMetrics(userId, siteId, widgets) {
   const uid = String(userId);
@@ -294,7 +435,7 @@ function normalizeSiteQueryParam(siteId) {
 }
 
 /**
- * Fetch dashboard: uses dashboard_widgets when defined for scope; otherwise legacy ecommerce layout.
+ * Fetch dashboard: dashboard_widgets when defined; else legacy layout with auto vertical (ecommerce | movie | mixed).
  * @param {string|number} userId
  * @param {string|null|undefined} siteId - query param from dashboard (optional)
  */
@@ -303,17 +444,63 @@ export async function fetchDashboardMetrics(userId, siteId = null) {
   const widgets = await listDashboardWidgetsForScope(userId, normalizedSite);
 
   if (widgets.length > 0) {
-    return fetchConfigDrivenDashboardMetrics(userId, normalizedSite, widgets);
+    const cfg = await fetchConfigDrivenDashboardMetrics(userId, normalizedSite, widgets);
+    const siteNum =
+      normalizedSite != null && !Number.isNaN(parseInt(String(normalizedSite), 10))
+        ? parseInt(String(normalizedSite), 10)
+        : null;
+    return {
+      ...cfg,
+      dashboardFlavor: 'widgets',
+      siteId: siteNum,
+    };
   }
 
-  const legacy = await fetchLegacyDashboardMetrics(userId, normalizedSite);
   const siteNum =
     normalizedSite != null && !Number.isNaN(parseInt(String(normalizedSite), 10))
       ? parseInt(String(normalizedSite), 10)
       : null;
 
+  const vertical = await detectDashboardVertical(userId, normalizedSite);
+
+  if (vertical === 'movie') {
+    const movie = await fetchMovieDashboardMetrics(userId, normalizedSite);
+    return {
+      dashboardMode: 'legacy',
+      dashboardFlavor: 'movie',
+      siteId: siteNum,
+      ...movie,
+    };
+  }
+
+  if (vertical === 'mixed') {
+    const [eco, movie] = await Promise.all([
+      fetchLegacyDashboardMetrics(userId, normalizedSite),
+      fetchMovieDashboardMetrics(userId, normalizedSite),
+    ]);
+    return {
+      dashboardMode: 'legacy',
+      dashboardFlavor: 'mixed',
+      siteId: siteNum,
+      stats: eco.stats,
+      movieStats: {
+        ticketsSold: movie.stats.ticketsSold,
+        bookNowClicks: movie.stats.bookNowClicks,
+        featuredBookClicks: movie.stats.featuredBookClicks,
+        ticketRevenue: movie.stats.ticketRevenue,
+      },
+      movieActivityOverTime: movie.revenueOverTime,
+      timeseries: eco.timeseries,
+      revenueOverTime: eco.revenueOverTime,
+      performanceOverTime: eco.performanceOverTime,
+      errorsOverTime: eco.errorsOverTime,
+    };
+  }
+
+  const legacy = await fetchLegacyDashboardMetrics(userId, normalizedSite);
   return {
     dashboardMode: 'legacy',
+    dashboardFlavor: 'ecommerce',
     siteId: siteNum,
     ...legacy,
   };
