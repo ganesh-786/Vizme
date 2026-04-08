@@ -14,7 +14,7 @@ function GrafanaDashboardEmbed({
   dashboard = 'metrics',
   from = 'now-24h',
   to = 'now',
-  refresh = '10s',
+  refresh = '15s',
   kiosk = 'tv',
   minHeight = 520,
   title = 'Metrics charts (Grafana)',

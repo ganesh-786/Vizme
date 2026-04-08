@@ -14,7 +14,7 @@ import './GrafanaEmbed.css';
  * @param {number} panelId - Optional panel ID to embed a specific panel (uses d-solo endpoint)
  * @param {string} from - Time range start (default: 'now-1h')
  * @param {string} to - Time range end (default: 'now')
- * @param {string} refresh - Auto-refresh interval (default: '10s')
+ * @param {string} refresh - Auto-refresh interval (default: '15s')
  * @param {string} theme - Grafana theme: 'light' or 'dark' (default: follows system)
  * @param {number} height - iframe height in pixels (default: 400)
  * @param {string} title - Accessible title for the iframe
@@ -25,7 +25,7 @@ function GrafanaEmbed({
   panelId,
   from = 'now-1h',
   to = 'now',
-  refresh = '3s',
+  refresh = '15s',
   theme,
   height = 400,
   title = 'Metrics Dashboard',

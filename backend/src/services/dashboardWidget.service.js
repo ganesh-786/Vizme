@@ -11,6 +11,14 @@ export function assertSafeMetricName(name) {
   }
 }
 
+function sanitizeMetricNames(metricNames = []) {
+  return [...new Set(
+    (metricNames || [])
+      .map((name) => String(name || '').replace(/[^a-zA-Z0-9_]/g, ''))
+      .filter(Boolean)
+  )];
+}
+
 /**
  * BuildPromQL label matcher fragment: user_id=~"^id$"[,site_id=~"^sid$"]
  */
@@ -54,18 +62,24 @@ export function promqlRangeForMetricName(metricName, userId, siteId) {
   return `user_metric_${metricName}{${filter}}`;
 }
 
+export function promqlSelectorForMetricNames(metricNames, userId, siteId) {
+  const safe = sanitizeMetricNames(metricNames);
+  const filter = buildTenantLabelFilter(userId, siteId);
+  if (safe.length === 0) return `{__name__=~"user_metric_.+", ${filter}}`;
+  if (safe.length === 1) return `user_metric_${safe[0]}{${filter}}`;
+  return `{__name__=~"user_metric_(${safe.join('|')})", ${filter}}`;
+}
+
+export function promqlCountDistinctMetricNames(metricNames, userId, siteId) {
+  const selector = promqlSelectorForMetricNames(metricNames, userId, siteId);
+  return `count(count by (__name__) (${selector})) or vector(0)`;
+}
+
 /**
  * Multi-series: all user_metric_* for tenant (and optional site).
  */
 export function promqlMultiSeriesSelector(userId, siteId, metricNames = null) {
-  const filter = buildTenantLabelFilter(userId, siteId);
-  if (metricNames && metricNames.length > 0) {
-    const safe = metricNames.map((n) => String(n).replace(/[^a-zA-Z0-9_]/g, '')).filter(Boolean);
-    if (safe.length === 0) return `{__name__=~"user_metric_.+", ${filter}}`;
-    const alt = safe.join('|');
-    return `{__name__=~"user_metric_(${alt})", ${filter}}`;
-  }
-  return `{__name__=~"user_metric_.+", ${filter}}`;
+  return promqlSelectorForMetricNames(metricNames, userId, siteId);
 }
 
 function parseUserId(userId) {

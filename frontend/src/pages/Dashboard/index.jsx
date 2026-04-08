@@ -85,7 +85,7 @@ function Dashboard() {
         dashboard: 'metrics',
         from: 'now-24h',
         to: 'now',
-        refresh: '10s',
+        refresh: '15s',
       });
       if (result?.mode === 'standalone') {
         showToast(

@@ -5,7 +5,10 @@ import client from './client';
  * @param {number|string|null|undefined} siteId - Optional site filter (must match site_id label on series).
  */
 export async function getDashboardMetrics(siteId) {
-  const params = {};
+  const params = {
+    include_series: '0',
+    include_details: '0',
+  };
   if (siteId !== undefined && siteId !== null && siteId !== '') {
     params.site_id = siteId;
   }
