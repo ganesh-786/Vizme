@@ -58,6 +58,12 @@ function resolveGrafanaEmbedPublicBase(req) {
   return fe || api || `${req.protocol}://${req.get('host')}`;
 }
 
+function normalizeGrafanaSiteFilter(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '.*';
+  return /^\d+$/.test(raw) ? raw : '.*';
+}
+
 function wantsBrowserRedirect(req) {
   const explicit = String(req.query.redirect || '').toLowerCase();
   if (explicit === '1' || explicit === 'true') return true;
@@ -142,6 +148,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
     }
 
     const embedTokenExpiry = config.grafanaEmbedTokenExpiry || '15m';
+    const siteFilter = normalizeGrafanaSiteFilter(req.query.site_id ?? req.query.siteId);
 
     const embedToken = jwt.sign(
       {
@@ -160,6 +167,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
     const params = new URLSearchParams({
       embed_token: embedToken,
       'var-user_id': String(userId),
+      'var-site_filter': siteFilter,
       from,
       to,
       refresh,

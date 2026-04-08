@@ -16,6 +16,7 @@ function GrafanaDashboardEmbed({
   to = 'now',
   refresh = '15s',
   kiosk = 'tv',
+  siteId = '',
   minHeight = 520,
   title = 'Metrics charts (Grafana)',
   className = '',
@@ -29,7 +30,14 @@ function GrafanaDashboardEmbed({
 
   const fetchEmbed = useCallback(async () => {
     try {
-      const result = await getEmbedUrl({ dashboard, from, to, refresh, kiosk });
+      const result = await getEmbedUrl({
+        dashboard,
+        from,
+        to,
+        refresh,
+        kiosk,
+        site_id: siteId || undefined,
+      });
       if (result?.url) {
         hasEmbedRef.current = true;
         setEmbedUrl(result.url);
@@ -54,7 +62,7 @@ function GrafanaDashboardEmbed({
       }
       return false;
     }
-  }, [dashboard, from, to, refresh, kiosk]);
+  }, [dashboard, from, to, refresh, kiosk, siteId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +125,13 @@ function GrafanaDashboardEmbed({
             className="grafana-dashboard-embed__retry"
             onClick={async () => {
               try {
-                await openPrimaryGrafanaWindow({ dashboard, from, to, refresh });
+                await openPrimaryGrafanaWindow({
+                  dashboard,
+                  from,
+                  to,
+                  refresh,
+                  site_id: siteId || undefined,
+                });
               } catch (e) {
                 if (e?.response?.status === 401) {
                   hasEmbedRef.current = false;
