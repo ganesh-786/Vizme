@@ -1,19 +1,50 @@
 {
-    "name": "vizme",
-    "version": "1.0.0",
-    "description": "Unified visibility platform - automatic metrics tracking library",
-    "type": "module",
-    "main": "dist/vizme.js",
-    "scripts": {
-      "build": "node build.js"
-    },
-    "keywords": [
-      "metrics",
-      "analytics",
-      "tracking",
-      "monitoring",
-      "prometheus"
-    ],
-    "author": "",
-    "license": "MIT"
+  "name": "@ganesh-40/vizme",
+  "version": "1.0.2",
+  "description": "Unified visibility platform - automatic metrics tracking library",
+  "type": "module",
+  "main": "./dist/vizme.cjs",
+  "module": "./dist/vizme.esm.js",
+  "types": "./vizme.d.ts",
+  "exports": {
+    ".": {
+      "types": "./vizme.d.ts",
+      "import": "./dist/vizme.esm.js",
+      "require": "./dist/vizme.cjs",
+      "default": "./dist/vizme.esm.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "vizme.d.ts"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "metrics",
+    "analytics",
+    "tracking",
+    "monitoring",
+    "prometheus",
+    "vizme"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vizme/Vizme.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vizme/Vizme/issues"
+  },
+  "homepage": "https://github.com/Vizme/Vizme#readme",
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
+}
