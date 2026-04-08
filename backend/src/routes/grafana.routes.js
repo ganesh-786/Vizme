@@ -14,9 +14,13 @@ import {
   verifyMimirDatasourceInOrg,
 } from '../services/grafanaTenant.service.js';
 import { resolveGrafanaConnection } from '../services/grafanaConnection.service.js';
+import {
+  clearGrafanaEmbedCookie,
+  GRAFANA_EMBED_COOKIE,
+  setGrafanaEmbedCookie,
+} from '../services/grafanaEmbedSession.service.js';
 
 const router = express.Router();
-const GRAFANA_EMBED_COOKIE = 'vizme_grafana_embed';
 /** Canonical slug from metrics dashboard meta (title "Vizme Metrics" → vizme-metrics). */
 const METRICS_DASHBOARD_SLUG = 'vizme-metrics';
 
@@ -52,20 +56,6 @@ function resolveGrafanaEmbedPublicBase(req) {
   } catch (_) {}
 
   return fe || api || `${req.protocol}://${req.get('host')}`;
-}
-
-/**
- * Parse expiry string (e.g. '15m', '1h') to milliseconds for cookie maxAge.
- */
-function parseExpiryToMs(str) {
-  const match = String(str || '15m').match(/^(\d+)(m|h|d)$/);
-  if (!match) return 15 * 60 * 1000;
-  const num = parseInt(match[1], 10);
-  const unit = match[2];
-  if (unit === 'm') return num * 60 * 1000;
-  if (unit === 'h') return num * 60 * 60 * 1000;
-  if (unit === 'd') return num * 24 * 60 * 60 * 1000;
-  return 15 * 60 * 1000;
 }
 
 function wantsBrowserRedirect(req) {
@@ -244,8 +234,13 @@ function buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin) {
  * Ensures org per user with Mimir datasource (X-Scope-OrgID) for hard isolation.
  */
 export async function grafanaProxyMiddleware(req, res, next) {
+  const incomingEmbedToken =
+    typeof req.query?.embed_token === 'string' ? req.query.embed_token : '';
   const session = validateEmbedToken(req);
   if (!session) {
+    if (req.cookies?.[GRAFANA_EMBED_COOKIE]) {
+      clearGrafanaEmbedCookie(res);
+    }
     return next(new UnauthorizedError('Valid embed token required to view Grafana'));
   }
   const userId = session.userId;
@@ -304,15 +299,9 @@ export async function grafanaProxyMiddleware(req, res, next) {
 
   let targetUrl = buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin);
 
-  const cookieMaxAge = parseExpiryToMs(config.grafanaEmbedTokenExpiry);
-  if (req.query.embed_token && !req.cookies?.[GRAFANA_EMBED_COOKIE]) {
-    res.cookie(GRAFANA_EMBED_COOKIE, req.query.embed_token, {
-      httpOnly: true,
-      secure: config.isProduction,
-      sameSite: config.isProduction ? 'strict' : 'lax',
-      maxAge: cookieMaxAge,
-      path: '/grafana',
-    });
+  // Keep iframe subrequests pinned to the most recent embed URL.
+  if (incomingEmbedToken) {
+    setGrafanaEmbedCookie(res, incomingEmbedToken);
   }
 
   try {
