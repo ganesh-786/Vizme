@@ -41,6 +41,24 @@ services:
       retries: 5
       start_period: 10s
 
+  # Initialize MinIO bucket(s) needed by Mimir.
+  # Safe to re-run: creates bucket if missing.
+  minio-init:
+    image: minio/mc:latest
+    container_name: metrics_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - metrics_network
+    entrypoint: >
+      /bin/sh -lc "
+      mc alias set local http://minio:9000 mimir supersecret &&
+      mc mb -p local/mimir || true &&
+      mc anonymous set none local/mimir || true
+      "
+    restart: "no"
+
   # Grafana Mimir - multi-tenant metrics backend with hard isolation (X-Scope-OrgID = user_id)
   mimir:
     image: grafana/mimir:latest
@@ -56,6 +74,7 @@ services:
       - metrics_network
     depends_on:
       - minio
+      - minio-init
 
   prometheus:
     image: prom/prometheus:latest
@@ -95,22 +114,8 @@ services:
     networks:
       - metrics_network
 
-  # pushgateway:
-  #   image: prom/pushgateway:latest
-  #   container_name: metrics_pushgateway
-  #   ports:
-  #     - "9091:9091"
-  #   volumes:
-  #     - pushgateway_data:/pushgateway
-  #   networks:
-  #     - metrics_network
-  #   command:
-  #     - "--persistence.file=/pushgateway/data"
-  #     - "--persistence.interval=5m"
-
   grafana:
-    # Pin to 11.4.0 to avoid 11.5.x URL/orgId bugs; 11.6.x has auth proxy user sync issues
-    image: grafana/grafana:11.4.0
+    image: grafana/grafana:latest
     container_name: metrics_grafana
     ports:
       - "3001:3000"
