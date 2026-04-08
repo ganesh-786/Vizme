@@ -135,6 +135,9 @@ services:
       - GF_SECURITY_COOKIE_SAMESITE=disabled
       # Disable unified alerting - stops AlertStatesDataLayer 404s on /api/prometheus/grafana/api/v1/rules
       - GF_UNIFIED_ALERTING_ENABLED=false
+      - GF_SECURITY_CSRF_TRUSTED_ORIGINS=http://localhost:3000
+      - GF_SECURITY_CSRF_ADDITIONAL_HEADERS=X-WEBAUTH-USER
+      - GF_SECURITY_COOKIE_SECURE=false
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
