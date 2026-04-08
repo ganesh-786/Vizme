@@ -16,6 +16,7 @@ import {
   storeRefreshToken,
   verifyRefreshToken,
 } from '../services/authSession.service.js';
+import { clearGrafanaEmbedCookie } from '../services/grafanaEmbedSession.service.js';
 import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
 import { logger } from '../logger.js';
 
@@ -236,6 +237,7 @@ router.post('/logout', async (req, res, next) => {
       await revokeRefreshToken(refreshToken);
     }
     clearAuthCookies(res);
+    clearGrafanaEmbedCookie(res);
     res.json({
       success: true,
       message: 'Signed out successfully.',
