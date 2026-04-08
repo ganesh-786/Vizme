@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/api/auth';
 import { useToast } from '@/components/ToastContainer';
@@ -14,6 +14,7 @@ function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { setAuth } = useAuthStore();
   const { showToast } = useToast();
 
@@ -28,7 +29,13 @@ function Login() {
 
       setAuth(user, accessToken, refreshToken);
       showToast('Welcome back! Redirecting...', 'success', 2000);
-      setTimeout(() => navigate('/'), 500);
+      const from = location.state?.from;
+      const path = from?.pathname;
+      const redirectTo =
+        path && path !== '/login' && path !== '/signup'
+          ? `${path}${from.search || ''}${from.hash || ''}`
+          : '/';
+      setTimeout(() => navigate(redirectTo, { replace: true }), 500);
     } catch (err) {
       // Handle various error response formats from backend
       const responseData = err.response?.data;
@@ -76,7 +83,7 @@ function Login() {
                 className="form-input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="jeshika@gmail.com"
+                placeholder="you@company.com"
                 required
                 disabled={loading}
                 autoComplete="email"

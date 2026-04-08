@@ -13,6 +13,7 @@ export async function getDashboardMetrics(siteId) {
   return (
     data?.data ?? {
       dashboardMode: 'legacy',
+      dashboardFlavor: 'ecommerce',
       stats: {},
       timeseries: [],
       revenueOverTime: [],

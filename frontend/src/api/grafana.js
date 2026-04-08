@@ -1,5 +1,7 @@
 import client from './client';
 
+const DEFAULT_GRAFANA_STANDALONE_PORT = '3001';
+
 /**
  * Parse expiry string (e.g. '15m', '1h') to milliseconds.
  * Returns 70% of token lifetime for proactive refresh before expiry.
@@ -30,4 +32,45 @@ export async function getEmbedUrl(params = {}) {
     expiresIn,
     refreshIntervalMs: parseExpiryToRefreshMs(expiresIn),
   };
+}
+
+function defaultStandaloneGrafanaUrl() {
+  if (typeof window === 'undefined') {
+    return `http://localhost:${DEFAULT_GRAFANA_STANDALONE_PORT}/grafana/login`;
+  }
+
+  const protocol = window.location.protocol || 'http:';
+  const hostname = window.location.hostname || 'localhost';
+  return `${protocol}//${hostname}:${DEFAULT_GRAFANA_STANDALONE_PORT}/grafana/login`;
+}
+
+export function getStandaloneGrafanaUrl() {
+  const configured = String(import.meta.env.VITE_GRAFANA_STANDALONE_URL || '').trim();
+  return configured || defaultStandaloneGrafanaUrl();
+}
+
+function openGrafanaUrl(url) {
+  if (!url || typeof window === 'undefined') return null;
+  window.open(url, '_blank', 'noopener,noreferrer');
+  return url;
+}
+
+/**
+ * Open the tenant-scoped Grafana URL when available; otherwise fall back to the standalone Grafana UI.
+ * 401 responses are preserved so callers can prompt for a Vizme re-login.
+ */
+export async function openPrimaryGrafanaWindow(params = {}) {
+  try {
+    const result = await getEmbedUrl(params);
+    if (result?.url) {
+      openGrafanaUrl(result.url);
+      return { mode: 'tenant-proxy', url: result.url };
+    }
+  } catch (error) {
+    if (error?.response?.status === 401) throw error;
+  }
+
+  const standaloneUrl = getStandaloneGrafanaUrl();
+  openGrafanaUrl(standaloneUrl);
+  return { mode: 'standalone', url: standaloneUrl };
 }

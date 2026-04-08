@@ -1,0 +1,167 @@
+/* Dedicated Live Metrics page — aligned with dashboard / app theme */
+
+.live-metrics-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+.live-metrics-page__toolbar {
+  margin-bottom: 1.25rem;
+}
+
+.live-metrics-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.live-metrics-page__back:hover {
+  color: var(--primary);
+}
+
+.live-metrics-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.live-metrics-hero__intro {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.live-metrics-hero__titles {
+  min-width: 0;
+}
+
+.live-metrics-hero__title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--primary);
+  margin: 0 0 0.35rem 0;
+}
+
+.live-metrics-hero__subtitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  color: var(--text-secondary);
+  max-width: 42rem;
+  line-height: 1.5;
+}
+
+.live-metrics-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.live-metrics-page__btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.live-metrics-page__btn-secondary:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.live-metrics-page__btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.15rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: filter 0.15s ease;
+}
+
+.live-metrics-page__btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.live-metrics-page__panel {
+  margin-top: 0;
+}
+
+.live-metrics-page__panel .metrics-visualization__header h2 {
+  font-size: 1.25rem;
+}
+
+.live-metrics-page__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.live-metrics-page__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.live-metrics-page__meta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .live-metrics-page {
+    padding: 1.5rem 0 2.5rem;
+  }
+
+  .live-metrics-hero__title {
+    font-size: 1.65rem;
+  }
+
+  .live-metrics-hero__actions {
+    width: 100%;
+  }
+
+  .live-metrics-page__btn-primary,
+  .live-metrics-page__btn-secondary {
+    flex: 1;
+    min-width: 8rem;
+  }
+}

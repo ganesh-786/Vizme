@@ -1,40 +1,49 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
-import { config } from '../config.js';
+import {
+  clearAuthCookies,
+  generateTokens,
+  getRefreshTokenFromRequest,
+  revokeRefreshToken,
+  rotateRefreshSession,
+  setAuthCookies,
+  storeRefreshToken,
+  verifyRefreshToken,
+} from '../services/authSession.service.js';
+import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
+import { logger } from '../logger.js';
 
 const router = express.Router();
 
-// Helper: Generate tokens (uses config so JWT_SECRET is validated at startup in production)
-const generateTokens = (userId) => {
-  const accessToken = jwt.sign({ userId, type: 'access' }, config.jwt.secret, {
-    expiresIn: config.jwt.accessExpiry,
-  });
+function grafanaLoginFromUser(user) {
+  const raw = (user?.email || '').trim().toLowerCase();
+  if (raw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+    return raw.replace(/[^a-z0-9@._+-]/gi, '_').slice(0, 190);
+  }
+  return `vizme_user_${user?.id}`;
+}
 
-  const refreshToken = jwt.sign({ userId, type: 'refresh' }, config.jwt.secret, {
-    expiresIn: config.jwt.refreshExpiry,
-  });
-
-  return { accessToken, refreshToken };
-};
-
-// Helper: Store refresh token
-const storeRefreshToken = async (userId, token) => {
-  const decoded = jwt.decode(token);
-  const expiresAt = new Date(decoded.exp * 1000);
-
-  await query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [
-    userId,
-    token,
-    expiresAt,
-  ]);
-};
+function warmGrafanaTenant(user) {
+  if (!user?.id) return;
+  ensureGrafanaTenant(user.id, { grafanaLogin: grafanaLoginFromUser(user) })
+    .then((orgId) => {
+      if (!orgId) {
+        logger.warn({ userId: user.id }, 'warmGrafanaTenant: tenant not ready during auth');
+      }
+    })
+    .catch((error) => {
+      logger.warn(
+        { err: error?.message, userId: user.id },
+        'warmGrafanaTenant: tenant provisioning warm-up failed'
+      );
+    });
+}
 
 // Signup
 router.post(
@@ -72,6 +81,8 @@ router.post(
       const user = result.rows[0];
       const { accessToken, refreshToken } = generateTokens(user.id);
       await storeRefreshToken(user.id, refreshToken);
+      setAuthCookies(res, { accessToken, refreshToken });
+      warmGrafanaTenant(user);
 
       res.status(201).json({
         success: true,
@@ -128,6 +139,8 @@ router.post(
       // Rotate refresh token (delete old ones for this user)
       await query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
       await storeRefreshToken(user.id, refreshToken);
+      setAuthCookies(res, { accessToken, refreshToken });
+      warmGrafanaTenant(user);
 
       res.json({
         success: true,
@@ -148,45 +161,16 @@ router.post(
 );
 
 // Refresh token
-router.post('/refresh', [body('refreshToken').notEmpty()], async (req, res, next) => {
+router.post('/refresh', [body('refreshToken').optional().notEmpty()], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw new BadRequestError('Validation failed', errors.array());
     }
 
-    const { refreshToken } = req.body;
-
-    // Verify token
-    let decoded;
-    try {
-      decoded = jwt.verify(refreshToken, config.jwt.secret);
-    } catch (error) {
-      throw new UnauthorizedError('Invalid refresh token');
-    }
-
-    if (decoded.type !== 'refresh') {
-      throw new UnauthorizedError('Invalid token type');
-    }
-
-    // Check if token exists in database
-    const tokenResult = await query(
-      'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-      [refreshToken]
-    );
-
-    if (tokenResult.rows.length === 0) {
-      throw new UnauthorizedError('Refresh token not found or expired');
-    }
-
-    const userId = tokenResult.rows[0].user_id;
-
-    // Generate new tokens
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(userId);
-
-    // Rotate refresh token
-    await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-    await storeRefreshToken(userId, newRefreshToken);
+    const refreshToken = getRefreshTokenFromRequest(req);
+    const { accessToken, refreshToken: newRefreshToken } = await rotateRefreshSession(refreshToken);
+    setAuthCookies(res, { accessToken, refreshToken: newRefreshToken });
 
     res.json({
       success: true,
@@ -194,6 +178,67 @@ router.post('/refresh', [body('refreshToken').notEmpty()], async (req, res, next
         accessToken,
         refreshToken: newRefreshToken,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  '/session',
+  [body('refreshToken').optional().notEmpty()],
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new BadRequestError('Validation failed', errors.array());
+      }
+
+      const authHeader = req.headers.authorization || '';
+      if (!authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedError('No token provided');
+      }
+
+      const accessToken = authHeader.substring(7);
+      const refreshToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : '';
+
+      if (refreshToken) {
+        const decoded = verifyRefreshToken(refreshToken);
+        if (String(decoded.userId) !== String(req.user.id)) {
+          throw new UnauthorizedError('Invalid refresh token');
+        }
+
+        const tokenResult = await query(
+          'SELECT 1 FROM refresh_tokens WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
+          [refreshToken, req.user.id]
+        );
+        if (tokenResult.rows.length === 0) {
+          throw new UnauthorizedError('Refresh token not found or expired');
+        }
+      }
+
+      setAuthCookies(res, { accessToken, ...(refreshToken ? { refreshToken } : {}) });
+      res.json({
+        success: true,
+        data: { sessionSynced: true },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post('/logout', async (req, res, next) => {
+  try {
+    const refreshToken = getRefreshTokenFromRequest(req);
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+    clearAuthCookies(res);
+    res.json({
+      success: true,
+      message: 'Signed out successfully.',
     });
   } catch (error) {
     next(error);

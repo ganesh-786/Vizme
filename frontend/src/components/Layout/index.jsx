@@ -3,6 +3,7 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useToast } from '@/components/ToastContainer';
+import { authAPI } from '@/api/auth';
 import Logo from '@/components/Logo';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { BellIcon, MoonIcon, SunIcon } from '@/assets/icons';
@@ -26,8 +27,13 @@ function Layout() {
     return (first ? first : 'U').toUpperCase();
   }, [user?.email]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsProfileOpen(false);
+    try {
+      await authAPI.logout();
+    } catch (_) {
+      // Clear local auth even if the backend session is already gone.
+    }
     logout();
     navigate('/login');
   };
@@ -100,6 +106,12 @@ function Layout() {
           <div className="nav-links">
             <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
               Dashboard
+            </Link>
+            <Link
+              to="/live-metrics"
+              className={`nav-link ${isActive('/live-metrics') ? 'active' : ''}`}
+            >
+              Live Metrics
             </Link>
             <Link
               to="/metric-configs"

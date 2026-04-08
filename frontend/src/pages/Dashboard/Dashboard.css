@@ -23,6 +23,50 @@
   color: var(--text-secondary);
 }
 
+.dashboard-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .dashboard-load-error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.dashboard-load-error__text {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--danger);
+  flex: 1;
+  min-width: 12rem;
+}
+
+.dashboard-load-error__retry {
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.875rem;
+  background: var(--danger);
+  color: #fff;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.dashboard-load-error__retry:hover {
+  filter: brightness(1.05);
+}
+
 /* ── Setup Complete Banner ─────────────────────────────────────── */
 .setup-complete-banner {
   display: flex;
@@ -226,6 +270,98 @@
   transform: scale(1.06);
 }
 
+/* Embedded Grafana (tenant-scoped via Vizme /grafana proxy) */
+.dashboard-grafana {
+  margin-bottom: 3rem;
+}
+
+.dashboard-grafana__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-grafana__titles {
+  flex: 1;
+  min-width: min(100%, 18rem);
+}
+
+.dashboard-grafana__title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.35rem 0;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-grafana__subtitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 42rem;
+}
+
+.dashboard-grafana__subtitle a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dashboard-grafana__subtitle a:hover {
+  text-decoration: underline;
+}
+
+.dashboard-grafana__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.dashboard-grafana__link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.dashboard-grafana__link:hover {
+  text-decoration: underline;
+}
+
+.dashboard-grafana__btn {
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dashboard-grafana__btn:hover {
+  border-color: var(--primary);
+  background: rgba(75, 140, 226, 0.06);
+}
+
+[data-theme='dark'] .dashboard-grafana__btn:hover {
+  background: rgba(75, 140, 226, 0.12);
+}
+
+.dashboard-grafana__placeholder {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
 .quickstart {
   background: var(--bg-primary);
   border-radius: 16px;
@@ -337,6 +473,13 @@
   color: var(--text-secondary);
   margin-bottom: 0.75rem;
   max-width: 56ch;
+}
+
+.timeline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
 }
 
 .primary-inline-btn {

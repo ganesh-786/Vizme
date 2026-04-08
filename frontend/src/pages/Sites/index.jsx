@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { sitesAPI } from '@/api/sites';
 import { useToast } from '@/components/ToastContainer';
 import { useConfirm } from '@/components/ConfirmModal';
+import SitesSkeleton from './SitesSkeleton';
 import './Sites.css';
 
 function Sites() {
@@ -63,7 +64,7 @@ function Sites() {
   };
 
   if (loading) {
-    return <div className="sites-page sites-page--loading">Loading…</div>;
+    return <SitesSkeleton />;
   }
 
   return (

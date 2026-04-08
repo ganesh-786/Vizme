@@ -4,6 +4,7 @@ import { dashboardWidgetsAPI } from '@/api/dashboardWidgets';
 import { sitesAPI } from '@/api/sites';
 import { useToast } from '@/components/ToastContainer';
 import { useConfirm } from '@/components/ConfirmModal';
+import DashboardWidgetsSkeleton from './DashboardWidgetsSkeleton';
 import './DashboardWidgets.css';
 
 function DashboardWidgetsList() {
@@ -50,7 +51,7 @@ function DashboardWidgetsList() {
     }
   };
 
-  if (loading) return <div className="dw-page dw-page--loading">Loading…</div>;
+  if (loading) return <DashboardWidgetsSkeleton />;
 
   return (
     <div className="dw-page">
@@ -58,7 +59,7 @@ function DashboardWidgetsList() {
         <div>
           <h1 className="dw-page__title">Dashboard widgets</h1>
           <p className="dw-page__intro">
-            Define KPIs for the Recharts dashboard. When at least one widget exists for the selected
+            Define KPIs for the Live Metrics dashboard. When at least one widget exists for the selected
             scope, the app uses this layout instead of the default e-commerce cards.
           </p>
         </div>

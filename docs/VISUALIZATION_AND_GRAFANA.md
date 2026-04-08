@@ -1,41 +1,29 @@
-# Visualization strategy: Recharts-first dashboards
+# Visualization strategy: Grafana embed + API summary
+
+## Vizme → Grafana identity (SSO-style)
+
+There is **no separate Grafana password** for dashboard users: Grafana **`auth.proxy`** trusts headers injected only by the Vizme `/grafana` reverse proxy. The embed JWT carries the Vizme `user_id` and a **stable login** derived from the user’s **email** (`X-WEBAUTH-USER`, plus `X-WEBAUTH-EMAIL` / `X-WEBAUTH-NAME` when present). Operators still use Grafana’s admin account for bootstrap; end users should always open Grafana via **Open Grafana** or the embed (short-lived `embed_token` + optional httpOnly cookie on `/grafana`).
+
+If **`FRONTEND_URL` and `API_BASE_URL` use different origins**, embed URLs default to **`API_BASE_URL`** so `/grafana` hits the backend without extra SPA routing. Override with **`GRAFANA_EMBED_PUBLIC_BASE_URL`** when your public API host differs from `API_BASE_URL`.
 
 ## Canonical product path
 
-Vizme serves **customer-facing metrics in the web app** using **React and [Recharts](https://recharts.org/)**. The browser calls `GET /api/v1/metrics/dashboard` with a normal **JWT**; the **backend** runs **PromQL** against **Grafana Mimir** with `X-Scope-OrgID` set to the authenticated user’s id. The UI never talks to Mimir or Prometheus directly.
+**Time-series and panel visualization** in the Live Metrics UI uses an **embedded Grafana** dashboard (`uid: metrics`) in an **iframe**. The browser loads a **first-party** URL with a short-lived **embed JWT** (`GET /api/v1/grafana/embed-url`). The **Vizme proxy** at `/grafana/*` validates that token, switches the user into their **Grafana org**, and forwards requests so **Mimir** queries use **`X-Scope-OrgID`** server-side (matching the authenticated user). The browser never sends that header to Mimir directly.
 
-That yields a **single, clear isolation boundary**: authentication identifies the tenant, and all queries run server-side with the correct tenant header.
+**At-a-glance KPI cards** (commerce vs ticketing summaries, widget-driven stats, errors, engagement) still come from **`GET /api/v1/metrics/dashboard`**, which runs **PromQL** in Node with the same tenant header—useful for fast, structured summaries without loading the iframe.
 
-## Why Grafana is not the primary visualization layer
+That yields a **single isolation model**: JWT identifies the tenant; **both** the dashboard API and the Grafana proxy enforce tenant scope.
 
-The codebase may still provision **Grafana orgs** and datasources (for operators or optional “open in Grafana” flows), but **Grafana is intentionally not required** for the main dashboard experience. Reasons:
+## Operational notes
 
-### 1. Proxying and multi-tenancy
-
-Exposing Grafana to every tenant through your reverse proxy requires:
-
-- Correct **org context** per user (or equivalent RBAC).
-- **Auth mapping** from your app identity to Grafana (users, API keys, or auth proxy).
-- Reliable **header forwarding** to Mimir (for example `X-Scope-OrgID`) so queries cannot cross tenants.
-
-Misconfiguration can **expose another tenant’s data** or **hide data** in subtle ways. Debugging **subpath routing**, **WebSockets**, and **cookie** behavior on Grafana behind a proxy is significantly more work than running **bounded PromQL** in your own Node service, where you control one code path and one set of integration tests.
-
-### 2. Embedding: sessions, cookies, and CSP
-
-Embedded Grafana typically uses **iframes**, **sessions**, or **tokens**. Browser **third-party cookie** restrictions and strict **Content-Security-Policy** (`frame-ancestors`, `connect-src`) routinely break or complicate embeds. A first-party SPA chart shares the **same auth model** and cookie scope as the rest of Vizme.
-
-### 3. Product velocity and vertical-specific dashboards
-
-The product direction is **config-driven KPIs** (e-commerce, media, healthcare-style portals, etc.). Encoding that only in **Grafana dashboard JSON** multiplies maintenance: variables, panel copies per template, and versioning. A **small set of React chart components** driven by **API metadata** keeps **one definition** of “what we show” and avoids long-term **drift** between “the app” and “the Grafana copy.”
-
-### 4. Where Grafana still helps
-
-**Mimir remains the system of record** for time series. Grafana (including **Explore**) remains valuable for **internal debugging**, **SRE workflows**, and **ad-hoc PromQL** against a tenant-scoped datasource—without being the **default** experience for every end user.
-
-Operational note: **do not treat Grafana dashboard JSON as the source of truth for product charts.** Product charts are defined by **dashboard widget configuration** (and legacy hardcoded KPIs where no widgets exist) plus the `/metrics/dashboard` contract.
+- **CSP / `frame-ancestors`**: The proxy strips conflicting frame headers and sets **`frame-ancestors`** so only the Vizme frontend origin may embed Grafana.
+- **Token rotation**: The frontend refreshes the embed URL before JWT expiry (see `getEmbedUrl` + `GrafanaDashboardEmbed`).
+- **Grafana dashboard JSON** (`docker/grafana/dashboards/metrics-dashboard.json`) defines panels bound to the per-tenant **Mimir** datasource; keep product-critical panels versioned there.
 
 ## Related implementation
 
 - Backend aggregation: `[backend/src/services/mimirQuery.service.js](../backend/src/services/mimirQuery.service.js)`
-- React dashboard: `[frontend/src/components/MetricsDashboard/index.jsx](../frontend/src/components/MetricsDashboard/index.jsx)`
-- Optional Grafana provisioning (ops path): `[backend/src/services/grafanaTenant.service.js](../backend/src/services/grafanaTenant.service.js)`
+- React dashboard (KPI cards + Grafana iframe): `[frontend/src/components/MetricsDashboard/index.jsx](../frontend/src/components/MetricsDashboard/index.jsx)`
+- Grafana embed: `[frontend/src/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed.jsx](../frontend/src/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed.jsx)`
+- Embed URL + proxy (X-Scope-OrgID): `[backend/src/routes/grafana.routes.js](../backend/src/routes/grafana.routes.js)`
+- Grafana org + Mimir datasource provisioning: `[backend/src/services/grafanaTenant.service.js](../backend/src/services/grafanaTenant.service.js)`

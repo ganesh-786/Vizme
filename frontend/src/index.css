@@ -5,6 +5,9 @@
 }
 
 :root {
+  /* Sticky main nav — scroll-margin for in-app anchors (e.g. Live Metrics) */
+  --vizme-layout-nav-height: 72px;
+
   /* Light theme colors */
   --primary: #3b82f6;
   --primary-dark: #2563eb;

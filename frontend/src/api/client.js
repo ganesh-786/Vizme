@@ -6,6 +6,7 @@ const API_BASE_URL = getApiBaseUrl();
 
 const client = axios.create({
   baseURL: API_BASE_URL ? `${API_BASE_URL}/api/v1` : '/api/v1',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -26,7 +27,7 @@ client.interceptors.request.use(
 );
 
 // Auth endpoints that should not trigger token refresh on 401
-const AUTH_ENDPOINTS = ['/auth/signin', '/auth/signup', '/auth/refresh'];
+const AUTH_ENDPOINTS = ['/auth/signin', '/auth/signup', '/auth/refresh', '/auth/logout'];
 
 // Check if the request URL is an auth endpoint
 const isAuthEndpoint = (url) => {
@@ -79,12 +80,10 @@ client.interceptors.response.use(
       try {
         const { refreshToken } = useAuthStore.getState();
 
-        if (!refreshToken) {
-          throw new Error('No refresh token');
-        }
-
         const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
           refreshToken,
+        }, {
+          withCredentials: true,
         });
 
         const { accessToken, refreshToken: newRefreshToken } = response.data.data;
