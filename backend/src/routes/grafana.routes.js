@@ -208,6 +208,23 @@ function validateEmbedToken(reqOrToken, options = {}) {
 }
 
 /**
+ * Decode the main app access token (if present) so we can detect stale embed-cookie
+ * sessions after account switches/login refreshes.
+ */
+function getAccessTokenUserId(req) {
+  const token = req.cookies?.vizme_access_token;
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, config.jwt.secret);
+    if (decoded?.type !== 'access') return null;
+    if (decoded?.userId == null) return null;
+    return String(decoded.userId);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parse cookies from raw Cookie header string.
  */
 function parseCookies(cookieHeader) {
@@ -244,6 +261,18 @@ export async function grafanaProxyMiddleware(req, res, next) {
     return next(new UnauthorizedError('Valid embed token required to view Grafana'));
   }
   const userId = session.userId;
+  const accessTokenUserId = getAccessTokenUserId(req);
+  if (accessTokenUserId && accessTokenUserId !== String(userId)) {
+    // Embed cookie is stale (likely from a previous account/session in this browser).
+    // Clearing avoids endless 403 loops until users manually clear cookies.
+    clearGrafanaEmbedCookie(res);
+    return res.status(401).json({
+      success: false,
+      code: 'grafana_embed_stale_session',
+      retryable: true,
+      message: 'Grafana embed session was stale and has been reset. Retry with a fresh embed URL.',
+    });
+  }
 
   const grafanaConn = await resolveGrafanaConnection();
   if (!grafanaConn.apiBase) {
@@ -362,6 +391,20 @@ export async function grafanaProxyMiddleware(req, res, next) {
         targetUrl = buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin);
         response = await fetch(targetUrl, fetchOpts);
       }
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      clearGrafanaEmbedCookie(res);
+      logger.warn(
+        {
+          status: response.status,
+          path,
+          method: req.method,
+          userId: String(userId),
+          orgId: String(orgId),
+        },
+        'Grafana auth rejection; cleared embed cookie for automatic recovery'
+      );
     }
 
     if (response.status >= 400) {
