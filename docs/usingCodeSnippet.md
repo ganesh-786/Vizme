@@ -18,6 +18,7 @@ When clients use the code snippet method, they paste a small JavaScript snippet 
 3. These configurations are saved in the database (`metric_configs` table)
 
 **Example:**
+
 - Metric name: `page_views`
 - Type: `counter`
 - Labels: `{ "page": "home" }`
@@ -32,21 +33,23 @@ When clients use the code snippet method, they paste a small JavaScript snippet 
 3. Backend generates a small snippet (~150 bytes)
 
 **Backend Process (`codeGeneration.routes.js`):**
+
 - Validates the API key belongs to the user
 - Calls `generateMinimalSnippet()` function
 - Returns a tiny JavaScript snippet
 
 **The snippet looks like this:**
+
 ```javascript
-(function(w,d,s,l,i){
-  w[l]=w[l]||[];
-  w[l].push({'start':Date.now()});
-  var f=d.getElementsByTagName(s)[0],
-      j=d.createElement(s);
-  j.async=true;
-  j.src='http://localhost:3000/api/v1/tracker.js?k=API_KEY&a=1&c=1';
-  f.parentNode.insertBefore(j,f);
-})(window,document,'script','metricsTracker');
+(function (w, d, s, l, i) {
+  w[l] = w[l] || [];
+  w[l].push({ start: Date.now() });
+  var f = d.getElementsByTagName(s)[0],
+    j = d.createElement(s);
+  j.async = true;
+  j.src = 'http://localhost:3000/api/v1/tracker.js?k=API_KEY&a=1&c=1';
+  f.parentNode.insertBefore(j, f);
+})(window, document, 'script', 'metricsTracker');
 ```
 
 ### Step 3: Client Pastes Snippet into Their Website
@@ -56,6 +59,7 @@ When clients use the code snippet method, they paste a small JavaScript snippet 
 3. When the page loads, the snippet runs automatically
 
 **What happens:**
+
 - The snippet creates a `<script>` tag
 - The script tag loads `/api/v1/tracker.js` from your server
 - The URL includes the API key and settings as query parameters
@@ -77,6 +81,7 @@ When the browser requests `/api/v1/tracker.js`, the server:
    - Converts labels from array format to object format
 
 3. **Builds Configuration Object:**
+
    ```javascript
    {
      "page_views": { t: "counter", l: { "page": "home" } },
@@ -94,6 +99,7 @@ When the browser requests `/api/v1/tracker.js`, the server:
    - Sends the generated JavaScript code to the browser
 
 **The generated code includes:**
+
 - API key (embedded)
 - Endpoint URL (where to send metrics)
 - All metric configurations (embedded)
@@ -120,8 +126,8 @@ Once the full library code loads in the browser:
    - Tracks time on page
 
 3. **Custom Event Tracking (if enabled):**
-   - Listens for clicks on elements with `data-track` attribute
-   - Listens for form submissions with `data-track` attribute
+   - Listens for clicks on elements with `data-vizme-track` attribute
+   - Listens for form submissions with `data-vizme-track` attribute
    - Automatically tracks these events
 
 ### Step 6: Metrics Are Collected
@@ -129,15 +135,18 @@ Once the full library code loads in the browser:
 Metrics can be collected in three ways:
 
 **A. Auto-Tracking:**
+
 - Library automatically tracks events (page views, errors, performance)
 - No code needed from client
 
 **B. HTML Attributes:**
+
 ```html
-<button data-track="button_click" data-value="1">Click Me</button>
+<button data-vizme-track="button_click" data-vizme-value="1">Click Me</button>
 ```
 
 **C. JavaScript API:**
+
 ```javascript
 window.MetricsTracker.track('custom_event', 1, { label: 'value' });
 window.MetricsTracker.increment('counter_name', 1);
@@ -145,6 +154,7 @@ window.MetricsTracker.decrement('gauge_name', 1);
 ```
 
 **What happens when a metric is tracked:**
+
 1. Library checks if metric name exists in embedded configs
 2. If found, uses the configured type and labels
 3. If not found, uses default type (gauge) or method default
@@ -154,11 +164,13 @@ window.MetricsTracker.decrement('gauge_name', 1);
 ### Step 7: Metrics Are Batched and Sent
 
 **Batching Process:**
+
 1. Metrics are added to a batch array
 2. When batch reaches 10 metrics (or timer expires after 5 seconds), batch is sent
 3. If send fails, metrics go to queue for retry
 
 **Sending Process (`sendMetrics` function in generated code):**
+
 1. Takes all metrics from batch
 2. Formats them as JSON:
    ```json
@@ -257,4 +269,3 @@ Client Website                    Your Backend                    Database
      | 9. Success response             |                              |
      |<--------------------------------|                              |
 ```
-
