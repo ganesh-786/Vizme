@@ -18,10 +18,8 @@ export const authAPI = {
     return response.data;
   },
 
-  syncSession: async (refreshToken) => {
-    const response = await client.post('/auth/session', {
-      ...(refreshToken ? { refreshToken } : {}),
-    });
+  syncSession: async () => {
+    const response = await client.post('/auth/session');
     return response.data;
   },
 

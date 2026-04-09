@@ -36,12 +36,13 @@ const MOVIE_METRIC_NAMES = [
   'movie_select',
 ];
 const REVENUE_METRIC_NAMES = ['total_revenue', 'revenue', 'totalRevenue'];
+const ORDER_COMPLETED_METRIC_NAMES = ['orders_completed', 'checkout_completed'];
 const PAGE_VIEW_METRIC_NAMES = ['page_view', 'page_views'];
 const PRODUCT_SOLD_METRIC_NAMES = ['products_sold', 'product_sold'];
 const ADD_TO_CART_METRIC_NAMES = ['add_to_cart', 'addtocart'];
 const ECOMMERCE_SIGNAL_METRIC_NAMES = [
   ...REVENUE_METRIC_NAMES,
-  'orders_completed',
+  ...ORDER_COMPLETED_METRIC_NAMES,
   ...PRODUCT_SOLD_METRIC_NAMES,
   ...ADD_TO_CART_METRIC_NAMES,
   'checkout_started',
@@ -56,7 +57,7 @@ const SHARED_ENGAGEMENT_METRIC_NAMES = [
 ];
 const ECOMMERCE_DASHBOARD_METRIC_NAMES = [
   ...REVENUE_METRIC_NAMES,
-  'orders_completed',
+  ...ORDER_COMPLETED_METRIC_NAMES,
   ...PRODUCT_SOLD_METRIC_NAMES,
   ...PAGE_VIEW_METRIC_NAMES,
   ...ADD_TO_CART_METRIC_NAMES,
@@ -456,6 +457,7 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null, options
   const includeDetails = normalizeBoolean(options.includeDetails, false);
   const userFilter = buildTenantLabelFilter(userId, siteId);
   const revenueSelector = promqlSelectorForMetricNames(REVENUE_METRIC_NAMES, userId, siteId);
+  const ordersSelector = promqlSelectorForMetricNames(ORDER_COMPLETED_METRIC_NAMES, userId, siteId);
   const pageViewSelector = promqlSelectorForMetricNames(PAGE_VIEW_METRIC_NAMES, userId, siteId);
   const productsSoldSelector = promqlSelectorForMetricNames(PRODUCT_SOLD_METRIC_NAMES, userId, siteId);
   const addToCartSelector = promqlSelectorForMetricNames(ADD_TO_CART_METRIC_NAMES, userId, siteId);
@@ -478,7 +480,7 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null, options
     ...performanceResults
   ] = await Promise.all([
     queryScalar(uid, `sum(increase(${revenueSelector}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_orders_completed{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(uid, `sum(increase(${ordersSelector}[24h])) or vector(0)`),
     queryScalar(uid, `sum(increase(${productsSoldSelector}[24h])) or vector(0)`),
     queryScalar(uid, `sum(increase(${pageViewSelector}[24h])) or vector(0)`),
     queryScalar(uid, `sum(increase(${addToCartSelector}[24h])) or vector(0)`),

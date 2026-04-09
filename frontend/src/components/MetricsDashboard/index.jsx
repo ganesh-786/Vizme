@@ -134,6 +134,7 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
         from: 'now-24h',
         to: 'now',
         refresh: '15s',
+        site_id: siteId || undefined,
       });
       if (result?.mode === 'standalone') {
         showToast(
@@ -201,9 +202,10 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
       : key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
   const embedMinHeight = Math.max(height, 480);
+  const metricsScopeLabel = siteId ? 'the selected property' : 'all properties';
   const refreshMessage = showGrafanaEmbed
-    ? `Summary cards poll every ${REFRESH_MS / 1000}s. Grafana charts refresh every 15s and favor recent windows for faster visibility.`
-    : `Summary cards poll every ${REFRESH_MS / 1000}s and update automatically from the dashboard API.`;
+    ? `Summary cards poll every ${REFRESH_MS / 1000}s for ${metricsScopeLabel}. Grafana charts refresh every 15s and separate 24h KPIs from current cart and experience signals.`
+    : `Summary cards poll every ${REFRESH_MS / 1000}s for ${metricsScopeLabel} and update automatically from the dashboard API.`;
 
   return (
     <div className="metrics-dashboard" style={{ minHeight: height }}>
@@ -454,7 +456,12 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
               server-side <code>X-Scope-OrgID</code> handling.
             </p>
           </div>
-          <GrafanaDashboardEmbed minHeight={embedMinHeight} from="now-24h" to="now" />
+          <GrafanaDashboardEmbed
+            minHeight={embedMinHeight}
+            from="now-24h"
+            to="now"
+            siteId={siteId}
+          />
         </>
       )}
 

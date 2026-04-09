@@ -49,7 +49,7 @@ function GuestRoute({ children }) {
 }
 
 function App() {
-  const { isAuthenticated, accessToken, refreshToken } = useAuthStore();
+  const { isAuthenticated, accessToken } = useAuthStore();
   const lastSyncedRef = useRef('');
 
   useEffect(() => {
@@ -58,14 +58,13 @@ function App() {
       return;
     }
 
-    const syncKey = `${accessToken}:${refreshToken || ''}`;
-    if (lastSyncedRef.current === syncKey) return;
-    lastSyncedRef.current = syncKey;
+    if (lastSyncedRef.current === accessToken) return;
+    lastSyncedRef.current = accessToken;
 
-    authAPI.syncSession(refreshToken).catch(() => {
+    authAPI.syncSession().catch(() => {
       // The normal request pipeline can still refresh/recover the session.
     });
-  }, [isAuthenticated, accessToken, refreshToken]);
+  }, [isAuthenticated, accessToken]);
 
   return (
     <Router>

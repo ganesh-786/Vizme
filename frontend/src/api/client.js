@@ -78,16 +78,14 @@ client.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { refreshToken } = useAuthStore.getState();
+        const response = await axios.post(
+          `${API_BASE_URL}/api/v1/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
 
-        const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
-          refreshToken,
-        }, {
-          withCredentials: true,
-        });
-
-        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-        useAuthStore.getState().updateTokens(accessToken, newRefreshToken);
+        const { accessToken } = response.data.data;
+        useAuthStore.getState().updateToken(accessToken);
 
         processQueue(null, accessToken);
 

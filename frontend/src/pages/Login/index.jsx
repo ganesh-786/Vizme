@@ -25,9 +25,9 @@ function Login() {
 
     try {
       const response = await authAPI.signin(email, password);
-      const { user, accessToken, refreshToken } = response.data;
+      const { user, accessToken } = response.data;
 
-      setAuth(user, accessToken, refreshToken);
+      setAuth(user, accessToken);
       showToast('Welcome back! Redirecting...', 'success', 2000);
       const from = location.state?.from;
       const path = from?.pathname;

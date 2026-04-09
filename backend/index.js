@@ -33,6 +33,7 @@ dotenv.config();
 validateConfig();
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = config.port;
 
 logger.info(
