@@ -1,6 +1,7 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 
 dotenv.config();
 
@@ -22,14 +23,12 @@ const pool = new Pool({
   keepAliveInitialDelayMillis: 10000,
 });
 
-// Test connection
 pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
+  logger.debug('Database pool: new client connected');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle client', err);
-  process.exit(-1);
+  logger.error({ err }, 'Unexpected error on idle database client');
 });
 
 export const query = async (text, params) => {
@@ -37,10 +36,10 @@ export const query = async (text, params) => {
   try {
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: res.rowCount });
+    logger.debug({ text, duration, rows: res.rowCount }, 'Executed query');
     return res;
   } catch (error) {
-    console.error('Query error', { text, error: error.message });
+    logger.error({ text, err: error.message }, 'Query error');
     throw error;
   }
 };
@@ -48,49 +47,37 @@ export const query = async (text, params) => {
 export const initDatabase = async (retries = 5, delay = 5000) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`🔄 Attempting database connection (${attempt}/${retries})...`);
-      console.log(`📡 Connecting to: ${config.db.host}:${config.db.port}/${config.db.database}`);
-
-      // Test connection
-      await query('SELECT NOW()');
-      console.log('✅ Database connection successful');
-
-      // Run migrations
-      await runMigrations();
-
-      console.log('✅ Database initialized successfully');
-      return true;
-    } catch (error) {
-      console.error(
-        `❌ Database initialization attempt ${attempt}/${retries} failed:`,
-        error.message
+      logger.info(
+        { attempt, retries, host: config.db.host, port: config.db.port, database: config.db.database },
+        'Attempting database connection'
       );
 
-      // Provide specific guidance for DNS errors
+      await query('SELECT NOW()');
+      logger.info('Database connection successful');
+
+      await runMigrations();
+
+      logger.info('Database initialized successfully');
+      return true;
+    } catch (error) {
+      logger.error(
+        { err: error.message, attempt, retries },
+        'Database initialization attempt failed'
+      );
+
       if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
-        console.error('🔍 DNS Resolution Error Detected:');
-        console.error(`   - Hostname: ${config.db.host}`);
-        console.error('   - This hostname cannot be resolved');
-        console.error('💡 Common issues:');
-        console.error('   1. Hostname is incomplete (missing domain suffix)');
-        console.error('   2. Hostname is incorrect');
-        console.error('   3. Network connectivity issue');
-        console.error('💡 For Render.com databases, use full hostname like:');
-        console.error('   dpg-xxxxx-xxxxx-a.oregon-postgres.render.com');
-        console.error(
-          "💡 Check your database provider's connection string for the complete hostname"
+        logger.error(
+          { hostname: config.db.host },
+          'DNS resolution failed — verify the hostname is complete and reachable'
         );
       }
 
       if (attempt === retries) {
-        console.error('❌ All database connection attempts failed');
-        console.error('💡 Check your database credentials in .env file');
-        console.error('💡 Verify database is accessible from container');
-        console.error('💡 Test DNS resolution: nslookup ' + config.db.host);
+        logger.error('All database connection attempts exhausted');
         throw error;
       }
 
-      console.log(`⏳ Retrying in ${delay / 1000} seconds...`);
+      logger.info({ retryInMs: delay }, 'Retrying database connection');
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
@@ -224,7 +211,7 @@ const runMigrations = async () => {
     await query(migration);
   }
 
-  console.log('✅ Migrations completed');
+  logger.info('Migrations completed');
 };
 
 export default pool;
