@@ -1,6 +1,6 @@
 {
-  "name": "@ganesh-40/vizme",
-  "version": "1.0.2",
+  "name": "visualizemet",
+  "version": "1.0.3",
   "description": "Unified visibility platform - automatic metrics tracking library",
   "type": "module",
   "main": "./dist/vizme.cjs",
