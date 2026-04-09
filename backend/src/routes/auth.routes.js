@@ -160,7 +160,7 @@ router.post(
 );
 
 // Refresh token
-router.post('/refresh', [body('refreshToken').optional().notEmpty()], async (req, res, next) => {
+router.post('/refresh', authLimiter, [body('refreshToken').optional().notEmpty()], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

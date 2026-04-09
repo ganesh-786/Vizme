@@ -175,7 +175,7 @@ services:
       - DB_SSL=${DB_SSL:-false}
       # Application config (for production set JWT_SECRET in .env to a strong random value)
       - JWT_SECRET=${JWT_SECRET:-dev-secret-do-not-use-in-production}
-      - DB_SSL_REJECT_UNAUTHORIZED=${DB_SSL_REJECT_UNAUTHORIZED:-false}
+      - DB_SSL_REJECT_UNAUTHORIZED=${DB_SSL_REJECT_UNAUTHORIZED:-true}
       - PUSHGATEWAY_URL=${PUSHGATEWAY_URL:-http://pushgateway:9091}
       - MIMIR_URL=${MIMIR_URL:-http://mimir:8080}
       - GRAFANA_MIMIR_DATASOURCE_URL=${GRAFANA_MIMIR_DATASOURCE_URL:-http://mimir:8080}
