@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: vizme
+data:
+  alertmanager.yml: |
+    # Production-grade Alertmanager config for Vizme.
+    # Configure receivers (Slack, email, PagerDuty) and routing.
+    # Uncomment and set env vars for your channels.
+
+    global:
+      resolve_timeout: 5m
+
+    # Route tree: default receiver and optional grouping by severity
+    route:
+      receiver: 'default'
+      group_by: ['alertname', 'severity']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - match:
+            severity: critical
+          receiver: 'critical'
+          continue: true
+        - match:
+            severity: warning
+          receiver: 'warning'
+
+    receivers:
+      - name: 'default'
+        # webhook_configs:
+        #   - url: 'https://your-webhook-url'
+        #     send_resolved: true
+
+      - name: 'critical'
+        # slack_configs:
+        #   - api_url: '${SLACK_WEBHOOK_URL}'
+        #     channel: '#alerts'
+        #     send_resolved: true
+
+      - name: 'warning'
+        # slack_configs:
+        #   - api_url: '${SLACK_WEBHOOK_URL}'
+        #     channel: '#alerts-warning'
+        #     send_resolved: true
+
+    # Inhibit critical if warning for same alert (optional)
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: vizme
+spec:
+  selector:
+    app: alertmanager
+  ports:
+    - name: http
+      port: 9093
+      targetPort: 9093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: vizme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:latest
+          args:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+          ports:
+            - containerPort: 9093
+              name: http
+          volumeMounts:
+            - name: cfg
+              mountPath: /etc/alertmanager
+      volumes:
+        - name: cfg
+          configMap:
+            name: alertmanager-config

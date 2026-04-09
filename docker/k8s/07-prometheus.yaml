@@ -1,0 +1,238 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: vizme
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        monitor: 'vizme'
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    # Scrape configurations
+    scrape_configs:
+      - job_name: 'backend'
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['backend:3000']
+            labels:
+              service: 'vizme-backend'
+              environment: 'production'
+
+      - job_name: 'prometheus'
+        scrape_interval: 30s
+        static_configs:
+          - targets: ['localhost:9090']
+  prometheus-auth.yml.template: |
+    # Prometheus config with basic auth for /metrics scrape.
+    # Generated from env METRICS_SCRAPE_USER and METRICS_SCRAPE_PASSWORD when set.
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        monitor: 'vizme'
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    scrape_configs:
+      - job_name: 'backend'
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        basic_auth:
+          username: ${METRICS_SCRAPE_USER}
+          password: ${METRICS_SCRAPE_PASSWORD}
+        static_configs:
+          - targets: ['backend:3000']
+            labels:
+              service: 'vizme-backend'
+              environment: 'production'
+
+      - job_name: 'prometheus'
+        scrape_interval: 30s
+        static_configs:
+          - targets: ['localhost:9090']
+  alerts.yml: |
+    # Production-grade alert rules for Vizme backend and scraping.
+    # Use with Prometheus rule_files and Alertmanager for notifications.
+
+    groups:
+      - name: vizme-recording
+        interval: 15s
+        rules:
+          - record: vizme:http_requests:rate1m
+            expr: |
+              sum by (service, method, route, status) (
+                rate(http_requests_total{service="vizme-backend"}[1m])
+              )
+
+          - record: vizme:http_request_duration:p99_1m
+            expr: |
+              histogram_quantile(0.99,
+                sum by (service, le, route) (
+                  rate(http_request_duration_seconds_bucket{service="vizme-backend"}[1m])
+                )
+              )
+
+      - name: vizme-backend
+        interval: 30s
+        rules:
+          - alert: BackendDown
+            expr: up{job="backend"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Vizme backend is down"
+              description: "Backend target {{ $labels.instance }} has been unreachable for more than 2 minutes."
+
+          - alert: HighErrorRate
+            expr: |
+              sum(rate(http_requests_total{status=~"5.."}[5m]))
+              / sum(rate(http_requests_total[5m])) > 0.05
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High HTTP 5xx error rate"
+              description: "Error rate is above 5% for 5 minutes."
+
+          - alert: HighLatency
+            expr: |
+              histogram_quantile(0.99,
+                sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route)
+              ) > 2
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High request latency (p99 > 2s)"
+              description: "Route {{ $labels.route }} p99 latency is above 2 seconds."
+
+      - name: prometheus
+        interval: 30s
+        rules:
+          - alert: PrometheusNotConnected
+            expr: up{job="prometheus"} == 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus self-monitoring down"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: vizme
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: vizme
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: vizme
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      initContainers:
+        - name: render-config
+          image: alpine:3.20
+          command: ["/bin/sh", "-lc"]
+          args:
+            - |
+              set -e
+              apk add --no-cache gettext
+              if [ -n "${METRICS_SCRAPE_USER}" ] && [ -n "${METRICS_SCRAPE_PASSWORD}" ]; then
+                envsubst '${METRICS_SCRAPE_USER} ${METRICS_SCRAPE_PASSWORD}' \
+                  < /etc/prometheus-src/prometheus-auth.yml.template \
+                  > /etc/prometheus-out/prometheus.yml
+              else
+                cp /etc/prometheus-src/prometheus.yml /etc/prometheus-out/prometheus.yml
+              fi
+              cp /etc/prometheus-src/alerts.yml /etc/prometheus-out/alerts.yml
+          env:
+            - name: METRICS_SCRAPE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: METRICS_SCRAPE_USER
+            - name: METRICS_SCRAPE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: METRICS_SCRAPE_PASSWORD
+          volumeMounts:
+            - name: prom-src
+              mountPath: /etc/prometheus-src
+            - name: prom-out
+              mountPath: /etc/prometheus-out
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=30d"
+            - "--web.enable-lifecycle"
+          ports:
+            - containerPort: 9090
+              name: http
+          volumeMounts:
+            - name: prom-out
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: prom-src
+          configMap:
+            name: prometheus-config
+        - name: prom-out
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data

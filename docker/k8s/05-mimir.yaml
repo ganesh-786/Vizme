@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mimir-config
+  namespace: vizme
+data:
+  mimir.yaml: |
+    # Grafana Mimir config for Vizme - multi-tenant metrics with hard isolation.
+    # Tenant ID = user_id; X-Scope-OrgID header required on all requests.
+
+    target: all,alertmanager,overrides-exporter
+
+    multitenancy_enabled: true
+
+    # Per-tenant limits (production-grade)
+    limits:
+      ingestion_rate: 100000
+      ingestion_burst_size: 200000
+      max_global_series_per_user: 1000000
+      max_global_series_per_metric: 50000
+      max_fetched_chunks_per_query: 2000000
+      compactor_blocks_retention_period: 365d
+
+    # Single-instance monolithic: replication factor 1 + disable zone awareness
+    ingester:
+      ring:
+        replication_factor: 1
+        zone_awareness_enabled: false
+
+    store_gateway:
+      sharding_ring:
+        replication_factor: 1
+        zone_awareness_enabled: false
+
+    common:
+      storage:
+        backend: s3
+        s3:
+          endpoint: minio:9000
+          access_key_id: mimir
+          secret_access_key: supersecret
+          insecure: true
+          bucket_name: mimir
+
+    blocks_storage:
+      storage_prefix: blocks
+      tsdb:
+        dir: /data/ingester
+
+    # Single instance - no memberlist needed for monolithic
+    server:
+      log_level: warn
+      http_listen_port: 8080
+
+    # Ruler for recording/alerting rules
+    ruler:
+      rule_path: /data/ruler
+      alertmanager_url: http://127.0.0.1:8080/alertmanager
+
+    alertmanager:
+      data_dir: /data/alertmanager
+      fallback_config_file: /etc/mimir/alertmanager-fallback-config.yaml
+      external_url: http://localhost:9009/alertmanager
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mimir-alertmanager-fallback
+  namespace: vizme
+data:
+  alertmanager-fallback-config.yaml: |
+    # Minimal Alertmanager config for Mimir (fallback when no config uploaded)
+    route:
+      receiver: 'default'
+    receivers:
+      - name: 'default'
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mimir-data
+  namespace: vizme
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mimir
+  namespace: vizme
+spec:
+  selector:
+    app: mimir
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mimir
+  namespace: vizme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mimir
+  template:
+    metadata:
+      labels:
+        app: mimir
+    spec:
+      containers:
+        - name: mimir
+          image: grafana/mimir:latest
+          args: ["-config.file=/etc/mimir/mimir.yaml"]
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: cfg
+              mountPath: /etc/mimir
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: cfg
+          projected:
+            sources:
+              - configMap:
+                  name: mimir-config
+                  items:
+                    - key: mimir.yaml
+                      path: mimir.yaml
+              - configMap:
+                  name: mimir-alertmanager-fallback
+                  items:
+                    - key: alertmanager-fallback-config.yaml
+                      path: alertmanager-fallback-config.yaml
+        - name: data
+          persistentVolumeClaim:
+            claimName: mimir-data

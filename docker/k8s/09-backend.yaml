@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: vizme
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: vizme
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: vizme-backend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+
+            # Public URLs (same origin as Ingress host)
+            - name: FRONTEND_URL
+              value: "http://vizme.local"
+            - name: API_BASE_URL
+              value: "http://vizme.local"
+
+            # Postgres (in-cluster)
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSL
+              value: "false"
+            - name: DB_SSL_REJECT_UNAUTHORIZED
+              value: "true"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: POSTGRES_DB
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: POSTGRES_PASSWORD
+
+            # Required in production mode
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: JWT_SECRET
+
+            # Internal service URLs
+            - name: MIMIR_URL
+              value: "http://mimir:8080"
+            - name: GRAFANA_MIMIR_DATASOURCE_URL
+              value: "http://mimir:8080"
+            - name: PROMETHEUS_INTERNAL_URL
+              value: "http://prometheus:9090"
+            - name: GRAFANA_INTERNAL_URL
+              value: "http://grafana:3000"
+
+            # Backend uses these to programmatically configure Grafana
+            - name: GRAFANA_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: GF_SECURITY_ADMIN_USER
+            - name: GRAFANA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: GF_SECURITY_ADMIN_PASSWORD
+
+            # Optional basic-auth for /metrics
+            - name: METRICS_SCRAPE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: METRICS_SCRAPE_USER
+            - name: METRICS_SCRAPE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: METRICS_SCRAPE_PASSWORD
+
+            # Dashboard fallback path (if your backend uses it)
+            - name: DASHBOARD_JSON_PATH
+              value: "/app/dashboards/metrics-dashboard.json"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: dashboards
+              mountPath: /app/dashboards
+              readOnly: true
+      volumes:
+        - name: dashboards
+          configMap:
+            name: grafana-config
+            items:
+              - key: metrics-dashboard.json
+                path: metrics-dashboard.json

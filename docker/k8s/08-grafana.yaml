@@ -1,0 +1,344 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: vizme
+data:
+  grafana.ini: |
+    # Vizme Grafana overrides - auth proxy for seamless login via backend
+    # Disable Grafana Live to avoid WebSocket/plugin preload errors in embedded mode.
+    # Re-enable by commenting out [live] and restarting Grafana.
+    [live]
+    max_connections = 0
+
+    [auth.proxy]
+    enabled = true
+    header_name = X-WEBAUTH-USER
+    header_property = username
+    auto_sign_up = true
+    sync_ttl = 1
+    # Allow org assignment for Mimir tenant isolation (org per user)
+    headers = Orgs:X-WEBAUTH-ORGS,Email:X-WEBAUTH-EMAIL,Name:X-WEBAUTH-NAME
+
+    [users]
+    allow_sign_up = false
+    auto_assign_org = true
+    auto_assign_org_role = Admin
+
+    [server]
+    serve_from_sub_path = true
+
+    # Disable Kubernetes dashboard API - fixes "invalid org" 403 for dashboard.grafana.app in multi-tenant
+    # Legacy /api/dashboards API works correctly with X-Grafana-Org-Id
+    [feature_toggles]
+    kubernetesDashboards = false
+
+    # Disable unified alerting - stops AlertStatesDataLayer from calling /api/prometheus/grafana/api/v1/rules
+    # Re-enable if you need Grafana-managed alerts.
+    [unified_alerting]
+    enabled = false
+
+    # Disable optional plugins that cause preload errors (P.addFunction, Unknown Plugin) in embedded mode
+    [plugins]
+    disable_plugins = grafana-lokiexplore-app, grafana-metricsdrilldown-app, grafana-exploretraces-app, grafana-pyroscope-app
+
+    [security]
+    csrf_trusted_origins = http://vizme.local
+    cookie_samesite = disabled
+    cookie_secure = false
+    allow_embedding = true
+  datasources.yml: |
+    # Vizme Grafana datasources for Org 1.
+    # Per-user orgs get Mimir only (via grafanaTenant.service) with X-Scope-OrgID = user_id.
+    # All datasources provisioned here - no manual steps required. Idempotent across restarts.
+    apiVersion: 1
+
+    datasources:
+      # Prometheus: infra metrics only (scraped from backend /metrics). No tenant isolation.
+      # NOT for user dashboards - use Mimir for user metrics.
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: false
+        editable: true
+        version: 1
+        jsonData:
+          timeInterval: "15s"
+
+      # Mimir: user metrics for Org 1 (admin/testing). Tenant 1 for org 1.
+      # Per-user orgs get Mimir via grafanaTenant.service with their tenant ID.
+      # X-Scope-OrgID value in secureJsonData (Grafana stores/forwards it correctly).
+      - name: Mimir
+        uid: mimir
+        type: prometheus
+        access: proxy
+        url: http://mimir:8080/prometheus
+        isDefault: true
+        editable: false
+        version: 2
+        jsonData:
+          timeInterval: "15s"
+          httpHeaderName1: "X-Scope-OrgID"
+        secureJsonData:
+          httpHeaderValue1: "1"
+  dashboards-provider.yml: |
+    apiVersion: 1
+
+    providers:
+      - name: 'Default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 5
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+  metrics-dashboard.json: |
+    {
+      "dashboard": {
+        "uid": "metrics",
+        "title": "Vizme Metrics",
+        "tags": [
+          "vizme",
+          "metrics",
+          "ecommerce"
+        ],
+        "timezone": "browser",
+        "schemaVersion": 38,
+        "version": 3,
+        "refresh": "15s",
+        "templating": {
+          "list": [
+            {
+              "name": "user_id",
+              "type": "textbox",
+              "query": "",
+              "current": {
+                "selected": true,
+                "text": "",
+                "value": ""
+              },
+              "hide": 2,
+              "skipUrlSync": false,
+              "description": "Set by backend proxy from token (locked)"
+            },
+            {
+              "name": "site_filter",
+              "type": "textbox",
+              "query": "",
+              "current": {
+                "selected": true,
+                "text": ".*",
+                "value": ".*"
+              },
+              "hide": 2,
+              "skipUrlSync": false,
+              "description": "Set by the frontend property filter. Use .* to include all properties."
+            }
+          ]
+        },
+        "panels": [
+          {
+            "collapsed": false,
+            "gridPos": {
+              "h": 1,
+              "w": 24,
+              "x": 0,
+              "y": 0
+            },
+            "id": 100,
+            "title": "Platform health",
+            "type": "row"
+          },
+          {
+            "id": 1,
+            "title": "HTTP request rate",
+            "type": "timeseries",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 1
+            },
+            "targets": [
+              {
+                "expr": "vizme:http_requests:rate1m{service=\\\"vizme-backend\\\"}",
+                "refId": "A",
+                "legendFormat": "{{method}} {{route}} {{status}}",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                }
+              }
+            ],
+            "description": "Backend request rate from a 1-minute recording rule"
+          },
+          {
+            "id": 2,
+            "title": "HTTP p99 latency (s)",
+            "type": "timeseries",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 1
+            },
+            "targets": [
+              {
+                "expr": "vizme:http_request_duration:p99_1m{service=\\\"vizme-backend\\\"}",
+                "refId": "A",
+                "legendFormat": "{{route}}",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                }
+              }
+            ],
+            "description": "99th percentile request duration from a 1-minute recording rule"
+          }
+        ]
+      },
+      "folderUid": "",
+      "overwrite": true
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: vizme
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: vizme
+spec:
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: vizme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: GF_SECURITY_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vizme-secrets
+                  key: GF_SECURITY_ADMIN_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_SECURITY_ALLOW_EMBEDDING
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_AUTH_PROXY_ENABLED
+              value: "true"
+            - name: GF_AUTH_PROXY_HEADER_NAME
+              value: "X-WEBAUTH-USER"
+            - name: GF_AUTH_PROXY_HEADER_PROPERTY
+              value: "username"
+            - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+              value: "true"
+            - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
+              value: "Admin"
+            - name: GF_SERVER_SERVE_FROM_SUB_PATH
+              value: "true"
+            - name: GF_SERVER_ROOT_URL
+              value: "http://vizme.local/grafana"
+            - name: GF_SECURITY_COOKIE_SAMESITE
+              value: "disabled"
+            - name: GF_UNIFIED_ALERTING_ENABLED
+              value: "false"
+            - name: GF_SECURITY_CSRF_TRUSTED_ORIGINS
+              value: "http://vizme.local"
+            - name: GF_SECURITY_CSRF_ADDITIONAL_HEADERS
+              value: "X-WEBAUTH-USER"
+            - name: GF_SECURITY_COOKIE_SECURE
+              value: "false"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: grafana-ini
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+            - name: ds
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yml
+              subPath: datasources.yml
+            - name: dp
+              mountPath: /etc/grafana/provisioning/dashboards/default.yml
+              subPath: dashboards-provider.yml
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/metrics-dashboard.json
+              subPath: metrics-dashboard.json
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
+        - name: grafana-ini
+          configMap:
+            name: grafana-config
+            items:
+              - key: grafana.ini
+                path: grafana.ini
+        - name: ds
+          configMap:
+            name: grafana-config
+            items:
+              - key: datasources.yml
+                path: datasources.yml
+        - name: dp
+          configMap:
+            name: grafana-config
+            items:
+              - key: dashboards-provider.yml
+                path: dashboards-provider.yml
+        - name: dashboards
+          configMap:
+            name: grafana-config
+            items:
+              - key: metrics-dashboard.json
+                path: metrics-dashboard.json
