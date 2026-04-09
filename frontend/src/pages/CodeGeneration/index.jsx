@@ -53,7 +53,7 @@ function CodeGeneration() {
       ]);
 
       const keys = keysRes.data || [];
-      const configs = Array.isArray(configsRes) ? configsRes : (configsRes?.data || []);
+      const configs = Array.isArray(configsRes) ? configsRes : configsRes?.data || [];
 
       setMetricConfigs(configs);
 
@@ -84,10 +84,11 @@ function CodeGeneration() {
     setError('');
 
     try {
-      const response = await codeGenerationAPI.generate(
-        selectedApiKey.id,
-        { autoTrack: autoPageViews, customEvents: true, autoInteractions }
-      );
+      const response = await codeGenerationAPI.generate(selectedApiKey.id, {
+        autoTrack: autoPageViews,
+        customEvents: true,
+        autoInteractions,
+      });
 
       setGeneratedCode(response.data.code);
     } catch (err) {
@@ -135,7 +136,7 @@ ${snippet}
 </script>
 
 <!-- Optional: Track custom events -->
-<!-- <button data-track="button_clicks" data-value="1">Click me</button> -->`,
+<!-- <button data-vizme-track="button_clicks" data-vizme-value="1">Click me</button> -->`,
 
       react: `// VIZME Analytics - ${metricName}
 // Add this to your main App.jsx or index.jsx
@@ -279,7 +280,8 @@ export class VizmeService {
       <div className="cg-config-info">
         <span className="cg-config-badge">
           <CheckIcon size={14} />
-          Covers all {metricConfigs.length} metric configuration{metricConfigs.length !== 1 ? 's' : ''} automatically
+          Covers all {metricConfigs.length} metric configuration
+          {metricConfigs.length !== 1 ? 's' : ''} automatically
         </span>
       </div>
 
@@ -360,7 +362,9 @@ export class VizmeService {
                   onChange={(e) => setAutoInteractions(e.target.checked)}
                   className="cg-checkbox"
                 />
-                <div className="cg-checkbox-custom">{autoInteractions && <CheckIcon size={14} />}</div>
+                <div className="cg-checkbox-custom">
+                  {autoInteractions && <CheckIcon size={14} />}
+                </div>
                 <div className="cg-option-text">
                   <span className="cg-option-label">Auto Interactions</span>
                   <span className="cg-option-desc">

@@ -10,7 +10,7 @@ export interface VizmeConstructorOptions {
   /** Enable automatic tracking (default: true) */
   autoTrack?: boolean;
   /** Fetch metric configs from the server (default: true) */
-  autofetchConfigs?: boolean;
+  autoFetchConfigs?: boolean;
   batchSize?: number;
   flushInterval?: number;
   metricConfigs?: Record<string, { type?: string; labels?: Record<string, string> }>;

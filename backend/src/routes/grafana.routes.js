@@ -175,9 +175,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
     });
 
     const path =
-      dashboard === 'metrics'
-        ? `d/${dashboard}/${METRICS_DASHBOARD_SLUG}`
-        : `d/${dashboard}`;
+      dashboard === 'metrics' ? `d/${dashboard}/${METRICS_DASHBOARD_SLUG}` : `d/${dashboard}`;
     const url = `${baseUrl}/grafana/${path}?${params.toString()}`;
 
     if (wantsBrowserRedirect(req)) {
@@ -216,6 +214,23 @@ function validateEmbedToken(reqOrToken, options = {}) {
 }
 
 /**
+ * Decode the main app access token (if present) so we can detect stale embed-cookie
+ * sessions after account switches/login refreshes.
+ */
+function getAccessTokenUserId(req) {
+  const token = req.cookies?.vizme_access_token;
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, config.jwt.secret);
+    if (decoded?.type !== 'access') return null;
+    if (decoded?.userId == null) return null;
+    return String(decoded.userId);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parse cookies from raw Cookie header string.
  */
 function parseCookies(cookieHeader) {
@@ -236,6 +251,23 @@ function buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin) {
   return `${upstreamOrigin}${prefix}${path}${qs}`;
 }
 
+function isGrafanaStaticAssetPath(path = '') {
+  return /^\/public\/build\//.test(path) || /^\/public\/plugins\//.test(path);
+}
+
+function isGrafanaOptionalFeaturePath(path = '') {
+  return (
+    path.includes('/apis/features.grafana.app/') ||
+    path.includes('/ofrep/v1/evaluate/flags')
+  );
+}
+
+function shouldClearEmbedCookieOnUpstreamAuthFailure(path = '', status) {
+  if (status !== 401 && status !== 403) return false;
+  if (isGrafanaStaticAssetPath(path) || isGrafanaOptionalFeaturePath(path)) return false;
+  return true;
+}
+
 /**
  * Proxies requests to Grafana at /grafana/*.
  * Validates embed_token, forces var-user_id from token.
@@ -252,6 +284,18 @@ export async function grafanaProxyMiddleware(req, res, next) {
     return next(new UnauthorizedError('Valid embed token required to view Grafana'));
   }
   const userId = session.userId;
+  const accessTokenUserId = getAccessTokenUserId(req);
+  if (accessTokenUserId && accessTokenUserId !== String(userId)) {
+    // Embed cookie is stale (likely from a previous account/session in this browser).
+    // Clearing avoids endless 403 loops until users manually clear cookies.
+    clearGrafanaEmbedCookie(res);
+    return res.status(401).json({
+      success: false,
+      code: 'grafana_embed_stale_session',
+      retryable: true,
+      message: 'Grafana embed session was stale and has been reset. Retry with a fresh embed URL.',
+    });
+  }
 
   const grafanaConn = await resolveGrafanaConnection();
   if (!grafanaConn.apiBase) {
@@ -351,11 +395,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
 
     let response = await fetch(targetUrl, fetchOpts);
 
-    if (
-      response.status === 404 &&
-      req.method === 'GET' &&
-      /^\/d\//.test(path)
-    ) {
+    if (response.status === 404 && req.method === 'GET' && /^\/d\//.test(path)) {
       logger.warn(
         {
           path,
@@ -372,9 +412,34 @@ export async function grafanaProxyMiddleware(req, res, next) {
       }
     }
 
+    if (response.status === 401 || response.status === 403) {
+      const shouldClear = shouldClearEmbedCookieOnUpstreamAuthFailure(path, response.status);
+      if (shouldClear) {
+        clearGrafanaEmbedCookie(res);
+      }
+      logger.warn(
+        {
+          status: response.status,
+          path,
+          method: req.method,
+          userId: String(userId),
+          orgId: String(orgId),
+          clearedEmbedCookie: shouldClear,
+        },
+        shouldClear
+          ? 'Grafana auth rejection on critical path; cleared embed cookie for recovery'
+          : 'Grafana auth rejection on non-critical path; preserved embed cookie'
+      );
+    }
+
     if (response.status >= 400) {
       logger.warn(
-        { status: response.status, path, targetUrl: targetUrl.replace(/:[^:@]+@/, ':***@'), method: req.method },
+        {
+          status: response.status,
+          path,
+          targetUrl: targetUrl.replace(/:[^:@]+@/, ':***@'),
+          method: req.method,
+        },
         'Grafana proxy non-2xx response'
       );
     }
@@ -386,9 +451,18 @@ export async function grafanaProxyMiddleware(req, res, next) {
     response.headers.forEach((v, k) => {
       const lower = k.toLowerCase();
       if (lower === 'x-frame-options' || lower === 'content-security-policy') return;
-      if (lower !== 'transfer-encoding' && lower !== 'content-encoding') {
-        res.setHeader(k, v);
+      if (lower === 'transfer-encoding' || lower === 'content-encoding') return;
+      if (lower === 'set-cookie') {
+        const existing = res.getHeader('set-cookie');
+        const incoming = Array.isArray(v) ? v : [v];
+        const merged = [...(Array.isArray(existing) ? existing : existing ? [existing] : []), ...incoming]
+          .filter(Boolean);
+        if (merged.length > 0) {
+          res.setHeader('set-cookie', merged);
+        }
+        return;
       }
+      res.setHeader(k, v);
     });
 
     res.removeHeader('X-Frame-Options');
