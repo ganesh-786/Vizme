@@ -175,9 +175,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
     });
 
     const path =
-      dashboard === 'metrics'
-        ? `d/${dashboard}/${METRICS_DASHBOARD_SLUG}`
-        : `d/${dashboard}`;
+      dashboard === 'metrics' ? `d/${dashboard}/${METRICS_DASHBOARD_SLUG}` : `d/${dashboard}`;
     const url = `${baseUrl}/grafana/${path}?${params.toString()}`;
 
     if (wantsBrowserRedirect(req)) {
@@ -251,6 +249,23 @@ function buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin) {
   const prefix = useSubpath ? '/grafana' : '';
   const qs = queryStr ? `?${queryStr}` : '';
   return `${upstreamOrigin}${prefix}${path}${qs}`;
+}
+
+function isGrafanaStaticAssetPath(path = '') {
+  return /^\/public\/build\//.test(path) || /^\/public\/plugins\//.test(path);
+}
+
+function isGrafanaOptionalFeaturePath(path = '') {
+  return (
+    path.includes('/apis/features.grafana.app/') ||
+    path.includes('/ofrep/v1/evaluate/flags')
+  );
+}
+
+function shouldClearEmbedCookieOnUpstreamAuthFailure(path = '', status) {
+  if (status !== 401 && status !== 403) return false;
+  if (isGrafanaStaticAssetPath(path) || isGrafanaOptionalFeaturePath(path)) return false;
+  return true;
 }
 
 /**
@@ -380,11 +395,7 @@ export async function grafanaProxyMiddleware(req, res, next) {
 
     let response = await fetch(targetUrl, fetchOpts);
 
-    if (
-      response.status === 404 &&
-      req.method === 'GET' &&
-      /^\/d\//.test(path)
-    ) {
+    if (response.status === 404 && req.method === 'GET' && /^\/d\//.test(path)) {
       logger.warn(
         {
           path,
@@ -402,7 +413,10 @@ export async function grafanaProxyMiddleware(req, res, next) {
     }
 
     if (response.status === 401 || response.status === 403) {
-      clearGrafanaEmbedCookie(res);
+      const shouldClear = shouldClearEmbedCookieOnUpstreamAuthFailure(path, response.status);
+      if (shouldClear) {
+        clearGrafanaEmbedCookie(res);
+      }
       logger.warn(
         {
           status: response.status,
@@ -410,14 +424,22 @@ export async function grafanaProxyMiddleware(req, res, next) {
           method: req.method,
           userId: String(userId),
           orgId: String(orgId),
+          clearedEmbedCookie: shouldClear,
         },
-        'Grafana auth rejection; cleared embed cookie for automatic recovery'
+        shouldClear
+          ? 'Grafana auth rejection on critical path; cleared embed cookie for recovery'
+          : 'Grafana auth rejection on non-critical path; preserved embed cookie'
       );
     }
 
     if (response.status >= 400) {
       logger.warn(
-        { status: response.status, path, targetUrl: targetUrl.replace(/:[^:@]+@/, ':***@'), method: req.method },
+        {
+          status: response.status,
+          path,
+          targetUrl: targetUrl.replace(/:[^:@]+@/, ':***@'),
+          method: req.method,
+        },
         'Grafana proxy non-2xx response'
       );
     }
@@ -429,9 +451,18 @@ export async function grafanaProxyMiddleware(req, res, next) {
     response.headers.forEach((v, k) => {
       const lower = k.toLowerCase();
       if (lower === 'x-frame-options' || lower === 'content-security-policy') return;
-      if (lower !== 'transfer-encoding' && lower !== 'content-encoding') {
-        res.setHeader(k, v);
+      if (lower === 'transfer-encoding' || lower === 'content-encoding') return;
+      if (lower === 'set-cookie') {
+        const existing = res.getHeader('set-cookie');
+        const incoming = Array.isArray(v) ? v : [v];
+        const merged = [...(Array.isArray(existing) ? existing : existing ? [existing] : []), ...incoming]
+          .filter(Boolean);
+        if (merged.length > 0) {
+          res.setHeader('set-cookie', merged);
+        }
+        return;
       }
+      res.setHeader(k, v);
     });
 
     res.removeHeader('X-Frame-Options');

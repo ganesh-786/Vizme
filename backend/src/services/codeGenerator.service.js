@@ -43,8 +43,8 @@ w.addEventListener('unhandledrejection',function(e){tm('promise_rejections',1,{p
 if(c.x&&typeof window!=='undefined'){
 w.trackMetric=tm;w.incrementMetric=inc;w.decrementMetric=dec;
 if(d.addEventListener){
-d.addEventListener('click',function(e){var el=e.target.closest('[data-track]');if(el){var n=el.getAttribute('data-track'),v=parseFloat(el.getAttribute('data-value'))||1,l={};Array.from(el.attributes).forEach(function(a){if(a.name.startsWith('data-label-'))l[a.name.slice(11)]=a.value});tm(n,v,l)}},true);
-d.addEventListener('submit',function(e){var el=e.target.closest('form');if(el&&el.hasAttribute('data-track')){var n=el.getAttribute('data-track'),v=parseFloat(el.getAttribute('data-value'))||1,l={};Array.from(el.attributes).forEach(function(a){if(a.name.startsWith('data-label-'))l[a.name.slice(11)]=a.value});tm(n,v,l)}},true)
+d.addEventListener('click',function(e){var el=e.target.closest('[data-vizme-track]');if(el){var n=el.getAttribute('data-vizme-track'),v=parseFloat(el.getAttribute('data-vizme-value'))||1,l={};Array.from(el.attributes).forEach(function(a){if(a.name.startsWith('data-vizme-label-'))l[a.name.slice(17)]=a.value});tm(n,v,l)}},true);
+d.addEventListener('submit',function(e){var el=e.target.closest('form');if(el&&el.hasAttribute('data-vizme-track')){var n=el.getAttribute('data-vizme-track'),v=parseFloat(el.getAttribute('data-vizme-value'))||1,l={};Array.from(el.attributes).forEach(function(a){if(a.name.startsWith('data-vizme-label-'))l[a.name.slice(17)]=a.value});tm(n,v,l)}},true)
 }
 }
 if(typeof window!=='undefined'&&w.addEventListener){
@@ -54,8 +54,8 @@ w.addEventListener('visibilitychange',function(){if(d.hidden){pb()}})
 if(c.i&&typeof window!=='undefined'&&typeof document!=='undefined'){
 var _d=document,_lc={ts:0,id:''},DD=300,TT=['BUTTON','A','INPUT','SELECT','TEXTAREA'];
 function fta(t){var el=t,dp=0;while(el&&el!==_d&&dp<5){if(TT.indexOf(el.tagName)!==-1||(el.getAttribute&&el.getAttribute('role')==='button'))return el;el=el.parentNode;dp++}return null}
-_d.addEventListener('click',function(e){var el=fta(e.target);if(!el)return;if(el.hasAttribute&&el.hasAttribute('data-track'))return;var eid=(el.id||'')+'|'+(el.tagName||''),now=Date.now();if(eid===_lc.id&&now-_lc.ts<DD)return;_lc={ts:now,id:eid};var l={page:location.pathname,element:el.tagName.toLowerCase(),interaction_type:'click'};if(el.id)l.element_id=el.id;var tx=(el.innerText||'').substring(0,50).trim();if(tx)l.element_text=tx;if(el.href)l.element_href=el.href.substring(0,200);am({n:'user_interaction',t:'counter',v:1,l:l})},true);
-_d.addEventListener('change',function(e){var el=e.target;if(TT.indexOf(el.tagName)===-1||el.tagName==='BUTTON'||el.tagName==='A')return;if(el.hasAttribute&&el.hasAttribute('data-track'))return;var l={page:location.pathname,element:el.tagName.toLowerCase(),interaction_type:'input_change'};if(el.id)l.element_id=el.id;else if(el.name)l.element_id=el.name;if(el.type)l.input_type=el.type;am({n:'user_interaction',t:'counter',v:1,l:l})},true)
+_d.addEventListener('click',function(e){var el=fta(e.target);if(!el)return;if(el.hasAttribute&&el.hasAttribute('data-vizme-track'))return;var eid=(el.id||'')+'|'+(el.tagName||''),now=Date.now();if(eid===_lc.id&&now-_lc.ts<DD)return;_lc={ts:now,id:eid};var l={page:location.pathname,element:el.tagName.toLowerCase(),interaction_type:'click'};if(el.id)l.element_id=el.id;var tx=(el.innerText||'').substring(0,50).trim();if(tx)l.element_text=tx;if(el.href)l.element_href=el.href.substring(0,200);am({n:'user_interaction',t:'counter',v:1,l:l})},true);
+_d.addEventListener('change',function(e){var el=e.target;if(TT.indexOf(el.tagName)===-1||el.tagName==='BUTTON'||el.tagName==='A')return;if(el.hasAttribute&&el.hasAttribute('data-vizme-track'))return;var l={page:location.pathname,element:el.tagName.toLowerCase(),interaction_type:'input_change'};if(el.id)l.element_id=el.id;else if(el.name)l.element_id=el.name;if(el.type)l.input_type=el.type;am({n:'user_interaction',t:'counter',v:1,l:l})},true)
 }
 if(typeof window!=='undefined'){
 w.MetricsTracker={track:tm,increment:inc,decrement:dec,flush:pb,getQueueSize:function(){return q.length},getBatchSize:function(){return b.length}}
