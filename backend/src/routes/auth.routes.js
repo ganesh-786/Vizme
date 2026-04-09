@@ -178,6 +178,8 @@ router.post('/refresh', authLimiter, [body('refreshToken').optional().notEmpty()
       },
     });
   } catch (error) {
+    clearAuthCookies(res);
+    clearGrafanaEmbedCookie(res);
     next(error);
   }
 });

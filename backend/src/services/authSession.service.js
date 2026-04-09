@@ -103,6 +103,43 @@ export function clearAuthCookies(res) {
   res.clearCookie(REFRESH_COOKIE_NAME, cookieOptions(undefined));
 }
 
+/**
+ * Verify a refresh token against the DB without revoking it.
+ * Safe for concurrent GET requests — no side effects on the token table.
+ */
+export async function verifyRefreshTokenFromDb(refreshToken) {
+  if (!refreshToken) {
+    throw new UnauthorizedError('Refresh token required');
+  }
+
+  let decoded;
+  try {
+    decoded = verifyRefreshToken(refreshToken);
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+    throw error;
+  }
+
+  const tokenResult = await query(
+    'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
+    [refreshToken]
+  );
+
+  if (tokenResult.rows.length === 0) {
+    throw new UnauthorizedError('Refresh token not found or expired');
+  }
+
+  return { userId: tokenResult.rows[0].user_id ?? decoded.userId };
+}
+
+export function generateAccessToken(userId) {
+  return jwt.sign({ userId, type: 'access' }, config.jwt.secret, {
+    expiresIn: config.jwt.accessExpiry,
+  });
+}
+
 export async function rotateRefreshSession(refreshToken) {
   if (!refreshToken) {
     throw new UnauthorizedError('Refresh token required');
