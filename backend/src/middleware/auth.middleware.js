@@ -1,11 +1,12 @@
 import { query } from '../database/connection.js';
 import { UnauthorizedError } from './errorHandler.js';
 import {
+  generateAccessToken,
   getAccessTokenFromCookie,
   getRefreshTokenFromRequest,
-  rotateRefreshSession,
   setAuthCookies,
   verifyAccessToken,
+  verifyRefreshTokenFromDb,
 } from '../services/authSession.service.js';
 
 const SAFE_COOKIE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -42,9 +43,10 @@ async function authenticateWithCookieSession(req, res) {
     throw new UnauthorizedError('No token provided');
   }
 
-  const session = await rotateRefreshSession(refreshToken);
-  setAuthCookies(res, session);
-  return verifyAccessToken(session.accessToken);
+  const { userId } = await verifyRefreshTokenFromDb(refreshToken);
+  const accessToken = generateAccessToken(userId);
+  setAuthCookies(res, { accessToken });
+  return verifyAccessToken(accessToken);
 }
 
 export const authenticate = async (req, res, next) => {
