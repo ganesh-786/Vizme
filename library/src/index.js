@@ -659,7 +659,7 @@ class VizmeClient {
         batchSize: config.batchSize || 5,
         flushInterval: config.flushInterval || 1000,
         metricConfigs: config.metricConfigs || {},
-        autofetchConfigs: config.autofetchConfigs !== false,
+        autoFetchConfigs: config.autoFetchConfigs !== false,
         sampleRate: config.sampleRate ?? 1,
         maxRetries: config.maxRetries ?? 5,
         retryBaseMs: config.retryBaseMs ?? 1000,
@@ -679,7 +679,7 @@ class VizmeClient {
       });
 
           // Auto-fetch metric configs from backend
-    if (this.config.autofetchConfigs && !config.metricConfigs) {
+    if (this.config.autoFetchConfigs && !config.metricConfigs) {
       this.configReady = this.fetchMetricConfigs().then(configs=>{
         this.client.metricConfigs = configs;
       })
