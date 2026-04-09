@@ -38,12 +38,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Vizme/Vizme.git"
+    "url": "git+https://github.com/ganesh-786/Vizme/tree/main/library"
   },
   "bugs": {
-    "url": "https://github.com/Vizme/Vizme/issues"
+    "url": "https://github.com/ganesh-786/Vizme/issues"
   },
-  "homepage": "https://github.com/Vizme/Vizme#readme",
+  "homepage": "https://github.com/ganesh-786/Vizme/blob/main/library/README.md",
   "devDependencies": {
     "esbuild": "^0.25.0"
   }
