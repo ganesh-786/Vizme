@@ -141,7 +141,8 @@ app.get('/metrics', metricsScrapeAuthMiddleware, async (req, res) => {
     res.end(appMetricsText || '# No metrics yet\n');
   } catch (error) {
     logger.error({ err: error, requestId: req.id }, 'Metrics endpoint error');
-    res.status(500).set('Content-Type', 'text/plain').end(`# Error: ${error.message}\n`);
+    const detail = config.isProduction ? 'internal error' : error.message;
+    res.status(500).set('Content-Type', 'text/plain').end(`# Error: ${detail}\n`);
   }
 });
 

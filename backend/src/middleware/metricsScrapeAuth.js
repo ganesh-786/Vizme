@@ -3,7 +3,18 @@
  * Enable by setting METRICS_SCRAPE_USER and METRICS_SCRAPE_PASSWORD.
  * When enabled, Prometheus must use basic_auth in scrape_config.
  */
+import crypto from 'crypto';
 import { config } from '../config.js';
+
+function constantTimeEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 export function metricsScrapeAuthMiddleware(req, res, next) {
   const { username, password } = config.metricsScrapeAuth;
@@ -21,8 +32,15 @@ export function metricsScrapeAuthMiddleware(req, res, next) {
   try {
     const base64 = authHeader.slice(6);
     const decoded = Buffer.from(base64, 'base64').toString('utf8');
-    const [user, pass] = decoded.split(':');
-    if (user === username && pass === password) {
+    const separatorIdx = decoded.indexOf(':');
+    if (separatorIdx < 0) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="Prometheus metrics"');
+      res.status(401).end('Unauthorized');
+      return;
+    }
+    const user = decoded.slice(0, separatorIdx);
+    const pass = decoded.slice(separatorIdx + 1);
+    if (constantTimeEqual(user, username) && constantTimeEqual(pass, password)) {
       return next();
     }
   } catch {

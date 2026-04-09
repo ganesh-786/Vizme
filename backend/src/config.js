@@ -3,7 +3,10 @@
  * Fails fast on startup if required production vars are missing.
  */
 
+import crypto from 'crypto';
+
 const isProduction = process.env.NODE_ENV === 'production';
+const ephemeralDevSecret = crypto.randomBytes(32).toString('base64');
 
 const requiredProduction = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'JWT_SECRET'];
 
@@ -57,7 +60,7 @@ export const config = {
 
   jwt: {
     secret:
-      process.env.JWT_SECRET || (isProduction ? undefined : 'dev-secret-change-in-production'),
+      process.env.JWT_SECRET || (isProduction ? undefined : ephemeralDevSecret),
     accessExpiry: getEnv('JWT_ACCESS_EXPIRY', '15m'),
     refreshExpiry: getEnv('JWT_REFRESH_EXPIRY', '7d'),
   },

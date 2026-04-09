@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Skeleton } from '@/components/Skeleton';
 import { getEmbedUrl } from '@/api/grafana';
 import { useToast } from '@/components/ToastContainer';
-import { useAuthStore } from '@/store/authStore';
 import './GrafanaEmbed.css';
 
 /**
@@ -81,11 +80,8 @@ function GrafanaEmbed({
                 .then((next) => {
                   if (next?.url) setEmbedUrl(next.url);
                 })
-                .catch((err) => {
-                  if (err.response?.status === 401) {
-                    useAuthStore.getState().logout();
-                    window.location.href = '/login';
-                  }
+                .catch(() => {
+                  // Interceptor handles 401 → refresh → logout cycle
                 });
             }, intervalMs);
           }
@@ -95,10 +91,6 @@ function GrafanaEmbed({
       } catch (err) {
         if (!cancelled) {
           setHasError(true);
-          if (err.response?.status === 401) {
-            useAuthStore.getState().logout();
-            window.location.href = '/login';
-          }
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -165,10 +157,7 @@ function GrafanaEmbed({
                     }
                   } catch (err) {
                     setHasError(true);
-                    if (err.response?.status === 401) {
-                      useAuthStore.getState().logout();
-                      window.location.href = '/login';
-                    } else {
+                    if (err.response?.status !== 401) {
                       showToast('Unable to load Grafana. Please try again.', 'error', 4000);
                     }
                   } finally {
