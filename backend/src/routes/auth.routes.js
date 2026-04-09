@@ -94,7 +94,6 @@ router.post(
             name: user.name,
           },
           accessToken,
-          refreshToken,
         },
       });
     } catch (error) {
@@ -152,7 +151,6 @@ router.post(
             name: user.name,
           },
           accessToken,
-          refreshToken,
         },
       });
     } catch (error) {
@@ -177,7 +175,6 @@ router.post('/refresh', [body('refreshToken').optional().notEmpty()], async (req
       success: true,
       data: {
         accessToken,
-        refreshToken: newRefreshToken,
       },
     });
   } catch (error) {

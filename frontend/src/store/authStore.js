@@ -1,32 +1,34 @@
 import { create } from 'zustand';
 
-// Load from localStorage on init
+const STORAGE_KEY = 'auth-storage';
+
+/**
+ * Hydrate the user profile (non-secret) from localStorage.
+ * Tokens are never persisted — they live in memory only and are
+ * restored via httpOnly cookie refresh on page reload.
+ */
 const loadAuth = () => {
   try {
-    const stored = localStorage.getItem('auth-storage');
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const { user } = JSON.parse(stored);
+      if (user) return { user, isAuthenticated: true };
     }
-  } catch (e) {
-    console.error('Failed to load auth from localStorage', e);
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
   }
-  return { user: null, accessToken: null, refreshToken: null, isAuthenticated: false };
+  return { user: null, accessToken: null, isAuthenticated: false };
 };
 
-// Save to localStorage
-const saveAuth = (state) => {
+const saveUser = (user) => {
   try {
-    localStorage.setItem(
-      'auth-storage',
-      JSON.stringify({
-        user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      })
-    );
-  } catch (e) {
-    console.error('Failed to save auth to localStorage', e);
+    if (user) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ user }));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    // Storage full or blocked — non-fatal
   }
 };
 
@@ -34,42 +36,22 @@ export const useAuthStore = create((set) => {
   const initialState = loadAuth();
 
   return {
-    ...initialState,
+    user: initialState.user,
+    accessToken: initialState.accessToken ?? null,
+    isAuthenticated: initialState.isAuthenticated,
 
-    setAuth: (user, accessToken, refreshToken) => {
-      const newState = {
-        user,
-        accessToken,
-        refreshToken,
-        isAuthenticated: true,
-      };
-      set(newState);
-      saveAuth(newState);
+    setAuth: (user, accessToken) => {
+      set({ user, accessToken, isAuthenticated: true });
+      saveUser(user);
     },
 
     logout: () => {
-      const newState = {
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-      };
-      set(newState);
-      localStorage.removeItem('auth-storage');
+      set({ user: null, accessToken: null, isAuthenticated: false });
+      localStorage.removeItem(STORAGE_KEY);
     },
 
     updateToken: (accessToken) => {
-      const currentState = useAuthStore.getState();
-      const newState = { ...currentState, accessToken };
-      set(newState);
-      saveAuth(newState);
-    },
-
-    updateTokens: (accessToken, refreshToken) => {
-      const currentState = useAuthStore.getState();
-      const newState = { ...currentState, accessToken, refreshToken };
-      set(newState);
-      saveAuth(newState);
+      set({ accessToken });
     },
   };
 });

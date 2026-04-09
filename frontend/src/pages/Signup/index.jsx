@@ -26,9 +26,9 @@ function Signup() {
 
     try {
       const response = await authAPI.signup(email, password, name);
-      const { user, accessToken, refreshToken } = response.data;
+      const { user, accessToken } = response.data;
 
-      setAuth(user, accessToken, refreshToken);
+      setAuth(user, accessToken);
       showToast('Account created successfully! Redirecting...', 'success', 2000);
       const from = location.state?.from;
       const path = from?.pathname;
