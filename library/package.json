@@ -1,7 +1,7 @@
 {
   "name": "@ganesh-40/vizme",
   "version": "1.0.2",
-  "description": "Unified visibility platform - automatic metrics tracking library",
+  "description": "Unified visibility platform - This is the library that was built for visualizing the metrices, which would be made open-source to public.",
   "type": "module",
   "main": "./dist/vizme.cjs",
   "module": "./dist/vizme.esm.js",
