@@ -62,6 +62,7 @@ test.describe('Signup flow', () => {
     // Open fresh page to avoid stale auth state
     const freshPage = await context.newPage();
     await freshPage.goto('/signup');
+    await freshPage.getByLabel(/full name/i).waitFor({ state: 'visible' });
     await freshPage.getByLabel(/full name/i).fill('Duplicate User');
     await freshPage.getByLabel(/email/i).fill(email);
     await freshPage.getByLabel(/^password$/i).fill('SecurePass123!');
