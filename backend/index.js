@@ -18,8 +18,6 @@ import { healthRoutes } from './src/routes/health.routes.js';
 import { trackerRoutes } from './src/routes/tracker.routes.js';
 import {
   grafanaRoutes,
-  grafanaProxyMiddleware,
-  setupGrafanaWebSocketProxy,
 } from './src/routes/grafana.routes.js';
 import { initDatabase } from './src/database/connection.js';
 import { config, validateConfig } from './src/config.js';
@@ -156,7 +154,6 @@ app.use('/api/v1/dashboard-widgets', dashboardWidgetsRoutes);
 app.use('/api/v1/metrics', metricsRoutes);
 app.use('/api/v1', trackerRoutes);
 app.use('/api/v1/grafana', grafanaRoutes);
-app.use('/grafana', grafanaProxyMiddleware);
 
 app.use(errorHandler);
 
@@ -186,8 +183,6 @@ const server = app.listen(PORT, () => {
     'Server listening'
   );
 });
-
-setupGrafanaWebSocketProxy(server);
 
 startCounterHeartbeat(config.metrics.heartbeatIntervalMs);
 

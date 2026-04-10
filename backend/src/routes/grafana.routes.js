@@ -1,6 +1,5 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import httpProxy from 'http-proxy';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
@@ -163,6 +162,10 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
       { expiresIn: embedTokenExpiry }
     );
 
+    // Make subresource requests work even when the initial iframe URL only includes embed_token in query.
+    // Nginx will validate via cookie or query, but browsers won't re-send embed_token query on subsequent requests.
+    setGrafanaEmbedCookie(res, embedToken);
+
     const baseUrl = resolveGrafanaEmbedPublicBase(req);
     const params = new URLSearchParams({
       embed_token: embedToken,
@@ -186,6 +189,53 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
   } catch (error) {
     next(error);
   }
+});
+
+/**
+ * Internal auth endpoint for Nginx `auth_request` used by `/grafana/*` reverse proxy.
+ *
+ * - Validates embed session (query embed_token or cookie).
+ * - Ensures Grafana org/datasource/dashboard tenant exists.
+ * - Responds with 204 and the headers Nginx should pass to Grafana.
+ *
+ * This endpoint is intentionally NOT protected by main JWT auth; the embed token is the auth.
+ */
+router.get('/_auth', async (req, res) => {
+  const session = validateEmbedToken(req);
+  if (!session) {
+    if (req.cookies?.[GRAFANA_EMBED_COOKIE]) {
+      clearGrafanaEmbedCookie(res);
+    }
+    return res.status(401).end();
+  }
+
+  const userId = session.userId;
+  const accessTokenUserId = getAccessTokenUserId(req);
+  if (accessTokenUserId && accessTokenUserId !== String(userId)) {
+    clearGrafanaEmbedCookie(res);
+    return res.status(401).end();
+  }
+
+  const orgId = await ensureGrafanaTenant(userId, { grafanaLogin: session.grafanaLogin });
+  if (!orgId) {
+    return res.status(503).end();
+  }
+
+  // If embed_token is present in query, keep cookie pinned to the latest value.
+  const incomingEmbedToken =
+    typeof req.query?.embed_token === 'string' ? req.query.embed_token : '';
+  if (incomingEmbedToken) {
+    setGrafanaEmbedCookie(res, incomingEmbedToken);
+  }
+
+  res.setHeader('X-WEBAUTH-USER', session.grafanaLogin);
+  res.setHeader('X-WEBAUTH-ORGS', `${orgId}:Admin`);
+  res.setHeader('X-Grafana-Org-Id', String(orgId));
+  res.setHeader('X-Scope-OrgID', String(userId));
+  if (session.email) res.setHeader('X-WEBAUTH-EMAIL', session.email);
+  if (session.name) res.setHeader('X-WEBAUTH-NAME', session.name);
+
+  return res.status(204).end();
 });
 
 /**
@@ -241,319 +291,6 @@ function parseCookies(cookieHeader) {
     if (key) cookies[key.trim()] = rest.join('=').trim();
   });
   return cookies;
-}
-
-/** Match GF_SERVER_SERVE_FROM_SUB_PATH (default true in docker-compose). */
-function buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin) {
-  const useSubpath = config.grafana?.serveSubpath !== false;
-  const prefix = useSubpath ? '/grafana' : '';
-  const qs = queryStr ? `?${queryStr}` : '';
-  return `${upstreamOrigin}${prefix}${path}${qs}`;
-}
-
-function isGrafanaStaticAssetPath(path = '') {
-  return /^\/public\/build\//.test(path) || /^\/public\/plugins\//.test(path);
-}
-
-function isGrafanaOptionalFeaturePath(path = '') {
-  return (
-    path.includes('/apis/features.grafana.app/') ||
-    path.includes('/ofrep/v1/evaluate/flags')
-  );
-}
-
-function shouldClearEmbedCookieOnUpstreamAuthFailure(path = '', status) {
-  if (status !== 401 && status !== 403) return false;
-  if (isGrafanaStaticAssetPath(path) || isGrafanaOptionalFeaturePath(path)) return false;
-  return true;
-}
-
-/**
- * Proxies requests to Grafana at /grafana/*.
- * Validates embed_token, forces var-user_id from token.
- * Ensures org per user with Mimir datasource (X-Scope-OrgID) for hard isolation.
- */
-export async function grafanaProxyMiddleware(req, res, next) {
-  const incomingEmbedToken =
-    typeof req.query?.embed_token === 'string' ? req.query.embed_token : '';
-  const session = validateEmbedToken(req);
-  if (!session) {
-    if (req.cookies?.[GRAFANA_EMBED_COOKIE]) {
-      clearGrafanaEmbedCookie(res);
-    }
-    return next(new UnauthorizedError('Valid embed token required to view Grafana'));
-  }
-  const userId = session.userId;
-  const accessTokenUserId = getAccessTokenUserId(req);
-  if (accessTokenUserId && accessTokenUserId !== String(userId)) {
-    // Embed cookie is stale (likely from a previous account/session in this browser).
-    // Clearing avoids endless 403 loops until users manually clear cookies.
-    clearGrafanaEmbedCookie(res);
-    return res.status(401).json({
-      success: false,
-      code: 'grafana_embed_stale_session',
-      retryable: true,
-      message: 'Grafana embed session was stale and has been reset. Retry with a fresh embed URL.',
-    });
-  }
-
-  const grafanaConn = await resolveGrafanaConnection();
-  if (!grafanaConn.apiBase) {
-    res.removeHeader('X-Frame-Options');
-    const frontendOrigin = config.cors.frontendUrl || '';
-    res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${frontendOrigin}`);
-    return res.status(503).json({
-      success: false,
-      error: 'Grafana unavailable',
-      code: grafanaConn.authFailed ? 'grafana_admin_auth' : 'grafana_unreachable',
-      message: grafanaConn.authFailed
-        ? 'Grafana admin API rejected credentials. Set GRAFANA_ADMIN_USER/PASSWORD to match Grafana.'
-        : 'Could not reach Grafana. If the API runs on the host, set GRAFANA_URL=http://localhost:3001.',
-    });
-  }
-  const upstreamOrigin = grafanaConn.origin;
-
-  const orgId = await ensureGrafanaTenant(userId, { grafanaLogin: session.grafanaLogin });
-  if (!orgId) {
-    // Send 503 directly with frame-allowing headers so iframe can display the message
-    // (Helmet sets X-Frame-Options: sameorigin, which blocks cross-origin iframes)
-    res.removeHeader('X-Frame-Options');
-    const frontendOrigin = config.cors.frontendUrl || '';
-    res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${frontendOrigin}`);
-    return res.status(503).json({
-      success: false,
-      error: 'Dashboard unavailable',
-      message:
-        'Tenant setup failed. Restart backend after code changes: docker compose restart backend. Ensure: (1) Grafana is running, (2) GRAFANA_ADMIN_USER/PASSWORD match Grafana, (3) GRAFANA_MIMIR_DATASOURCE_URL is reachable from Grafana. Verify: GET /health/grafana',
-    });
-  }
-
-  // Use full path: when mounted at /grafana, req.path is relative; req.baseUrl + req.path = /grafana/api/...
-  let path = (req.baseUrl || '') + (req.path || req.url?.split('?')[0] || '/');
-  if (path.startsWith('/grafana')) path = path.slice(9) || '/';
-  path = '/' + path.replace(/^\/+/, '');
-
-  // Fix path duplication only in datasource proxy paths. Do NOT rewrite Grafana alerting API
-  // (/api/prometheus/grafana/api/v1/rules) - that path is intentional.
-  if (path.includes('/datasources/proxy/') && path.includes('/grafana/api')) {
-    path = path.replace(/\/grafana\/api(?=\/)/g, '/api');
-  }
-
-  if (path.includes('/namespaces/org-')) {
-    path = path.replace(/\/namespaces\/org-[^/]+/, `/namespaces/org-${orgId}`);
-  }
-
-  const query = new URLSearchParams(req.query);
-  query.delete('embed_token');
-  query.set('var-user_id', String(userId));
-  query.set('orgId', String(orgId));
-  const queryStr = query.toString();
-
-  let targetUrl = buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin);
-
-  // Keep iframe subrequests pinned to the most recent embed URL.
-  if (incomingEmbedToken) {
-    setGrafanaEmbedCookie(res, incomingEmbedToken);
-  }
-
-  try {
-    const headers = { ...req.headers };
-    delete headers.host;
-    delete headers.connection;
-    delete headers.authorization;
-    const publicBase = new URL(
-      (config.api.baseUrl || 'http://localhost:3000').replace(/\/$/, '') + '/grafana'
-    );
-    /** Grafana must receive Host matching the upstream TCP target; wrong Host (e.g. :3000 to :3001) causes 404 on /grafana/d/... */
-    let upstreamHost;
-    try {
-      upstreamHost = new URL(upstreamOrigin).host;
-    } catch {
-      upstreamHost = 'localhost:3001';
-    }
-    headers['Host'] = upstreamHost;
-    headers['X-Forwarded-Host'] = req.get('host') || publicBase.host;
-    headers['X-Forwarded-Proto'] = req.get('x-forwarded-proto') || req.protocol || 'http';
-    headers['X-WEBAUTH-USER'] = session.grafanaLogin;
-    headers['X-WEBAUTH-ORGS'] = `${orgId}:Admin`;
-    headers['X-Grafana-Org-Id'] = String(orgId);
-    headers['X-Scope-OrgID'] = String(userId);
-    if (session.email) headers['X-WEBAUTH-EMAIL'] = session.email;
-    if (session.name) headers['X-WEBAUTH-NAME'] = session.name;
-
-    const fetchOpts = {
-      method: req.method,
-      headers,
-      redirect: 'manual',
-    };
-    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body != null) {
-      fetchOpts.body =
-        typeof req.body === 'string' || Buffer.isBuffer(req.body)
-          ? req.body
-          : JSON.stringify(req.body);
-    }
-
-    let response = await fetch(targetUrl, fetchOpts);
-
-    if (response.status === 404 && req.method === 'GET' && /^\/d\//.test(path)) {
-      logger.warn(
-        {
-          path,
-          userId,
-          orgId,
-          targetUrl: targetUrl.replace(/embed_token=[^&]+/gi, 'embed_token=***'),
-        },
-        'Grafana 404 on dashboard route; re-provisioning uid=metrics and retrying once'
-      );
-      const reprovisioned = await reprovisionTenantDashboard(userId);
-      if (reprovisioned) {
-        targetUrl = buildGrafanaProxyTargetUrl(path, queryStr, upstreamOrigin);
-        response = await fetch(targetUrl, fetchOpts);
-      }
-    }
-
-    if (response.status === 401 || response.status === 403) {
-      const shouldClear = shouldClearEmbedCookieOnUpstreamAuthFailure(path, response.status);
-      if (shouldClear) {
-        clearGrafanaEmbedCookie(res);
-      }
-      logger.warn(
-        {
-          status: response.status,
-          path,
-          method: req.method,
-          userId: String(userId),
-          orgId: String(orgId),
-          clearedEmbedCookie: shouldClear,
-        },
-        shouldClear
-          ? 'Grafana auth rejection on critical path; cleared embed cookie for recovery'
-          : 'Grafana auth rejection on non-critical path; preserved embed cookie'
-      );
-    }
-
-    if (response.status >= 400) {
-      logger.warn(
-        {
-          status: response.status,
-          path,
-          targetUrl: targetUrl.replace(/:[^:@]+@/, ':***@'),
-          method: req.method,
-        },
-        'Grafana proxy non-2xx response'
-      );
-    }
-
-    res.status(response.status);
-    const frontendOrigin = config.cors.frontendUrl || '';
-    const allowedFrameAncestors = ["'self'", frontendOrigin].filter(Boolean).join(' ');
-
-    response.headers.forEach((v, k) => {
-      const lower = k.toLowerCase();
-      if (lower === 'x-frame-options' || lower === 'content-security-policy') return;
-      if (lower === 'transfer-encoding' || lower === 'content-encoding') return;
-      if (lower === 'set-cookie') {
-        const existing = res.getHeader('set-cookie');
-        const incoming = Array.isArray(v) ? v : [v];
-        const merged = [...(Array.isArray(existing) ? existing : existing ? [existing] : []), ...incoming]
-          .filter(Boolean);
-        if (merged.length > 0) {
-          res.setHeader('set-cookie', merged);
-        }
-        return;
-      }
-      res.setHeader(k, v);
-    });
-
-    res.removeHeader('X-Frame-Options');
-    res.setHeader('Content-Security-Policy', `frame-ancestors ${allowedFrameAncestors}`);
-
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('text/html') || contentType.includes('application/json')) {
-      const text = await response.text();
-      res.send(text);
-    } else {
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    }
-  } catch (error) {
-    const message =
-      error.cause?.code === 'ECONNREFUSED' || error.message?.includes('fetch failed')
-        ? 'Grafana is unavailable. Ensure Grafana is running (e.g. docker compose up grafana).'
-        : error.message;
-    const err = new Error(message);
-    err.status = 503;
-    next(err);
-  }
-}
-
-/**
- * Attach WebSocket upgrade handler for Grafana Live (/grafana/api/live/ws).
- * Must be called with the HTTP server after app.listen.
- */
-export function setupGrafanaWebSocketProxy(server) {
-  const proxy = httpProxy.createProxyServer({});
-
-  proxy.on('error', (err, req, socket) => {
-    socket.destroy();
-  });
-
-  server.on('upgrade', async (req, socket, head) => {
-    if (!req.url?.startsWith('/grafana')) return;
-
-    const grafanaConn = await resolveGrafanaConnection();
-    if (!grafanaConn.apiBase) {
-      socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    const grafanaBase = grafanaConn.origin;
-
-    const [pathPart, queryPart] = req.url.split('?');
-    const query = new URLSearchParams(queryPart || '');
-    const cookies = parseCookies(req.headers.cookie);
-    const token = query.get('embed_token') || cookies[GRAFANA_EMBED_COOKIE];
-    const session = validateEmbedToken(null, { token });
-
-    if (!session) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    const userId = session.userId;
-
-    const orgId = await ensureGrafanaTenant(userId, { grafanaLogin: session.grafanaLogin });
-    if (!orgId) {
-      socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    query.delete('embed_token');
-    query.set('var-user_id', String(userId));
-    query.set('orgId', String(orgId));
-    const newQuery = query.toString();
-    let wsPath = pathPart;
-    if (wsPath.includes('/namespaces/org-')) {
-      wsPath = wsPath.replace(/\/namespaces\/org-[^/]+/, `/namespaces/org-${orgId}`);
-    }
-    req.url = `${wsPath}${newQuery ? `?${newQuery}` : ''}`;
-    try {
-      req.headers.host = new URL(grafanaBase).host;
-    } catch {
-      req.headers.host = 'localhost:3001';
-    }
-    req.headers['x-webauth-user'] = session.grafanaLogin;
-    req.headers['x-webauth-orgs'] = `${orgId}:Admin`;
-    req.headers['x-grafana-org-id'] = String(orgId);
-    req.headers['x-scope-orgid'] = String(userId); // Mimir tenant for WebSocket/Live
-    if (session.email) req.headers['x-webauth-email'] = session.email;
-    if (session.name) req.headers['x-webauth-name'] = session.name;
-
-    proxy.ws(req, socket, head, {
-      target: grafanaBase,
-      ws: true,
-    });
-  });
 }
 
 export { router as grafanaRoutes };

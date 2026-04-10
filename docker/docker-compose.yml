@@ -154,13 +154,25 @@ services:
       - prometheus
       - mimir
 
+  nginx:
+    image: nginx:alpine
+    container_name: metrics_nginx
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - metrics_network
+    depends_on:
+      - backend
+      - grafana
+    restart: unless-stopped
+
   backend:
     build:
       context: ../backend
       dockerfile: Dockerfile
     container_name: metrics_backend
-    ports:
-      - "3000:3000"
     env_file:
       - .env # Load environment variables from .env file
     environment:
