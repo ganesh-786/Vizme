@@ -48,6 +48,10 @@ build/
 # Testing
 .coverage
 .pytest_cache/
+playwright-report/
+test-results/
+playwright/.cache/
+
 .nyc_output/
 coverage/
 *.cover
