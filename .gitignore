@@ -53,6 +53,11 @@ coverage/
 *.cover
 .hypothesis/
 
+# Playwright
+playwright-report/
+e2e/test-results/
+blob-report/
+
 # Database
 *.db
 *.sqlite
@@ -86,3 +91,6 @@ scripts/
 
 # Cursor
 .cursor/agents/
+
+# Test scratch projects
+testRepo/
