@@ -22,25 +22,22 @@ export default defineConfig({
 
   timeout: 30_000,
 
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-  ],
+  // Default to Chromium only — matches .github/workflows/e2e.yml and avoids WebKit
+  // system libraries many Linux dev machines lack. Run all: PLAYWRIGHT_ALL_BROWSERS=1 npx playwright test
+  projects:
+    process.env.PLAYWRIGHT_ALL_BROWSERS === '1'
+      ? [
+          { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        ]
+      : [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    // Cursor/some tools set CI=1 globally; GITHUB_ACTIONS is only set in GitHub runners.
+    reuseExistingServer: !process.env.GITHUB_ACTIONS,
     timeout: 30_000,
   },
 });
