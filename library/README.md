@@ -5,24 +5,24 @@ A lightweight JavaScript library for tracking metrics to your unified visibility
 ## Installation
 
 ```bash
-npm install @ganesh/vizme
+npm install visualizemet
 ```
 
-The package is published under the **`@ganesh`** scope on npm (public). Use this scoped name; the unscoped name `vizme` is blocked by npm (similarity with other packages).
+The package is published on npm as **`visualizemet`** (public).
 
 ## Package entry points
 
 | Use case | Import / path |
 |----------|----------------|
-| Bundlers (Vite, Webpack, etc.) | `import Vizme from '@ganesh/vizme'` (ESM) or `const { Vizme } = require('@ganesh/vizme')` / `require('@ganesh/vizme').default` (CJS) |
-| Script tag (no bundler) | Copy or serve `node_modules/@ganesh/vizme/dist/vizme.js`; exposes `window.Vizme` |
+| Bundlers (Vite, Webpack, etc.) | `import Vizme from 'visualizemet'` (ESM) or `const { Vizme } = require('visualizemet')` / `require('visualizemet').default` (CJS) |
+| Script tag (no bundler) | Copy or serve `node_modules/visualizemet/dist/vizme.js`; exposes `window.Vizme` |
 
 ## Quick Start
 
 ### Browser (bundler)
 
 ```javascript
-import Vizme from '@ganesh/vizme';
+import Vizme from 'visualizemet';
 
 // Initialize
 const tracker = new Vizme({
@@ -43,7 +43,7 @@ window.vizme.increment('add_to_cart', 1, {
 
 ### Browser (script tag, no bundler)
 
-Serve or copy `node_modules/@ganesh/vizme/dist/vizme.js` and include:
+Serve or copy `node_modules/visualizemet/dist/vizme.js` and include:
 
 ```html
 <script src="/path/to/vizme.js"></script>
@@ -101,8 +101,8 @@ When `autoTrack: true`, the library automatically tracks:
 
 ## Publishing (maintainers)
 
-1. **Scope**: The package name is `@ganesh/vizme`. Your npm user must match the scope (`ganesh`) or you must be a member of the `@ganesh` org with publish access.
-2. **Rename**: To publish under a different user/org, change `"name"` in `package.json` to `@your-npm-username/vizme`, then run `npm publish` from `library/` (`publishConfig.access` is already `public`).
+1. **Package name**: The package name is `visualizemet`.
+2. **Rename**: To publish under a different name, change `"name"` in `package.json`, then run `npm publish` from `library/` (`publishConfig.access` is already `public`).
 3. **Login**: `npm login` and `npm whoami` before publishing.
 
 ## License

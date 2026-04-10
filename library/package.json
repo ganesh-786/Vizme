@@ -1,6 +1,6 @@
 {
   "name": "visualizemet",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Unified visibility platform - automatic metrics tracking library",
   "type": "module",
   "main": "./dist/vizme.cjs",
@@ -38,12 +38,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Vizme/Vizme.git"
+    "url": "git+https://github.com/ganesh-786/Vizme.git"
   },
   "bugs": {
-    "url": "https://github.com/Vizme/Vizme/issues"
+    "url": "https://github.com/ganesh-786/Vizme/issues"
   },
-  "homepage": "https://github.com/Vizme/Vizme#readme",
+  "homepage": "https://github.com/ganesh-786/Vizme#readme",
   "devDependencies": {
     "esbuild": "^0.25.0"
   }
