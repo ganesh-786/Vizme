@@ -17,7 +17,7 @@ test.describe('Signup flow', () => {
     ).toBeVisible();
     await expect(page.getByLabel(/full name/i)).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByLabel(/^password$/i)).toBeVisible();
     await expect(
       page.getByRole('button', { name: /create account/i })
     ).toBeVisible();
@@ -25,7 +25,7 @@ test.describe('Signup flow', () => {
 
   test('requires email and password fields', async ({ page }) => {
     const emailInput = page.getByLabel(/email/i);
-    const passwordInput = page.getByLabel(/password/i);
+    const passwordInput = page.getByLabel(/^password$/i);
 
     await expect(emailInput).toHaveAttribute('required', '');
     await expect(passwordInput).toHaveAttribute('required', '');
@@ -35,7 +35,7 @@ test.describe('Signup flow', () => {
   test('successful signup redirects away from /signup', async ({ page }) => {
     await page.getByLabel(/full name/i).fill('E2E Test User');
     await page.getByLabel(/email/i).fill(uniqueEmail());
-    await page.getByLabel(/password/i).fill('SecurePass123!');
+    await page.getByLabel(/^password$/i).fill('SecurePass123!');
     await page.getByRole('button', { name: /create account/i }).click();
 
     await expect(
@@ -55,7 +55,7 @@ test.describe('Signup flow', () => {
     // First signup
     await page.getByLabel(/full name/i).fill('First User');
     await page.getByLabel(/email/i).fill(email);
-    await page.getByLabel(/password/i).fill('SecurePass123!');
+    await page.getByLabel(/^password$/i).fill('SecurePass123!');
     await page.getByRole('button', { name: /create account/i }).click();
     await expect(page).not.toHaveURL(/\/signup/, { timeout: 10_000 });
 
@@ -64,7 +64,7 @@ test.describe('Signup flow', () => {
     await freshPage.goto('/signup');
     await freshPage.getByLabel(/full name/i).fill('Duplicate User');
     await freshPage.getByLabel(/email/i).fill(email);
-    await freshPage.getByLabel(/password/i).fill('SecurePass123!');
+    await freshPage.getByLabel(/^password$/i).fill('SecurePass123!');
     await freshPage.getByRole('button', { name: /create account/i }).click();
 
     await expect(
