@@ -77,8 +77,9 @@ function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Email Address</label>
+              <label className="form-label" htmlFor="login-email">Email Address</label>
               <input
+                id="login-email"
                 type="email"
                 className="form-input"
                 value={email}
@@ -92,7 +93,7 @@ function Login() {
 
             <div className="form-group">
               <div className="form-label-row">
-                <label className="form-label">Password</label>
+                <label className="form-label" htmlFor="login-password">Password</label>
                 <a
                   className="auth-link"
                   href="#"
@@ -107,6 +108,7 @@ function Login() {
 
               <div className="input-with-action">
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   className="form-input"
                   value={password}
