@@ -1,5 +1,10 @@
 # Metrics Tracker - MVP Documentation
 
+> Important: this file contains legacy MVP-era auth details (JWT signup/signin flows).
+> For the current production architecture, use `docs/auth-multitenancy-architecture-improvement-2026-04-09.md`
+> and `docs/keycloak-architecture-critical-review.md` as the source of truth.
+> For current Playwright auth smoke coverage, see `docs/playwright-auth-smoke-testing.md`.
+
 ## Overview
 
 Metrics Tracker is a comprehensive metrics collection and visualization platform that allows users to:

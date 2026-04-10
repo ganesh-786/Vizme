@@ -21,9 +21,9 @@ router.get('/by-api-key',
         });
       }
 
-      // Verify API key and get user_id
+      // Verify API key and get tenant context (fallback to legacy user scope)
       const apiKeyResult = await query(
-        'SELECT user_id FROM api_keys WHERE api_key = $1 AND is_active = true',
+        'SELECT user_id, tenant_id FROM api_keys WHERE api_key = $1 AND is_active = true',
         [apiKey]
       );
 
@@ -35,12 +35,23 @@ router.get('/by-api-key',
       }
 
       const userId = apiKeyResult.rows[0].user_id;
+      const tenantId = apiKeyResult.rows[0].tenant_id;
 
-      // Get all metric configurations for this user
-      const result = await query(
-        'SELECT metric_name, metric_type, labels FROM metric_configs WHERE user_id = $1',
-        [userId]
-      );
+      // Get all metric configurations for this tenant. Fallback to legacy user scope
+      // while older rows are being migrated.
+      const result = tenantId
+        ? await query(
+            `SELECT metric_name, metric_type, labels
+             FROM metric_configs
+             WHERE tenant_id = $1`,
+            [tenantId]
+          )
+        : await query(
+            `SELECT metric_name, metric_type, labels
+             FROM metric_configs
+             WHERE user_id = $1`,
+            [userId]
+          );
 
       // Convert to the format the library expects
       const configs = {};

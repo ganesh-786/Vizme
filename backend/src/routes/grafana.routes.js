@@ -4,7 +4,7 @@ import httpProxy from 'http-proxy';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, requireBackendClientRole } from '../middleware/auth.middleware.js';
 import { grafanaEmbedLimiter } from '../middleware/rateLimiter.js';
 import {
   ensureGrafanaTenant,
@@ -72,7 +72,7 @@ function wantsBrowserRedirect(req) {
  * Returns a signed embed URL for Grafana dashboard with user_id enforced.
  * Requires JWT auth. Rate limited to prevent abuse.
  */
-router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, next) => {
+router.get('/embed-url', grafanaEmbedLimiter, authenticate, requireBackendClientRole('API_USER'), async (req, res, next) => {
   try {
     const {
       dashboard = 'metrics',
@@ -81,7 +81,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
       refresh = '10s',
       kiosk,
     } = req.query;
-    const userId = req.user.id;
+    const tenantId = req.tenant?.id ?? req.user.id;
     const grafanaLogin = grafanaLoginFromUser(req.user);
 
     const grafanaConn = await resolveGrafanaConnection();
@@ -96,7 +96,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
       });
     }
 
-    let orgId = await ensureGrafanaTenant(userId, { grafanaLogin });
+    let orgId = await ensureGrafanaTenant(tenantId, { grafanaLogin });
     if (!orgId) {
       return res.status(503).json({
         success: false,
@@ -121,14 +121,14 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
       });
     }
 
-    let mimirDatasourceOk = await verifyMimirDatasourceInOrg(orgId, userId);
+    let mimirDatasourceOk = await verifyMimirDatasourceInOrg(orgId, tenantId);
     if (!mimirDatasourceOk) {
-      orgId = await ensureGrafanaTenant(userId, { grafanaLogin });
-      mimirDatasourceOk = orgId ? await verifyMimirDatasourceInOrg(orgId, userId) : false;
+      orgId = await ensureGrafanaTenant(tenantId, { grafanaLogin });
+      mimirDatasourceOk = orgId ? await verifyMimirDatasourceInOrg(orgId, tenantId) : false;
     }
     if (!mimirDatasourceOk) {
       const datasourceHealth = orgId
-        ? await inspectDatasourceHealthInOrg(orgId, `mimir-${userId}`)
+        ? await inspectDatasourceHealthInOrg(orgId, `mimir-${tenantId}`)
         : null;
       return res.status(503).json({
         success: false,
@@ -145,7 +145,8 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
 
     const embedToken = jwt.sign(
       {
-        userId,
+        userId: req.user.id,
+        tenantId,
         purpose: 'grafana-embed',
         dashboard,
         grafanaLogin,
@@ -159,7 +160,7 @@ router.get('/embed-url', grafanaEmbedLimiter, authenticate, async (req, res, nex
     const baseUrl = resolveGrafanaEmbedPublicBase(req);
     const params = new URLSearchParams({
       embed_token: embedToken,
-      'var-user_id': String(userId),
+      'var-user_id': String(tenantId),
       from,
       to,
       refresh,
@@ -194,7 +195,7 @@ function validateEmbedToken(reqOrToken, options = {}) {
   try {
     const decoded = jwt.verify(token, config.jwt.secret);
     if (decoded.purpose !== 'grafana-embed') return null;
-    const uid = decoded.userId;
+    const uid = decoded.tenantId ?? decoded.userId;
     if (uid == null) return null;
     return {
       userId: uid,

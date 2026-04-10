@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../database/connection.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, requireBackendClientRole } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 import {
@@ -11,6 +11,7 @@ import {
 
 const router = express.Router();
 router.use(authenticate);
+router.use(requireBackendClientRole('API_USER'));
 router.use(apiLimiter);
 
 const QUERY_KINDS = ['increase_24h', 'max_latest', 'custom'];
@@ -23,8 +24,8 @@ router.get('/', async (req, res, next) => {
       `SELECT id, user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
               section, sort_order, format, currency_code, include_in_multi_chart, featured_chart,
               created_at, updated_at
-       FROM dashboard_widgets WHERE user_id = $1`;
-    const params = [req.user.id];
+       FROM dashboard_widgets WHERE tenant_id = $1`;
+    const params = [req.tenant?.id ?? null];
     if (siteId === 'null' || siteId === '') {
       sql += ` AND site_id IS NULL`;
     } else if (siteId != null && siteId !== undefined && siteId !== '') {
@@ -51,8 +52,8 @@ router.get('/:id', async (req, res, next) => {
       `SELECT id, user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
               section, sort_order, format, currency_code, include_in_multi_chart, featured_chart,
               created_at, updated_at
-       FROM dashboard_widgets WHERE id = $1 AND user_id = $2`,
-      [id, req.user.id]
+       FROM dashboard_widgets WHERE id = $1 AND tenant_id = $2`,
+      [id, req.tenant?.id ?? null]
     );
     if (r.rows.length === 0) throw new NotFoundError('Widget not found');
     res.json({ success: true, data: r.rows[0] });
@@ -92,21 +93,22 @@ router.post(
       let siteId = null;
       if (req.body.site_id != null && req.body.site_id !== '') {
         const sid = parseInt(String(req.body.site_id), 10);
-        const ok = await ensureSiteOwnedByUser(sid, req.user.id);
+        const ok = await ensureSiteOwnedByUser(sid, req.tenant?.id ?? null);
         if (!ok) throw new BadRequestError('site_id not found');
         siteId = sid;
       }
 
       const r = await query(
         `INSERT INTO dashboard_widgets (
-           user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle, section, sort_order,
+           user_id, tenant_id, site_id, metric_name, query_kind, promql_custom, title, subtitle, section, sort_order,
            format, currency_code, include_in_multi_chart, featured_chart
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-         RETURNING id, user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         RETURNING id, user_id, tenant_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
                    section, sort_order, format, currency_code, include_in_multi_chart, featured_chart,
                    created_at, updated_at`,
         [
           req.user.id,
+          req.tenant?.id ?? null,
           siteId,
           req.body.metric_name.trim(),
           query_kind,
@@ -153,8 +155,8 @@ router.patch(
       if (Number.isNaN(id)) throw new BadRequestError('Invalid id');
 
       const existing = await query(
-        `SELECT id, query_kind FROM dashboard_widgets WHERE id = $1 AND user_id = $2`,
-        [id, req.user.id]
+        `SELECT id, query_kind FROM dashboard_widgets WHERE id = $1 AND tenant_id = $2`,
+        [id, req.tenant?.id ?? null]
       );
       if (existing.rows.length === 0) throw new NotFoundError('Widget not found');
 
@@ -189,7 +191,7 @@ router.patch(
         let siteId = null;
         if (req.body.site_id != null && req.body.site_id !== '') {
           const sid = parseInt(String(req.body.site_id), 10);
-          const ok = await ensureSiteOwnedByUser(sid, req.user.id);
+          const ok = await ensureSiteOwnedByUser(sid, req.tenant?.id ?? null);
           if (!ok) throw new BadRequestError('site_id not found');
           siteId = sid;
         }
@@ -208,12 +210,12 @@ router.patch(
       if (updates.length === 0) throw new BadRequestError('No fields to update');
 
       updates.push(`updated_at = CURRENT_TIMESTAMP`);
-      values.push(id, req.user.id);
+      values.push(id, req.tenant?.id ?? null);
 
       const r = await query(
         `UPDATE dashboard_widgets SET ${updates.join(', ')}
-         WHERE id = $${n++} AND user_id = $${n++}
-         RETURNING id, user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
+         WHERE id = $${n++} AND tenant_id = $${n++}
+         RETURNING id, user_id, tenant_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
                    section, sort_order, format, currency_code, include_in_multi_chart, featured_chart,
                    created_at, updated_at`,
         values
@@ -231,8 +233,8 @@ router.delete('/:id', async (req, res, next) => {
     if (Number.isNaN(id)) throw new BadRequestError('Invalid id');
 
     const r = await query(
-      `DELETE FROM dashboard_widgets WHERE id = $1 AND user_id = $2 RETURNING id`,
-      [id, req.user.id]
+      `DELETE FROM dashboard_widgets WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+      [id, req.tenant?.id ?? null]
     );
     if (r.rows.length === 0) throw new NotFoundError('Widget not found');
     res.json({ success: true, message: 'Widget deleted' });

@@ -11,6 +11,7 @@
 import { query } from '../database/connection.js';
 import { UnauthorizedError } from './errorHandler.js';
 import { authenticateKeycloak } from './keycloak.middleware.js';
+import { resolveTenantContextForUser } from '../services/tenant.service.js';
 
 // Re-export Keycloak middleware as the single authenticate middleware
 export const authenticate = authenticateKeycloak;
@@ -52,6 +53,10 @@ export const authenticateApiKey = async (req, res, next) => {
 
     req.apiKey = result.rows[0];
     req.user = { id: result.rows[0].user_id, email: result.rows[0].email };
+    req.tenant = await resolveTenantContextForUser(
+      result.rows[0].user_id,
+      result.rows[0].tenant_id || req.headers['x-tenant-id']
+    );
     next();
   } catch (error) {
     next(error);

@@ -20,6 +20,7 @@
 import * as jose from 'jose';
 import { query } from '../database/connection.js';
 import { ForbiddenError, UnauthorizedError } from './errorHandler.js';
+import { resolveTenantContextForUser } from '../services/tenant.service.js';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -198,6 +199,9 @@ export const authenticateKeycloak = async (req, res, next) => {
 
     // Attach to request — same shape the rest of the app expects
     req.user = user;
+    const requestedTenant = req.headers['x-tenant-id'];
+    const tenant = await resolveTenantContextForUser(user.id, requestedTenant);
+    req.tenant = tenant;
 
     // Also attach the raw Keycloak payload for role checks, etc.
     req.keycloakPayload = payload;

@@ -82,46 +82,46 @@ export function promqlMultiSeriesSelector(userId, siteId, metricNames = null) {
   return promqlSelectorForMetricNames(metricNames, userId, siteId);
 }
 
-function parseUserId(userId) {
-  const n = typeof userId === 'number' ? userId : parseInt(String(userId), 10);
-  if (Number.isNaN(n)) throw new Error('Invalid user id');
+function parseTenantId(tenantId) {
+  const n = typeof tenantId === 'number' ? tenantId : parseInt(String(tenantId), 10);
+  if (Number.isNaN(n)) throw new Error('Invalid tenant id');
   return n;
 }
 
 /**
  * Widgets for dashboard scope: site-specific rows, or account-level (site_id IS NULL) when siteId absent.
  */
-export async function listDashboardWidgetsForScope(userId, siteId) {
-  const uid = parseUserId(userId);
+export async function listDashboardWidgetsForScope(tenantId, siteId) {
+  const tid = parseTenantId(tenantId);
   if (siteId != null && siteId !== '') {
     const sid = parseInt(String(siteId), 10);
     if (Number.isNaN(sid)) return [];
     const own = await query(
-      `SELECT s.id FROM sites s WHERE s.id = $1 AND s.user_id = $2`,
-      [sid, uid]
+      `SELECT s.id FROM sites s WHERE s.id = $1 AND s.tenant_id = $2`,
+      [sid, tid]
     );
     if (own.rows.length === 0) return [];
     const r = await query(
       `SELECT * FROM dashboard_widgets
-       WHERE user_id = $1 AND site_id = $2
+       WHERE tenant_id = $1 AND site_id = $2
        ORDER BY section ASC, sort_order ASC, id ASC`,
-      [uid, sid]
+      [tid, sid]
     );
     return r.rows;
   }
 
   const r = await query(
     `SELECT * FROM dashboard_widgets
-     WHERE user_id = $1 AND site_id IS NULL
+     WHERE tenant_id = $1 AND site_id IS NULL
      ORDER BY section ASC, sort_order ASC, id ASC`,
-    [uid]
+    [tid]
   );
   return r.rows;
 }
 
-export async function ensureSiteOwnedByUser(siteId, userId) {
+export async function ensureSiteOwnedByUser(siteId, tenantId) {
   const sid = parseInt(String(siteId), 10);
   if (Number.isNaN(sid)) return null;
-  const r = await query(`SELECT id FROM sites WHERE id = $1 AND user_id = $2`, [sid, userId]);
+  const r = await query(`SELECT id FROM sites WHERE id = $1 AND tenant_id = $2`, [sid, tenantId]);
   return r.rows[0]?.id ?? null;
 }

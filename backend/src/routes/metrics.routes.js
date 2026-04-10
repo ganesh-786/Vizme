@@ -82,7 +82,7 @@ router.post('/',
       }
 
       const { metrics } = req.body;
-      const userId = req.user.id;
+      const tenantId = req.tenant?.id ?? req.user.id;
 
       // Validate and process each metric
       const validMetrics = [];
@@ -115,7 +115,7 @@ router.post('/',
               labels: mergedLabels,
               operation: metric.operation,
             },
-            userId
+            tenantId
           );
 
           validMetrics.push({
@@ -124,7 +124,8 @@ router.post('/',
             value: typeof metric.value === 'number' ? metric.value : parseFloat(metric.value),
             labels: {
               ...mergedLabels,
-              user_id: userId.toString(),
+              user_id: tenantId.toString(),
+              tenant_id: tenantId.toString(),
             },
             operation: metric.operation,
           });
@@ -151,7 +152,7 @@ router.post('/',
           value: m.value,
           labels: m.labels || {},
           operation: m.operation,
-          userId: String(req.user.id),
+          userId: String(tenantId),
         })),
         { mode: 'ingest', throwOnFailure: true }
       );
@@ -219,10 +220,11 @@ router.get('/',
  */
 router.get('/dashboard',
   authenticate,
+  requireBackendClientRole('API_USER'),
   async (req, res, next) => {
     try {
-      const userId = req.user.id;
-      const data = await fetchDashboardMetrics(userId, req.query.site_id, {
+      const tenantId = req.tenant?.id ?? req.user.id;
+      const data = await fetchDashboardMetrics(tenantId, req.query.site_id, {
         includeSeries: req.query.include_series === '1' || req.query.include_series === 'true',
         includeDetails: req.query.include_details === '1' || req.query.include_details === 'true',
       });

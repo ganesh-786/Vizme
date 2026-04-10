@@ -235,6 +235,102 @@ const runMigrations = async () => {
      END
      $$`,
     `CREATE INDEX IF NOT EXISTS idx_users_keycloak_id ON users(keycloak_id)`,
+
+    // ── Tenant model (Phase 2) ──
+    `CREATE TABLE IF NOT EXISTS tenants (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) UNIQUE NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS tenant_memberships (
+      id SERIAL PRIMARY KEY,
+      tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role VARCHAR(50) NOT NULL DEFAULT 'member',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (tenant_id, user_id)
+    )`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'default_tenant_id') THEN
+        ALTER TABLE users ADD COLUMN default_tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL;
+      END IF;
+    END $$`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_keys' AND column_name = 'tenant_id') THEN
+        ALTER TABLE api_keys ADD COLUMN tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;
+      END IF;
+    END $$`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'metric_configs' AND column_name = 'tenant_id') THEN
+        ALTER TABLE metric_configs ADD COLUMN tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;
+      END IF;
+    END $$`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sites' AND column_name = 'tenant_id') THEN
+        ALTER TABLE sites ADD COLUMN tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;
+      END IF;
+    END $$`,
+
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'dashboard_widgets' AND column_name = 'tenant_id') THEN
+        ALTER TABLE dashboard_widgets ADD COLUMN tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;
+      END IF;
+    END $$`,
+
+    // Backfill one tenant per existing user. Name is deterministic and idempotent.
+    `INSERT INTO tenants (name)
+     SELECT DISTINCT 'user-' || u.id
+     FROM users u
+     ON CONFLICT (name) DO NOTHING`,
+
+    `INSERT INTO tenant_memberships (tenant_id, user_id, role)
+     SELECT t.id, u.id, 'owner'
+     FROM users u
+     JOIN tenants t ON t.name = 'user-' || u.id
+     ON CONFLICT (tenant_id, user_id) DO NOTHING`,
+
+    `UPDATE users u
+     SET default_tenant_id = t.id
+     FROM tenants t
+     WHERE t.name = 'user-' || u.id
+       AND u.default_tenant_id IS NULL`,
+
+    `UPDATE api_keys ak
+     SET tenant_id = t.id
+     FROM tenants t
+     WHERE t.name = 'user-' || ak.user_id
+       AND ak.tenant_id IS NULL`,
+
+    `UPDATE metric_configs mc
+     SET tenant_id = t.id
+     FROM tenants t
+     WHERE t.name = 'user-' || mc.user_id
+       AND mc.tenant_id IS NULL`,
+
+    `UPDATE sites s
+     SET tenant_id = t.id
+     FROM tenants t
+     WHERE t.name = 'user-' || s.user_id
+       AND s.tenant_id IS NULL`,
+
+    `UPDATE dashboard_widgets dw
+     SET tenant_id = t.id
+     FROM tenants t
+     WHERE t.name = 'user-' || dw.user_id
+       AND dw.tenant_id IS NULL`,
+
+    `CREATE INDEX IF NOT EXISTS idx_users_default_tenant_id ON users(default_tenant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tenant_memberships_user_tenant ON tenant_memberships(user_id, tenant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_api_keys_tenant_id ON api_keys(tenant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_metric_configs_tenant_id ON metric_configs(tenant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_sites_tenant_id ON sites(tenant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_dashboard_widgets_tenant_id ON dashboard_widgets(tenant_id)`,
   ];
 
   for (const migration of migrations) {

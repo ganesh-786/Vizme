@@ -6,9 +6,9 @@
  */
 
 import axios from 'axios';
-import { useAuthStore } from '@/store/authStore';
 import { getApiBaseUrl } from '@/config/env';
 import { getKeycloak } from '@/lib/keycloak';
+import { forceSessionLogout } from '@/lib/session';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -63,12 +63,11 @@ client.interceptors.response.use(
             return client(originalRequest);
           }
         } catch (e) {
-          useAuthStore.getState().logout();
+          forceSessionLogout();
           return Promise.reject(error);
         }
       }
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+      forceSessionLogout();
       return Promise.reject(error);
     }
 

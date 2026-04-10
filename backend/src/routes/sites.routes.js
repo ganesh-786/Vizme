@@ -1,19 +1,23 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { query } from '../database/connection.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, requireBackendClientRole } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 router.use(authenticate);
+router.use(requireBackendClientRole('API_USER'));
 router.use(apiLimiter);
 
 router.get('/', async (req, res, next) => {
   try {
+    const tenantId = req.tenant?.id ?? null;
     const r = await query(
-      `SELECT id, name, created_at, updated_at FROM sites WHERE user_id = $1 ORDER BY name ASC`,
-      [req.user.id]
+      `SELECT id, name, created_at, updated_at FROM sites
+       WHERE tenant_id = $1
+       ORDER BY name ASC`,
+      [tenantId]
     );
     res.json({ success: true, data: r.rows });
   } catch (e) {
@@ -26,13 +30,14 @@ router.post(
   [body('name').trim().isLength({ min: 1, max: 255 }).withMessage('name is required')],
   async (req, res, next) => {
     try {
+      const tenantId = req.tenant?.id ?? null;
       const errors = validationResult(req);
       if (!errors.isEmpty()) throw new BadRequestError('Validation failed', errors.array());
 
       const r = await query(
-        `INSERT INTO sites (user_id, name) VALUES ($1, $2)
+        `INSERT INTO sites (user_id, tenant_id, name) VALUES ($1, $2, $3)
          RETURNING id, name, created_at, updated_at`,
-        [req.user.id, req.body.name.trim()]
+        [req.user.id, tenantId, req.body.name.trim()]
       );
       res.status(201).json({ success: true, data: r.rows[0] });
     } catch (e) {
@@ -51,8 +56,9 @@ router.patch(
 
       const id = parseInt(req.params.id, 10);
       if (Number.isNaN(id)) throw new BadRequestError('Invalid id');
+      const tenantId = req.tenant?.id ?? null;
 
-      const exists = await query(`SELECT id FROM sites WHERE id = $1 AND user_id = $2`, [id, req.user.id]);
+      const exists = await query(`SELECT id FROM sites WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
       if (exists.rows.length === 0) throw new NotFoundError('Site not found');
 
       if (req.body.name === undefined) throw new BadRequestError('No fields to update');
@@ -60,7 +66,7 @@ router.patch(
       const r = await query(
         `UPDATE sites SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3
          RETURNING id, name, created_at, updated_at`,
-        [req.body.name.trim(), id, req.user.id]
+        [req.body.name.trim(), id, tenantId]
       );
       res.json({ success: true, data: r.rows[0] });
     } catch (e) {
@@ -73,8 +79,9 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (Number.isNaN(id)) throw new BadRequestError('Invalid id');
+    const tenantId = req.tenant?.id ?? null;
 
-    const r = await query(`DELETE FROM sites WHERE id = $1 AND user_id = $2 RETURNING id`, [id, req.user.id]);
+    const r = await query(`DELETE FROM sites WHERE id = $1 AND tenant_id = $2 RETURNING id`, [id, tenantId]);
     if (r.rows.length === 0) throw new NotFoundError('Site not found');
 
     res.json({ success: true, message: 'Site deleted' });
