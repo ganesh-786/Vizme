@@ -88,6 +88,7 @@ frontend-react/
 .editorconfig
 .gitattributes
 scripts/
+!backend/scripts/
 
 # Cursor
 .cursor/agents/
