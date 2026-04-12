@@ -49,7 +49,7 @@ test.describe('Signup flow', () => {
     await expect(page).not.toHaveURL(/\/signup/, { timeout: 10_000 });
   });
 
-  test('duplicate email shows error message', async ({ page, context }) => {
+  test('duplicate email shows error message', async ({ page, browser }) => {
     const email = uniqueEmail();
 
     // First signup
@@ -59,18 +59,24 @@ test.describe('Signup flow', () => {
     await page.getByRole('button', { name: /create account/i }).click();
     await expect(page).not.toHaveURL(/\/signup/, { timeout: 10_000 });
 
-    // Open fresh page to avoid stale auth state
-    const freshPage = await context.newPage();
-    await freshPage.goto('/signup');
-    await freshPage.getByLabel(/full name/i).waitFor({ state: 'visible' });
-    await freshPage.getByLabel(/full name/i).fill('Duplicate User');
-    await freshPage.getByLabel(/email/i).fill(email);
-    await freshPage.getByLabel(/^password$/i).fill('SecurePass123!');
-    await freshPage.getByRole('button', { name: /create account/i }).click();
+    // New browser context: same context shares localStorage, so GuestRoute would redirect /signup
+    const guestContext = await browser.newContext();
+    const guestPage = await guestContext.newPage();
+    try {
+      await guestPage.goto('/signup');
+      await guestPage.getByLabel(/full name/i).fill('Duplicate User');
+      await guestPage.getByLabel(/email/i).fill(email);
+      await guestPage.getByLabel(/^password$/i).fill('SecurePass123!');
+      await guestPage.getByRole('button', { name: /create account/i }).click();
 
-    await expect(
-      freshPage.getByText(/already exists/i)
-    ).toBeVisible({ timeout: 10_000 });
+      await expect(
+        guestPage
+          .locator('.error-message')
+          .filter({ hasText: /already exists/i })
+      ).toBeVisible({ timeout: 10_000 });
+    } finally {
+      await guestContext.close();
+    }
   });
 
   test('password visibility toggle works', async ({ page }) => {
