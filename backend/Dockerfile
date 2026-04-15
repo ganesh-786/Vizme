@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 FROM node:20-alpine
-RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -D appuser
+RUN apk upgrade --no-cache && addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -D appuser
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
