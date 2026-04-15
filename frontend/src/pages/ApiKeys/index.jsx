@@ -196,7 +196,8 @@ function ApiKeys() {
           <div className="apikeys-header-content">
             <h1 className="apikeys-title">Step 2: Generate API Key</h1>
             <p className="apikeys-subtitle">
-              One key for your entire account — it covers all current and future metrics automatically.
+              One key for your entire account — it covers all current and future metrics
+              automatically.
             </p>
           </div>
           <button className="btn-docs">
@@ -233,8 +234,8 @@ function ApiKeys() {
                     <p className="warning-title">Copied to Clipboard</p>
                     <p className="warning-text">
                       For your security, the key is never displayed. It has been copied to your
-                      clipboard — store it in a secure password manager now. You can re-copy
-                      anytime using the copy button. This single key works for all your metrics.
+                      clipboard — store it in a secure password manager now. You can re-copy anytime
+                      using the copy button. This single key works for all your metrics.
                     </p>
                   </div>
                 </div>
@@ -346,8 +347,8 @@ function ApiKeys() {
           <SecurityIcon size={24} className="feature-icon" />
           <h4 className="feature-title">Hashed at Rest</h4>
           <p className="feature-description">
-            All keys are SHA-256 hashed before storage. Raw keys are shown only once at creation
-            and cannot be retrieved afterward.
+            All keys are SHA-256 hashed before storage. Raw keys are shown only once at creation and
+            cannot be retrieved afterward.
           </p>
         </div>
         <div className="feature-card">

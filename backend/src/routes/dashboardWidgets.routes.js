@@ -19,8 +19,7 @@ const FORMATS = ['currency', 'number', 'percent', 'integer'];
 router.get('/', async (req, res, next) => {
   try {
     const siteId = req.query.site_id;
-    let sql =
-      `SELECT id, user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
+    let sql = `SELECT id, user_id, site_id, metric_name, query_kind, promql_custom, title, subtitle,
               section, sort_order, format, currency_code, include_in_multi_chart, featured_chart,
               created_at, updated_at
        FROM dashboard_widgets WHERE user_id = $1`;
@@ -142,7 +141,11 @@ router.patch(
     body('include_in_multi_chart').optional().isBoolean(),
     body('featured_chart').optional().isBoolean(),
     body('promql_custom').optional().isString(),
-    body('site_id').optional().custom((v) => v === null || v === undefined || Number.isInteger(v) || /^\d+$/.test(String(v))),
+    body('site_id')
+      .optional()
+      .custom(
+        (v) => v === null || v === undefined || Number.isInteger(v) || /^\d+$/.test(String(v))
+      ),
   ],
   async (req, res, next) => {
     try {

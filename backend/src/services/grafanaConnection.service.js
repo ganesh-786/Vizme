@@ -192,11 +192,13 @@ async function probeGrafanaApiBase(apiBase) {
     }
   }
 
-  return lastFailure || {
-    ok: false,
-    apiBase,
-    authFailed: sawAuthFailure,
-  };
+  return (
+    lastFailure || {
+      ok: false,
+      apiBase,
+      authFailed: sawAuthFailure,
+    }
+  );
 }
 
 /**

@@ -127,7 +127,8 @@ router.get('/grafana-ready', async (req, res) => {
  */
 router.get('/metrics-pipeline', async (req, res) => {
   const tenantId = String(req.query.tenant_id || config.metrics.healthTenantId || '1');
-  const activeProbe = String(req.query.active || '').toLowerCase() === '1' ||
+  const activeProbe =
+    String(req.query.active || '').toLowerCase() === '1' ||
     String(req.query.active || '').toLowerCase() === 'true';
 
   try {
@@ -137,20 +138,24 @@ router.get('/metrics-pipeline', async (req, res) => {
     let writeProbe = {
       active: activeProbe,
       ok: !activeProbe,
-      message: activeProbe ? null : 'Skipped active write probe. Pass ?active=1 for end-to-end write validation.',
+      message: activeProbe
+        ? null
+        : 'Skipped active write probe. Pass ?active=1 for end-to-end write validation.',
     };
 
     if (activeProbe) {
       const probeValue = Date.now();
       const writeSummary = await pushMetricsToMimir(
-        [{
-          name: 'pipeline_healthcheck',
-          type: 'gauge',
-          value: probeValue,
-          labels: { source: 'healthcheck' },
-          operation: 'set',
-          userId: tenantId,
-        }],
+        [
+          {
+            name: 'pipeline_healthcheck',
+            type: 'gauge',
+            value: probeValue,
+            labels: { source: 'healthcheck' },
+            operation: 'set',
+            userId: tenantId,
+          },
+        ],
         { mode: 'probe', throwOnFailure: true }
       );
       const readBack = await queryScalar(

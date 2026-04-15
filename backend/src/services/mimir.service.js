@@ -72,11 +72,13 @@ export function getMimirCircuitState() {
 const cumulativeState = new Map();
 
 function hashLabels(labels) {
-  return Object.entries(labels)
-    .filter(([k]) => k !== '__name__')
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join(',') || '_';
+  return (
+    Object.entries(labels)
+      .filter(([k]) => k !== '__name__')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join(',') || '_'
+  );
 }
 
 function prepareSample(metric, tenantId) {
@@ -151,10 +153,10 @@ function commitPreparedStates(preparedSeries) {
  * @param {string} params.userId - Tenant ID = X-Scope-OrgID
  */
 export async function pushMetricToMimir({ name, type, value, labels = {}, operation, userId }) {
-  return pushMetricsToMimir(
-    [{ name, type, value, labels, operation, userId }],
-    { mode: 'single', throwOnFailure: false }
-  );
+  return pushMetricsToMimir([{ name, type, value, labels, operation, userId }], {
+    mode: 'single',
+    throwOnFailure: false,
+  });
 }
 
 /**
@@ -303,7 +305,10 @@ export function startCounterHeartbeat(intervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS
   const mimirUrl = config.urls.mimir?.replace(/\/$/, '');
   if (!mimirUrl) return;
   const pushUrl = `${mimirUrl}/api/v1/push`;
-  const safeIntervalMs = Math.max(parseInt(String(intervalMs), 10) || DEFAULT_HEARTBEAT_INTERVAL_MS, 5_000);
+  const safeIntervalMs = Math.max(
+    parseInt(String(intervalMs), 10) || DEFAULT_HEARTBEAT_INTERVAL_MS,
+    5_000
+  );
 
   _heartbeatTimer = setInterval(async () => {
     if (cumulativeState.size === 0 || _heartbeatInFlight || !circuitBreaker.canAttempt()) return;

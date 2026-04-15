@@ -52,7 +52,10 @@ router.patch(
       const id = parseInt(req.params.id, 10);
       if (Number.isNaN(id)) throw new BadRequestError('Invalid id');
 
-      const exists = await query(`SELECT id FROM sites WHERE id = $1 AND user_id = $2`, [id, req.user.id]);
+      const exists = await query(`SELECT id FROM sites WHERE id = $1 AND user_id = $2`, [
+        id,
+        req.user.id,
+      ]);
       if (exists.rows.length === 0) throw new NotFoundError('Site not found');
 
       if (req.body.name === undefined) throw new BadRequestError('No fields to update');
@@ -74,7 +77,10 @@ router.delete('/:id', async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
     if (Number.isNaN(id)) throw new BadRequestError('Invalid id');
 
-    const r = await query(`DELETE FROM sites WHERE id = $1 AND user_id = $2 RETURNING id`, [id, req.user.id]);
+    const r = await query(`DELETE FROM sites WHERE id = $1 AND user_id = $2 RETURNING id`, [
+      id,
+      req.user.id,
+    ]);
     if (r.rows.length === 0) throw new NotFoundError('Site not found');
 
     res.json({ success: true, message: 'Site deleted' });

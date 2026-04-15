@@ -10,71 +10,73 @@ const router = express.Router();
 
 // Get metric configs by API key (for client library)
 // This allows the library to automatically fetch configs
-router.get('/by-api-key',
-  async (req, res, next) => {
-    try {
-      const apiKey = req.headers['x-api-key'] || req.query.api_key;
-      
-      if (!apiKey) {
-        return res.status(400).json({
-          success: false,
-          error: 'API key required'
-        });
-      }
+router.get('/by-api-key', async (req, res, next) => {
+  try {
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
 
-      const keyHash = sha256(apiKey);
-      const apiKeyResult = await query(
-        'SELECT user_id FROM api_keys WHERE api_key = $1 AND is_active = true',
-        [keyHash]
-      );
-
-      if (apiKeyResult.rows.length === 0) {
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid or inactive API key'
-        });
-      }
-
-      const userId = apiKeyResult.rows[0].user_id;
-
-      // Get all metric configurations for this user
-      const result = await query(
-        'SELECT metric_name, metric_type, labels FROM metric_configs WHERE user_id = $1',
-        [userId]
-      );
-
-      // Convert to the format the library expects
-      const configs = {};
-      result.rows.forEach(config => {
-        if (config.metric_name) {
-          // Convert labels array to object format
-          let labelsObj = {};
-          if (config.labels && Array.isArray(config.labels)) {
-            config.labels.forEach(label => {
-              if (label && label.name) {
-                labelsObj[label.name] = label.value || '';
-              }
-            });
-          } else if (config.labels && typeof config.labels === 'object' && !Array.isArray(config.labels)) {
-            labelsObj = config.labels;
-          }
-          
-          configs[config.metric_name] = {
-            type: config.metric_type,
-            labels: labelsObj
-          };
-        }
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'API key required',
       });
-
-      res.json({
-        success: true,
-        data: configs
-      });
-    } catch (error) {
-      next(error);
     }
+
+    const keyHash = sha256(apiKey);
+    const apiKeyResult = await query(
+      'SELECT user_id FROM api_keys WHERE api_key = $1 AND is_active = true',
+      [keyHash]
+    );
+
+    if (apiKeyResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or inactive API key',
+      });
+    }
+
+    const userId = apiKeyResult.rows[0].user_id;
+
+    // Get all metric configurations for this user
+    const result = await query(
+      'SELECT metric_name, metric_type, labels FROM metric_configs WHERE user_id = $1',
+      [userId]
+    );
+
+    // Convert to the format the library expects
+    const configs = {};
+    result.rows.forEach((config) => {
+      if (config.metric_name) {
+        // Convert labels array to object format
+        let labelsObj = {};
+        if (config.labels && Array.isArray(config.labels)) {
+          config.labels.forEach((label) => {
+            if (label && label.name) {
+              labelsObj[label.name] = label.value || '';
+            }
+          });
+        } else if (
+          config.labels &&
+          typeof config.labels === 'object' &&
+          !Array.isArray(config.labels)
+        ) {
+          labelsObj = config.labels;
+        }
+
+        configs[config.metric_name] = {
+          type: config.metric_type,
+          labels: labelsObj,
+        };
+      }
+    });
+
+    res.json({
+      success: true,
+      data: configs,
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 // All routes require authentication
 router.use(authenticate);
@@ -92,7 +94,7 @@ router.get('/', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: result.rows
+      data: result.rows,
     });
   } catch (error) {
     next(error);
@@ -115,26 +117,32 @@ router.get('/:id', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: result.rows[0]
+      data: result.rows[0],
     });
   } catch (error) {
     next(error);
   }
 });
 
-
 // Create metric config
-router.post('/',
+router.post(
+  '/',
   [
     body('name').trim().isLength({ min: 1, max: 255 }).withMessage('Name is required'),
-    body('metric_type').isIn(METRIC_TYPES).withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
-    body('metric_name').trim().isLength({ min: 1, max: 255 }).matches(/^[a-zA-Z_:][a-zA-Z0-9_:]*$/).withMessage('Metric name must be valid (alphanumeric, underscore, colon)'),
+    body('metric_type')
+      .isIn(METRIC_TYPES)
+      .withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
+    body('metric_name')
+      .trim()
+      .isLength({ min: 1, max: 255 })
+      .matches(/^[a-zA-Z_:][a-zA-Z0-9_:]*$/)
+      .withMessage('Metric name must be valid (alphanumeric, underscore, colon)'),
     body('description').optional().trim(),
     body('help_text').optional().trim(),
     body('labels').optional().isArray().withMessage('Labels must be an array'),
     body('labels.*.name').optional().trim().isLength({ min: 1 }),
     body('labels.*.value').optional().trim(),
-    body('status').optional().isIn(['active', 'paused', 'draft'])
+    body('status').optional().isIn(['active', 'paused', 'draft']),
   ],
   async (req, res, next) => {
     try {
@@ -144,7 +152,8 @@ router.post('/',
       }
 
       const { name, description, metric_type, metric_name, labels, help_text, status } = req.body;
-      const statusValue = status && ['active', 'paused', 'draft'].includes(status) ? status : 'active';
+      const statusValue =
+        status && ['active', 'paused', 'draft'].includes(status) ? status : 'active';
 
       // Validate metric name format (Prometheus naming convention)
       if (!/^[a-zA-Z_:][a-zA-Z0-9_:]*$/.test(metric_name)) {
@@ -155,15 +164,25 @@ router.post('/',
         `INSERT INTO metric_configs (user_id, name, description, metric_type, metric_name, labels, help_text, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, name, description, metric_type, metric_name, labels, help_text, status, created_at, updated_at`,
-        [req.user.id, name, description || null, metric_type, metric_name, JSON.stringify(labels || []), help_text || null, statusValue]
+        [
+          req.user.id,
+          name,
+          description || null,
+          metric_type,
+          metric_name,
+          JSON.stringify(labels || []),
+          help_text || null,
+          statusValue,
+        ]
       );
 
       res.status(201).json({
         success: true,
-        data: result.rows[0]
+        data: result.rows[0],
       });
     } catch (error) {
-      if (error.code === '23505') { // Unique violation
+      if (error.code === '23505') {
+        // Unique violation
         throw new BadRequestError('Metric name already exists for this user');
       }
       next(error);
@@ -173,7 +192,8 @@ router.post('/',
 
 // Update metric config
 const STATUS_VALUES = ['active', 'paused', 'draft'];
-router.patch('/:id',
+router.patch(
+  '/:id',
   [
     body('name').optional().trim().isLength({ min: 1, max: 255 }),
     body('description').optional().trim(),
@@ -181,9 +201,22 @@ router.patch('/:id',
     body('labels').optional().isArray(),
     body('labels.*.name').optional().trim().isLength({ min: 1 }),
     body('labels.*.value').optional().trim(),
-    body('metric_type').optional().trim().toLowerCase().isIn(METRIC_TYPES).withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
-    body('metric_name').optional().trim().isLength({ min: 1, max: 255 }).matches(/^[a-zA-Z_:][a-zA-Z0-9_:]*$/).withMessage('Metric name must be valid (alphanumeric, underscore, colon)'),
-    body('status').optional().isIn(STATUS_VALUES).withMessage(`Status must be one of: ${STATUS_VALUES.join(', ')}`)
+    body('metric_type')
+      .optional()
+      .trim()
+      .toLowerCase()
+      .isIn(METRIC_TYPES)
+      .withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
+    body('metric_name')
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 255 })
+      .matches(/^[a-zA-Z_:][a-zA-Z0-9_:]*$/)
+      .withMessage('Metric name must be valid (alphanumeric, underscore, colon)'),
+    body('status')
+      .optional()
+      .isIn(STATUS_VALUES)
+      .withMessage(`Status must be one of: ${STATUS_VALUES.join(', ')}`),
   ],
   async (req, res, next) => {
     try {
@@ -204,16 +237,19 @@ router.patch('/:id',
       }
 
       // Verify ownership
-      const existing = await query(
-        'SELECT id FROM metric_configs WHERE id = $1 AND user_id = $2',
-        [id, req.user.id]
-      );
+      const existing = await query('SELECT id FROM metric_configs WHERE id = $1 AND user_id = $2', [
+        id,
+        req.user.id,
+      ]);
 
       if (existing.rows.length === 0) {
         throw new NotFoundError('Metric config not found');
       }
 
-      if (metric_name !== undefined && !/^[a-zA-Z_:][a-zA-Z0-9_:]*$/.test(String(metric_name).trim())) {
+      if (
+        metric_name !== undefined &&
+        !/^[a-zA-Z_:][a-zA-Z0-9_:]*$/.test(String(metric_name).trim())
+      ) {
         throw new BadRequestError('Invalid metric name format');
       }
 
@@ -272,7 +308,7 @@ router.patch('/:id',
 
       res.json({
         success: true,
-        data: result.rows[0]
+        data: result.rows[0],
       });
     } catch (error) {
       next(error);
@@ -296,7 +332,7 @@ router.delete('/:id', async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Metric config deleted successfully'
+      message: 'Metric config deleted successfully',
     });
   } catch (error) {
     next(error);

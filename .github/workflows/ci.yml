@@ -83,7 +83,7 @@ jobs:
         run: docker build -t vizme-frontend:ci -f frontend/Dockerfile frontend/
 
       - name: Scan backend image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: vizme-backend:ci
           format: table
@@ -91,7 +91,7 @@ jobs:
           severity: CRITICAL
 
       - name: Scan frontend image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: vizme-frontend:ci
           format: table

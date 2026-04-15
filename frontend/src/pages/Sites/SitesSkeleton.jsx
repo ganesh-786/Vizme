@@ -11,8 +11,18 @@ function SitesSkeleton() {
       </div>
 
       <div className="sites-page__form">
-        <Skeleton height="38px" style={{ flex: 1, minWidth: 200, borderRadius: '8px' }} stagger={1} />
-        <Skeleton variant="button" width="132px" height="38px" stagger={2} style={{ borderRadius: '8px' }} />
+        <Skeleton
+          height="38px"
+          style={{ flex: 1, minWidth: 200, borderRadius: '8px' }}
+          stagger={1}
+        />
+        <Skeleton
+          variant="button"
+          width="132px"
+          height="38px"
+          stagger={2}
+          style={{ borderRadius: '8px' }}
+        />
       </div>
 
       <ul className="sites-page__list">

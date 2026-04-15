@@ -83,6 +83,7 @@ If metrics are pushed to Mimir but not visible in Grafana:
 **Root cause**: Auth proxy users created with `auto_assign_org` default to org 1. When the backend proxies with `X-WEBAUTH-ORGS: {orgId}:Admin` and `X-Grafana-Org-Id: {orgId}`, Grafana UI routes may still use the user's cached org (org 1 or orgId=-1), causing 404 for dashboards in the user's org.
 
 **Workaround**: If the embed shows "Unable to load Grafana dashboard" or 404:
+
 1. Open Grafana directly: `http://localhost:3001/grafana` (or your Grafana URL)
 2. The backend proxy will create your user; you may need to access via the app first so the proxy sets the cookie
 3. In Grafana, switch to your org (Organization → vizme-{userId}) from the profile menu
@@ -136,14 +137,14 @@ If you previously had manual datasources or a corrupted state, reset once:
 
 To verify one user cannot see another's metrics:
 
-| Layer | Isolation mechanism |
-|-------|---------------------|
-| **Mimir** | `X-Scope-OrgID: {userId}` on every push and query; Mimir enforces tenant boundary |
-| **Grafana org** | One org per user (`vizme-{userId}`); user cannot switch orgs via proxy |
-| **Mimir datasource** | Per-org datasource with `X-Scope-OrgID: {userId}` in secureJsonData |
-| **Dashboard panels** | All user-metric panels bound to `mimir-{userId}` datasource (rebound in `ensureDashboardInOrg`) |
-| **PromQL** | `user_id=~"^${user_id}$"` filter; `var-user_id` set by backend proxy from JWT (not user-editable) |
-| **Auth proxy** | `X-WEBAUTH-USER: vizme_user_{userId}`; Grafana assigns user to their org only |
+| Layer                | Isolation mechanism                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| **Mimir**            | `X-Scope-OrgID: {userId}` on every push and query; Mimir enforces tenant boundary                 |
+| **Grafana org**      | One org per user (`vizme-{userId}`); user cannot switch orgs via proxy                            |
+| **Mimir datasource** | Per-org datasource with `X-Scope-OrgID: {userId}` in secureJsonData                               |
+| **Dashboard panels** | All user-metric panels bound to `mimir-{userId}` datasource (rebound in `ensureDashboardInOrg`)   |
+| **PromQL**           | `user_id=~"^${user_id}$"` filter; `var-user_id` set by backend proxy from JWT (not user-editable) |
+| **Auth proxy**       | `X-WEBAUTH-USER: vizme_user_{userId}`; Grafana assigns user to their org only                     |
 
 **Test**: Log in as user A, note metrics. Log in as user B in another browser/incognito. User B must see only their metrics (or empty if none pushed). User B cannot access user A's data.
 

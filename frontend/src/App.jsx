@@ -1,11 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/api/auth';
 import Login from '@/pages/Login';

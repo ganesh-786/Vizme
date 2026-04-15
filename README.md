@@ -42,13 +42,13 @@ npm run dev                   # Starts on :5173 with API proxy to :3000
 
 ### Access Points
 
-| Service    | URL                          | Credentials     |
-|------------|------------------------------|-----------------|
-| Frontend   | http://localhost:5173        | —               |
-| Backend    | http://localhost:3000        | —               |
-| Grafana    | http://localhost:3001        | admin / admin   |
-| Prometheus | http://localhost:9090        | —               |
-| Mimir      | http://localhost:9009        | —               |
+| Service    | URL                   | Credentials   |
+| ---------- | --------------------- | ------------- |
+| Frontend   | http://localhost:5173 | —             |
+| Backend    | http://localhost:3000 | —             |
+| Grafana    | http://localhost:3001 | admin / admin |
+| Prometheus | http://localhost:9090 | —             |
+| Mimir      | http://localhost:9009 | —             |
 
 ### Manual Setup
 
@@ -140,12 +140,12 @@ npx playwright show-report
 
 ### npm Scripts
 
-| Script                       | Command                              |
-|------------------------------|--------------------------------------|
-| `npm run test:e2e`           | Run all E2E tests (all browsers)     |
-| `npm run test:e2e:ui`        | Interactive UI mode                  |
-| `npm run test:e2e:headed`    | Headed mode (browsers visible)       |
-| `npm run test:e2e:report`    | Open the last HTML report            |
+| Script                    | Command                          |
+| ------------------------- | -------------------------------- |
+| `npm run test:e2e`        | Run all E2E tests (all browsers) |
+| `npm run test:e2e:ui`     | Interactive UI mode              |
+| `npm run test:e2e:headed` | Headed mode (browsers visible)   |
+| `npm run test:e2e:report` | Open the last HTML report        |
 
 ### CI (GitHub Actions)
 

@@ -161,29 +161,35 @@ router.post(
 );
 
 // Refresh token
-router.post('/refresh', authLimiter, [body('refreshToken').optional().notEmpty()], async (req, res, next) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      throw new BadRequestError('Validation failed', errors.array());
+router.post(
+  '/refresh',
+  authLimiter,
+  [body('refreshToken').optional().notEmpty()],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new BadRequestError('Validation failed', errors.array());
+      }
+
+      const refreshToken = getRefreshTokenFromRequest(req);
+      const { accessToken, refreshToken: newRefreshToken } =
+        await rotateRefreshSession(refreshToken);
+      setAuthCookies(res, { accessToken, refreshToken: newRefreshToken });
+
+      res.json({
+        success: true,
+        data: {
+          accessToken,
+        },
+      });
+    } catch (error) {
+      clearAuthCookies(res);
+      clearGrafanaEmbedCookie(res);
+      next(error);
     }
-
-    const refreshToken = getRefreshTokenFromRequest(req);
-    const { accessToken, refreshToken: newRefreshToken } = await rotateRefreshSession(refreshToken);
-    setAuthCookies(res, { accessToken, refreshToken: newRefreshToken });
-
-    res.json({
-      success: true,
-      data: {
-        accessToken,
-      },
-    });
-  } catch (error) {
-    clearAuthCookies(res);
-    clearGrafanaEmbedCookie(res);
-    next(error);
   }
-});
+);
 
 router.post(
   '/session',

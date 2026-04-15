@@ -59,8 +59,8 @@ function DashboardWidgetsList() {
         <div>
           <h1 className="dw-page__title">Dashboard widgets</h1>
           <p className="dw-page__intro">
-            Define KPIs for the Live Metrics dashboard. When at least one widget exists for the selected
-            scope, the app uses this layout instead of the default e-commerce cards.
+            Define KPIs for the Live Metrics dashboard. When at least one widget exists for the
+            selected scope, the app uses this layout instead of the default e-commerce cards.
           </p>
         </div>
         <Link to="/dashboard-widgets/new" className="dw-page__new">
@@ -89,8 +89,8 @@ function DashboardWidgetsList() {
           {widgets.length === 0 && (
             <tr>
               <td colSpan={5} className="dw-table__empty">
-                No widgets for this scope.{' '}
-                <Link to="/dashboard-widgets/new">Create one</Link> or switch scope.
+                No widgets for this scope. <Link to="/dashboard-widgets/new">Create one</Link> or
+                switch scope.
               </td>
             </tr>
           )}
@@ -119,7 +119,10 @@ function DashboardWidgetsList() {
 function SiteFilterSelect({ value, onChange }) {
   const [sites, setSites] = useState([]);
   useEffect(() => {
-    sitesAPI.getAll().then(setSites).catch(() => setSites([]));
+    sitesAPI
+      .getAll()
+      .then(setSites)
+      .catch(() => setSites([]));
   }, []);
   return (
     <select

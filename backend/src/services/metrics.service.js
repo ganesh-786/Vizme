@@ -18,7 +18,7 @@ const register = new Registry();
 // This helps with filtering and querying in Prometheus
 register.setDefaultLabels({
   app: 'unified-visibility-platform',
-  version: '1.0.0'
+  version: '1.0.0',
 });
 
 // Track metric instances to avoid duplicates
@@ -38,7 +38,7 @@ const metricsStore = new Map();
 const validateAndSanitizeLabels = (labels) => {
   const maxKeys = config.metrics.maxLabelsPerMetric;
   const maxLen = config.metrics.maxLabelValueLength;
-  const keys = Object.keys(labels || {}).filter(k => k !== '_type' && k !== '_operation');
+  const keys = Object.keys(labels || {}).filter((k) => k !== '_type' && k !== '_operation');
   if (keys.length > maxKeys) {
     throw new Error(`Too many labels: max ${maxKeys}, got ${keys.length}`);
   }
@@ -63,7 +63,7 @@ const validateAndSanitizeLabels = (labels) => {
 const hashLabels = (labels) => {
   const sorted = Object.keys(labels)
     .sort()
-    .map(key => `${key}:${labels[key]}`)
+    .map((key) => `${key}:${labels[key]}`)
     .join(',');
   return sorted || 'no-labels';
 };
@@ -94,7 +94,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         name: fullMetricName,
         help: `Counter metric: ${metricName}`,
         labelNames: allLabelNames,
-        registers: [register]
+        registers: [register],
       });
       break;
     case 'gauge':
@@ -102,7 +102,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         name: fullMetricName,
         help: `Gauge metric: ${metricName}`,
         labelNames: allLabelNames,
-        registers: [register]
+        registers: [register],
       });
       break;
     case 'histogram':
@@ -111,7 +111,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         help: `Histogram metric: ${metricName}`,
         labelNames: allLabelNames,
         buckets: [0.1, 0.5, 1, 2.5, 5, 10, 25, 50, 100],
-        registers: [register]
+        registers: [register],
       });
       break;
     case 'summary':
@@ -120,7 +120,7 @@ const getOrCreateMetric = (metricName, metricType, labelKeys) => {
         help: `Summary metric: ${metricName}`,
         labelNames: allLabelNames,
         percentiles: [0.01, 0.1, 0.5, 0.9, 0.99],
-        registers: [register]
+        registers: [register],
       });
       break;
     default:
@@ -178,7 +178,7 @@ export const recordMetric = (metricData, userId) => {
   // Prepare labels with user_id
   const metricLabels = {
     ...sanitizedLabels,
-    user_id: userId.toString()
+    user_id: userId.toString(),
   };
 
   // Record the metric based on type
@@ -192,18 +192,19 @@ export const recordMetric = (metricData, userId) => {
         }
         break;
 
-        case 'gauge':
-          const operation = metricData.operation || (numValue < 0 ? 'decrement' : numValue>0 ? 'increment' : 'set');
-          if (operation === 'set') {
-            metric.set(metricLabels, Math.abs(numValue));
-          } else if (operation === 'increment') {
-            metric.inc(metricLabels, Math.abs(numValue));
-          } else if (operation === 'decrement') {
-            metric.dec(metricLabels, Math.abs(numValue));
-          } else {
-            throw new Error(`Unsupported operation: ${operation}`);
-          }
-          break;
+      case 'gauge':
+        const operation =
+          metricData.operation || (numValue < 0 ? 'decrement' : numValue > 0 ? 'increment' : 'set');
+        if (operation === 'set') {
+          metric.set(metricLabels, Math.abs(numValue));
+        } else if (operation === 'increment') {
+          metric.inc(metricLabels, Math.abs(numValue));
+        } else if (operation === 'decrement') {
+          metric.dec(metricLabels, Math.abs(numValue));
+        } else {
+          throw new Error(`Unsupported operation: ${operation}`);
+        }
+        break;
 
       case 'histogram':
         // Histograms observe values
@@ -223,11 +224,10 @@ export const recordMetric = (metricData, userId) => {
       type,
       value: numValue,
       labels: metricLabels,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     currentCount.add(seriesKey);
     userSeriesCount.set(userId, currentCount);
-
   } catch (error) {
     console.error(`Error recording metric ${name}:`, error);
     throw error;
@@ -265,7 +265,7 @@ export const clearUserMetrics = (userId) => {
       keysToDelete.push(key);
     }
   }
-  keysToDelete.forEach(key => metricsStore.delete(key));
+  keysToDelete.forEach((key) => metricsStore.delete(key));
   userSeriesCount.delete(userId);
 };
 
@@ -277,6 +277,6 @@ export const getMetricsStats = () => {
   return {
     totalMetrics: metricsStore.size,
     totalInstances: metricInstances.size,
-    registryMetrics: register.getMetricsAsArray().length
+    registryMetrics: register.getMetricsAsArray().length,
   };
 };

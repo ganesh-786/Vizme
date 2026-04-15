@@ -4,12 +4,12 @@ This document describes how each dashboard metric is calculated and which PromQL
 
 ## PromQL Functions Used
 
-| Function | Use Case | Example |
-|----------|----------|---------|
-| `increase(metric[24h])` | Counter: total increase over period | Page views, add to cart, orders |
-| `sum(increase(...))` | Aggregate across multiple series/labels | When metric has multiple label combinations |
-| `max(metric)` | Gauge: latest value | Cart items, cart value |
-| `count(selector)` | Count of active time series | Metric series count |
+| Function                | Use Case                                | Example                                     |
+| ----------------------- | --------------------------------------- | ------------------------------------------- |
+| `increase(metric[24h])` | Counter: total increase over period     | Page views, add to cart, orders             |
+| `sum(increase(...))`    | Aggregate across multiple series/labels | When metric has multiple label combinations |
+| `max(metric)`           | Gauge: latest value                     | Cart items, cart value                      |
+| `count(selector)`       | Count of active time series             | Metric series count                         |
 
 ## Why NOT count_over_time for Page Views
 
@@ -17,12 +17,12 @@ This document describes how each dashboard metric is calculated and which PromQL
 
 ## Metric Name Variants Supported
 
-| Dashboard Metric | Supported Names | Reason |
-|------------------|-----------------|--------|
-| Page Views | `page_view`, `page_views` | Library uses page_view, tracker.js uses page_views |
-| Add to Cart | `add_to_cart`, `addtocart` | Common variants |
-| Products Sold | `products_sold`, `product_sold` | Singular/plural |
-| Revenue | `total_revenue`, `revenue`, `totalRevenue` | Common naming |
+| Dashboard Metric | Supported Names                            | Reason                                             |
+| ---------------- | ------------------------------------------ | -------------------------------------------------- |
+| Page Views       | `page_view`, `page_views`                  | Library uses page_view, tracker.js uses page_views |
+| Add to Cart      | `add_to_cart`, `addtocart`                 | Common variants                                    |
+| Products Sold    | `products_sold`, `product_sold`            | Singular/plural                                    |
+| Revenue          | `total_revenue`, `revenue`, `totalRevenue` | Common naming                                      |
 
 ## Backend Rounding
 

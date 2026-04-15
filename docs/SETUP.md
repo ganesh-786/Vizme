@@ -9,17 +9,20 @@
 ## Quick Start with Docker
 
 1. **Clone and navigate:**
+
    ```bash
    cd unified-project
    ```
 
 2. **Start infrastructure:**
+
    ```bash
    cd docker
    docker-compose up -d
    ```
 
 3. **Setup backend:**
+
    ```bash
    cd ../backend
    npm install
@@ -29,6 +32,7 @@
    ```
 
 4. **Setup frontend:**
+
    ```bash
    cd ../frontend
    npm install
@@ -49,6 +53,7 @@
    - Create database: `createdb metrics_db`
 
 2. **Start backend:**
+
    ```bash
    cd backend
    npm install

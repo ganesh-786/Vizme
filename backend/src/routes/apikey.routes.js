@@ -175,8 +175,7 @@ router.post('/ensure', async (req, res, next) => {
         created_at: newRow.created_at,
       },
       is_new: true,
-      message:
-        'API key created. Store it now — it will not be shown again.',
+      message: 'API key created. Store it now — it will not be shown again.',
     });
   } catch (error) {
     next(error);
@@ -189,10 +188,7 @@ router.post('/ensure', async (req, res, next) => {
 router.post(
   '/',
   [
-    body('key_name')
-      .trim()
-      .isLength({ min: 1, max: 255 })
-      .withMessage('Key name is required'),
+    body('key_name').trim().isLength({ min: 1, max: 255 }).withMessage('Key name is required'),
     body('site_id').optional({ nullable: true }),
   ],
   async (req, res, next) => {
@@ -230,8 +226,7 @@ router.post(
           api_key: rawKey,
           masked_key: `${newRow.key_prefix}••••••••`,
         },
-        message:
-          'API key created. Store it securely — it will not be shown again.',
+        message: 'API key created. Store it securely — it will not be shown again.',
       });
     } catch (error) {
       next(error);
@@ -263,10 +258,10 @@ router.patch(
       const { key_name, is_active } = req.body;
 
       // Verify ownership
-      const existing = await query(
-        'SELECT id FROM api_keys WHERE id = $1 AND user_id = $2',
-        [id, req.user.id]
-      );
+      const existing = await query('SELECT id FROM api_keys WHERE id = $1 AND user_id = $2', [
+        id,
+        req.user.id,
+      ]);
 
       if (existing.rows.length === 0) {
         throw new NotFoundError('API key not found');
@@ -330,10 +325,10 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const result = await query(
-      'DELETE FROM api_keys WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, req.user.id]
-    );
+    const result = await query('DELETE FROM api_keys WHERE id = $1 AND user_id = $2 RETURNING id', [
+      id,
+      req.user.id,
+    ]);
 
     if (result.rows.length === 0) {
       throw new NotFoundError('API key not found');

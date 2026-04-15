@@ -97,7 +97,11 @@ function LiveMetrics() {
           <Link to="/metric-configs" className="live-metrics-page__btn-secondary">
             Metric configs
           </Link>
-          <button type="button" className="live-metrics-page__btn-primary" onClick={handleOpenGrafana}>
+          <button
+            type="button"
+            className="live-metrics-page__btn-primary"
+            onClick={handleOpenGrafana}
+          >
             Open Grafana workspace
           </button>
         </div>
@@ -108,9 +112,7 @@ function LiveMetrics() {
           <span className="live-metrics-page__meta-dot" aria-hidden />
           Embedded Grafana refreshes every 15 seconds
         </span>
-        <span>
-          Tenant scoping is enforced server-side for this workspace
-        </span>
+        <span>Tenant scoping is enforced server-side for this workspace</span>
       </div>
 
       <section

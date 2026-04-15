@@ -305,8 +305,7 @@
   border-radius: 9999px;
   border: 2px solid rgba(59, 130, 246, 0.2);
   background:
-    radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.16), transparent 60%),
-    var(--bg-primary);
+    radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.16), transparent 60%), var(--bg-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;

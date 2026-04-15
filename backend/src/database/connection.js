@@ -48,7 +48,13 @@ export const initDatabase = async (retries = 5, delay = 5000) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       logger.info(
-        { attempt, retries, host: config.db.host, port: config.db.port, database: config.db.database },
+        {
+          attempt,
+          retries,
+          host: config.db.host,
+          port: config.db.port,
+          database: config.db.database,
+        },
         'Attempting database connection'
       );
 

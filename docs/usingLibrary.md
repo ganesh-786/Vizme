@@ -18,6 +18,7 @@ When clients use the NPM package method, they install the library as a package a
 3. These configurations are saved in the database (`metric_configs` table)
 
 **Example:**
+
 - Metric name: `page_views`
 - Type: `counter`
 - Labels: `{ "page": "home" }`
@@ -25,6 +26,7 @@ When clients use the NPM package method, they install the library as a package a
 ### Step 2: Client Installs Library
 
 1. Client installs the library via npm:
+
    ```bash
    npm install vizme
    ```
@@ -44,10 +46,10 @@ Client creates a new Vizme instance with their API key and endpoint:
 const tracker = new Vizme({
   apiKey: 'mk_your_api_key_here',
   endpoint: 'http://localhost:3000/api/v1/metrics',
-  autoTrack: true,           // Enable auto-tracking
-  autoFetchConfigs: true,    // Fetch configs from server
-  batchSize: 10,            // Send metrics in batches of 10
-  flushInterval: 5000       // Send every 5 seconds
+  autoTrack: true, // Enable auto-tracking
+  autoFetchConfigs: true, // Fetch configs from server
+  batchSize: 10, // Send metrics in batches of 10
+  flushInterval: 5000, // Send every 5 seconds
 });
 ```
 
@@ -109,10 +111,10 @@ const tracker = new Vizme({
   apiKey: 'mk_...',
   endpoint: 'http://localhost:3000/api/v1/metrics',
   metricConfigs: {
-    'page_views': { type: 'counter', labels: {} },
-    'button_clicks': { type: 'counter', labels: {} }
+    page_views: { type: 'counter', labels: {} },
+    button_clicks: { type: 'counter', labels: {} },
   },
-  autoFetchConfigs: false  // Don't fetch from server
+  autoFetchConfigs: false, // Don't fetch from server
 });
 ```
 
@@ -144,9 +146,11 @@ If `autoTrack: true`, library initializes AutoTracker:
 Metrics can be collected in three ways:
 
 **A. Auto-Tracking:**
+
 - Library automatically tracks events (no code needed)
 
 **B. Manual Tracking:**
+
 ```javascript
 // Track any metric
 tracker.track('custom_event', 1, { label: 'value' });
@@ -162,10 +166,9 @@ tracker.set('temperature', 25, { location: 'server-room' });
 ```
 
 **C. HTML Attributes (if custom events enabled):**
+
 ```html
-<button data-vizme-track="button_click" data-vizme-value="1">
-  Click Me
-</button>
+<button data-vizme-track="button_click" data-vizme-value="1">Click Me</button>
 ```
 
 **What happens when a metric is tracked:**
@@ -176,6 +179,7 @@ tracker.set('temperature', 25, { location: 'server-room' });
    - If not found, uses default type based on method (gauge for track, counter for increment, etc.)
 
 2. **Creates metric object:**
+
    ```javascript
    {
      name: "page_views",
@@ -274,7 +278,7 @@ tracker.set('temperature', 25, { location: 'server-room' });
    - Adds `user_id` to labels
    - Records metric based on type:
      - **Counter:** Increments value
-     - **Gauge:** 
+     - **Gauge:**
        - If operation is "set": Sets absolute value
        - If operation is "increment": Increases value
        - If operation is "decrement": Decreases value
@@ -344,7 +348,7 @@ const tracker = new Vizme({
   apiKey: 'mk_your_api_key',
   endpoint: 'http://localhost:3000/api/v1/metrics',
   autoTrack: true,
-  autoFetchConfigs: true
+  autoFetchConfigs: true,
 });
 
 // Track custom events
@@ -358,4 +362,3 @@ tracker.flush();
 // Check status
 console.log(tracker.getStatus());
 ```
-

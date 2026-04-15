@@ -66,8 +66,7 @@ export const config = {
   },
 
   jwt: {
-    secret:
-      process.env.JWT_SECRET || (isProduction ? undefined : ephemeralDevSecret),
+    secret: process.env.JWT_SECRET || (isProduction ? undefined : ephemeralDevSecret),
     accessExpiry: getEnv('JWT_ACCESS_EXPIRY', '15m'),
     refreshExpiry: getEnv('JWT_REFRESH_EXPIRY', '7d'),
   },

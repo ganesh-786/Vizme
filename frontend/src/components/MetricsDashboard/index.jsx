@@ -451,9 +451,9 @@ function MetricsDashboard({ height = 500, showGrafanaLink = true, showGrafanaEmb
               Primary charts &amp; time series (Grafana)
             </h4>
             <p className="metrics-dashboard__grafana-note">
-              Grafana is the primary visualization surface. These KPI cards are lightweight summaries
-              from the dashboard API; tenant isolation still comes from the Vizme proxy and
-              server-side <code>X-Scope-OrgID</code> handling.
+              Grafana is the primary visualization surface. These KPI cards are lightweight
+              summaries from the dashboard API; tenant isolation still comes from the Vizme proxy
+              and server-side <code>X-Scope-OrgID</code> handling.
             </p>
           </div>
           <GrafanaDashboardEmbed

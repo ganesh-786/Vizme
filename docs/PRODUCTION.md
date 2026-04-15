@@ -6,28 +6,28 @@ Use this checklist to run Vizme in a production-grade way.
 
 ### Backend (required in production)
 
-| Variable | Description | Production |
-|----------|-------------|------------|
-| `NODE_ENV` | Set to `production` | **Required** |
-| `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection | **Required** |
-| `JWT_SECRET` | Signing key for JWTs; min 32 chars, cryptographically random | **Required**; never use default or example values |
-| `FRONTEND_URL` | Origin of the admin frontend (for CORS and Grafana embed URL) | **Required** (e.g. `https://app.example.com`). Must match where users access the app so the Grafana iframe loads same-origin (cookie sent, avoids 401). |
-| `API_BASE_URL` | Public base URL of the API (for snippets and tracker) | **Required** (e.g. `https://api.example.com`) |
-| `DB_SSL` | Set to `true` if DB requires TLS | Recommended for managed DBs |
-| `DB_SSL_REJECT_UNAUTHORIZED` | Set to `true` with valid DB CA in production | **Required** when `DB_SSL=true` |
-| `ALLOWED_METRICS_ORIGINS` | Comma-separated origins for metrics/tracker CORS; use specific domains, not `*` | Recommended |
-| `METRICS_SCRAPE_USER`, `METRICS_SCRAPE_PASSWORD` | Basic auth for Prometheus scraping `/metrics`; set both to enable | Recommended |
-| `METRICS_RATE_LIMIT_MAX` | Requests per minute per API key (default 500) | Optional |
-| `METRICS_MAX_LABELS` | Max label keys per metric (default 10) | Optional |
-| `METRICS_MAX_LABEL_VALUE_LENGTH` | Max chars per label value (default 128) | Optional |
-| `METRICS_MAX_SERIES_PER_USER` | Max unique series per user (default 1000) | Optional |
-| `GF_SECURITY_ADMIN_PASSWORD` | Grafana admin password | **Required** in production |
-| `LOG_LEVEL` | `error`, `warn`, `info`, `debug` | Optional (default `info`) |
+| Variable                                         | Description                                                                     | Production                                                                                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                       | Set to `production`                                                             | **Required**                                                                                                                                            |
+| `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`   | PostgreSQL connection                                                           | **Required**                                                                                                                                            |
+| `JWT_SECRET`                                     | Signing key for JWTs; min 32 chars, cryptographically random                    | **Required**; never use default or example values                                                                                                       |
+| `FRONTEND_URL`                                   | Origin of the admin frontend (for CORS and Grafana embed URL)                   | **Required** (e.g. `https://app.example.com`). Must match where users access the app so the Grafana iframe loads same-origin (cookie sent, avoids 401). |
+| `API_BASE_URL`                                   | Public base URL of the API (for snippets and tracker)                           | **Required** (e.g. `https://api.example.com`)                                                                                                           |
+| `DB_SSL`                                         | Set to `true` if DB requires TLS                                                | Recommended for managed DBs                                                                                                                             |
+| `DB_SSL_REJECT_UNAUTHORIZED`                     | Set to `true` with valid DB CA in production                                    | **Required** when `DB_SSL=true`                                                                                                                         |
+| `ALLOWED_METRICS_ORIGINS`                        | Comma-separated origins for metrics/tracker CORS; use specific domains, not `*` | Recommended                                                                                                                                             |
+| `METRICS_SCRAPE_USER`, `METRICS_SCRAPE_PASSWORD` | Basic auth for Prometheus scraping `/metrics`; set both to enable               | Recommended                                                                                                                                             |
+| `METRICS_RATE_LIMIT_MAX`                         | Requests per minute per API key (default 500)                                   | Optional                                                                                                                                                |
+| `METRICS_MAX_LABELS`                             | Max label keys per metric (default 10)                                          | Optional                                                                                                                                                |
+| `METRICS_MAX_LABEL_VALUE_LENGTH`                 | Max chars per label value (default 128)                                         | Optional                                                                                                                                                |
+| `METRICS_MAX_SERIES_PER_USER`                    | Max unique series per user (default 1000)                                       | Optional                                                                                                                                                |
+| `GF_SECURITY_ADMIN_PASSWORD`                     | Grafana admin password                                                          | **Required** in production                                                                                                                              |
+| `LOG_LEVEL`                                      | `error`, `warn`, `info`, `debug`                                                | Optional (default `info`)                                                                                                                               |
 
 ### Frontend (build-time)
 
-| Variable | Description |
-|----------|-------------|
+| Variable            | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
 | `VITE_API_BASE_URL` | Backend API URL (e.g. `https://api.example.com`). Omit if API is same origin. |
 
 ## Security

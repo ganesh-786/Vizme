@@ -2,7 +2,13 @@
  * Generates minimal tracking snippet (Google Analytics style)
  * This is what users paste into their HTML - only ~150 bytes
  */
-export const generateMinimalSnippet = ({ apiKey, baseUrl, autoTrack, customEvents, autoInteractions }) => {
+export const generateMinimalSnippet = ({
+  apiKey,
+  baseUrl,
+  autoTrack,
+  customEvents,
+  autoInteractions,
+}) => {
   // Ultra-minimal snippet that loads the full library asynchronously
   // Similar to Google Analytics' gtag.js approach
   return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='${baseUrl}/api/v1/tracker.js?k=${encodeURIComponent(apiKey)}&a=${autoTrack ? '1' : '0'}&c=${customEvents ? '1' : '0'}&i=${autoInteractions ? '1' : '0'}';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
@@ -12,7 +18,14 @@ export const generateMinimalSnippet = ({ apiKey, baseUrl, autoTrack, customEvent
  * Generates the full tracking library code
  * This is served by the tracker.js route and loaded dynamically
  */
-export const generateLibraryCode = ({ apiKey, endpoint, metrics, autoTrack, customEvents, autoInteractions }) => {
+export const generateLibraryCode = ({
+  apiKey,
+  endpoint,
+  metrics,
+  autoTrack,
+  customEvents,
+  autoInteractions,
+}) => {
   // Compact, minified library code with all tracking functionality
   return `(function(){
 var c={k:'${apiKey.replace(/'/g, "\\'")}',e:'${endpoint.replace(/'/g, "\\'")}',m:${JSON.stringify(metrics)},a:${autoTrack},x:${customEvents},i:${!!autoInteractions}},q=[],b=[],s=10,t=5e3,bt,st=Date.now(),rt=[1e3,2e3,4e3],mxr=3;

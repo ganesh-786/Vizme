@@ -24,7 +24,9 @@ function runValidation(env) {
       secret.length < 32 ||
       /change-in-production|your-secret|dev|test/i.test(secret)
     ) {
-      throw new Error('JWT_SECRET must be set to a strong random value (min 32 chars) in production.');
+      throw new Error(
+        'JWT_SECRET must be set to a strong random value (min 32 chars) in production.'
+      );
     }
   }
 }

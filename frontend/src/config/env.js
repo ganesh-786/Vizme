@@ -26,7 +26,7 @@ export function validateEnv() {
   if (isProd && !env.apiBaseUrl) {
     console.warn(
       '[Vizme] VITE_API_BASE_URL is not set. API requests will use same origin. ' +
-      'Set it in your build env if the API is on a different host.'
+        'Set it in your build env if the API is on a different host.'
     );
   }
 }

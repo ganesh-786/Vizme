@@ -95,11 +95,7 @@ function Sites() {
           <li key={s.id} className="sites-page__row">
             <span className="sites-page__name">{s.name}</span>
             <span className="sites-page__id">id {s.id}</span>
-            <button
-              type="button"
-              className="sites-page__delete"
-              onClick={() => handleDelete(s.id)}
-            >
+            <button type="button" className="sites-page__delete" onClick={() => handleDelete(s.id)}>
               Delete
             </button>
           </li>

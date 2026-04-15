@@ -9,14 +9,14 @@ const router = express.Router();
 
 /**
  * GET /api/v1/tracker.js
- * 
+ *
  * Serves the full tracking library JavaScript file dynamically.
  * This route:
  * 1. Validates the API key from query parameters
  * 2. Fetches user's metric configurations
  * 3. Generates and returns the complete library code
  * 4. Sets proper caching headers for browser optimization
- * 
+ *
  * Query Parameters:
  * - k: API key (required)
  * - a: Auto-track enabled (0 or 1, default: 1)
@@ -25,8 +25,13 @@ const router = express.Router();
  */
 router.get('/tracker.js', async (req, res, next) => {
   try {
-    const { k: apiKey, a: autoTrackParam, c: customEventsParam, i: autoInteractionsParam } = req.query;
-    
+    const {
+      k: apiKey,
+      a: autoTrackParam,
+      c: customEventsParam,
+      i: autoInteractionsParam,
+    } = req.query;
+
     // Validate API key is provided
     if (!apiKey) {
       res.setHeader('Content-Type', 'application/javascript');
@@ -54,26 +59,30 @@ router.get('/tracker.js', async (req, res, next) => {
 
     // Build metrics configuration object
     const metrics = {};
-    metricConfigsResult.rows.forEach(config => {
+    metricConfigsResult.rows.forEach((config) => {
       if (config.metric_name) {
         // Convert labels array to object format
         // Labels are stored as [{name: "key", value: "val"}, ...]
         // But the library expects {key: "val", ...}
         let labelsObj = {};
         if (config.labels && Array.isArray(config.labels)) {
-          config.labels.forEach(label => {
+          config.labels.forEach((label) => {
             if (label && label.name) {
               labelsObj[label.name] = label.value || '';
             }
           });
-        } else if (config.labels && typeof config.labels === 'object' && !Array.isArray(config.labels)) {
+        } else if (
+          config.labels &&
+          typeof config.labels === 'object' &&
+          !Array.isArray(config.labels)
+        ) {
           // Handle case where labels might already be an object
           labelsObj = config.labels;
         }
-        
+
         metrics[config.metric_name] = {
-          t: config.metric_type,  // 't' = type (counter, gauge, etc.)
-          l: labelsObj  // 'l' = labels (now as object)
+          t: config.metric_type, // 't' = type (counter, gauge, etc.)
+          l: labelsObj, // 'l' = labels (now as object)
         };
       }
     });
@@ -94,16 +103,16 @@ router.get('/tracker.js', async (req, res, next) => {
       metrics,
       autoTrack,
       customEvents,
-      autoInteractions
+      autoInteractions,
     });
 
     // Set proper headers for JavaScript file
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    
+
     // Cache for 1 hour - allows browser to cache the library
     // Users can still get updates by invalidating cache
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    
+
     // Optional: Set ETag for better caching
     res.setHeader('ETag', `"${Buffer.from(libraryCode).toString('base64').substring(0, 27)}"`);
 

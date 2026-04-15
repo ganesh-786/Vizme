@@ -124,7 +124,9 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s;
 }
 
 .metrics-dashboard__stat:hover {

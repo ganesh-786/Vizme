@@ -7,6 +7,7 @@ This MVP implements a complete metrics collection and visualization platform wit
 ### Backend (Node.js + Express)
 
 **Core Features:**
+
 1. **Authentication System**
    - User registration with email/password
    - JWT-based authentication (15min access, 7d refresh tokens)
@@ -49,6 +50,7 @@ This MVP implements a complete metrics collection and visualization platform wit
    - Foreign key constraints
 
 **Architecture:**
+
 - Modular route structure
 - Middleware-based architecture
 - Centralized error handling
@@ -59,6 +61,7 @@ This MVP implements a complete metrics collection and visualization platform wit
 ### Frontend (React + Vite)
 
 **Core Features:**
+
 1. **Authentication UI**
    - Sign up page
    - Sign in page
@@ -90,6 +93,7 @@ This MVP implements a complete metrics collection and visualization platform wit
    - Copy to clipboard
 
 **Architecture:**
+
 - React Router for navigation
 - Zustand for state management
 - Axios with interceptors for API calls
@@ -99,6 +103,7 @@ This MVP implements a complete metrics collection and visualization platform wit
 ### Infrastructure (Docker)
 
 **Services:**
+
 1. **PostgreSQL** - Database for user data and configurations
 2. **Prometheus** - Time-series database for metrics
 3. **Pushgateway** - Metrics ingestion gateway
@@ -108,6 +113,7 @@ This MVP implements a complete metrics collection and visualization platform wit
    - Default dashboards
 
 **Configuration:**
+
 - Docker Compose orchestration
 - Health checks
 - Volume persistence
@@ -183,6 +189,7 @@ unified-project/
 ## Key Implementation Details
 
 ### Security
+
 - Passwords: bcrypt with 12 rounds
 - JWT: Short-lived access tokens with refresh rotation
 - API Keys: Cryptographically secure generation
@@ -192,6 +199,7 @@ unified-project/
 - Security Headers: Helmet.js
 
 ### Performance
+
 - Database indexes on frequently queried columns
 - Connection pooling (max 20 connections)
 - Batch processing for metrics (10 per batch or 5s timeout)
@@ -199,6 +207,7 @@ unified-project/
 - Efficient query construction
 
 ### Error Handling
+
 - Centralized error handler middleware
 - Custom error classes
 - Proper HTTP status codes
@@ -206,6 +215,7 @@ unified-project/
 - Detailed logging (development)
 
 ### Code Quality
+
 - Modular structure
 - Separation of concerns
 - Consistent naming conventions
@@ -216,6 +226,7 @@ unified-project/
 ## Testing the System
 
 1. **Start Services:**
+
    ```bash
    cd docker && docker-compose up -d
    cd ../backend && npm install && npm start
