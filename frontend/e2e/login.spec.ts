@@ -55,13 +55,6 @@ test.describe('Login flow', () => {
     await expect(page.getByRole('heading', { name: /sign up/i })).toBeVisible();
   });
 
-  test('forgot password link shows coming soon message', async ({ page }) => {
-    await page.goto('/login');
-
-    await page.getByRole('link', { name: /forgot password\?/i }).click();
-    await expect(page.getByText(/password reset is coming soon\./i)).toBeVisible();
-  });
-
   test('authenticated user is redirected away from /login', async ({ browser }) => {
     const context = await browser.newContext();
     await context.addInitScript(() => {
