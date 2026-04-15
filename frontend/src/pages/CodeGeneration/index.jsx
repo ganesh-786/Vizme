@@ -5,6 +5,7 @@ import { apiKeysAPI } from '@/api/apiKeys';
 import { metricConfigsAPI } from '@/api/metricConfigs';
 import { onboardingAPI } from '@/api/onboarding';
 import { useToast } from '@/components/ToastContainer';
+import { getApiBaseUrl } from '@/config/env';
 import ProgressStepper from '@/components/ProgressStepper';
 import { CheckIcon, RefreshIcon, CopyIcon, ArrowBackIcon, RocketIcon } from '@/assets/icons';
 import CodeGenerationSkeleton from './CodeGenerationSkeleton';
@@ -108,10 +109,10 @@ function CodeGeneration() {
     }
   }, [selectedApiKey, autoPageViews, autoInteractions, generateCode]);
 
-  // Fallback snippet template if backend is unavailable
   const getFallbackSnippet = () => {
     const appId = selectedApiKey?.masked_key || 'vz_your_api_key';
-    return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='http://localhost:3000/api/v1/tracker.js?k=${encodeURIComponent(appId)}&a=${autoPageViews ? '1' : '0'}&c=1&i=${autoInteractions ? '1' : '0'}';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
+    const base = getApiBaseUrl() || window.location.origin;
+    return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'start':Date.now()});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='${base}/api/v1/tracker.js?k=${encodeURIComponent(appId)}&a=${autoPageViews ? '1' : '0'}&c=1&i=${autoInteractions ? '1' : '0'}';f.parentNode.insertBefore(j,f);})(window,document,'script','metricsTracker');`;
   };
 
   // Get framework-specific wrapper for the generated code
@@ -229,23 +230,7 @@ export class VizmeService {
     navigate('/api-keys');
   };
 
-  const renderSyntaxHighlightedCode = () => {
-    const code = getFrameworkCode();
-
-    // Simple syntax highlighting
-    const highlighted = code
-      .replace(
-        /(import|from|export|const|function|return|class|default|if|else)/g,
-        '<span class="code-keyword">$1</span>'
-      )
-      .replace(/('.*?'|".*?")/g, '<span class="code-string">$1</span>')
-      .replace(/(\/\/.*$)/gm, '<span class="code-comment">$1</span>')
-      .replace(/(<!--[\s\S]*?-->)/g, '<span class="code-comment">$1</span>')
-      .replace(/\b(true|false|null|undefined)\b/g, '<span class="code-keyword">$1</span>')
-      .replace(/@(\w+)/g, '<span class="code-keyword">@$1</span>');
-
-    return highlighted;
-  };
+  const getPlainCode = () => getFrameworkCode();
 
   const getFilename = () => {
     const names = {
@@ -327,7 +312,7 @@ export class VizmeService {
                 </div>
               ) : (
                 <pre>
-                  <code dangerouslySetInnerHTML={{ __html: renderSyntaxHighlightedCode() }} />
+                  <code>{getPlainCode()}</code>
                 </pre>
               )}
             </div>

@@ -30,7 +30,7 @@ function ApiKeys() {
   const [activeKey, setActiveKey] = useState(null); // key displayed in the hero panel (masked)
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
-  const [copiedKeyId, setCopiedKeyId] = useState(null); // flash "Copied!" per-row
+  const [copiedKeyId, setCopiedKeyId] = useState(null);
 
   const { showToast } = useToast();
   const { confirm } = useConfirm();
@@ -140,19 +140,7 @@ function ApiKeys() {
     }
   };
 
-  // ---- Re-copy (secure) ----------------------------------------------------
-  /** Fetch the raw key via a dedicated endpoint and write it to the clipboard. */
-  const handleCopyKey = async (id) => {
-    try {
-      const response = await apiKeysAPI.copy(id);
-      await navigator.clipboard.writeText(response.data.api_key);
-      setCopiedKeyId(id);
-      showToast('Copied to clipboard!', 'success', 2000);
-      setTimeout(() => setCopiedKeyId(null), 2000);
-    } catch (err) {
-      showToast('Failed to copy key', 'error');
-    }
-  };
+  // Keys are hashed at rest — raw key is only available at creation time.
 
   // ---- Revoke --------------------------------------------------------------
   const handleRevoke = async (id) => {
@@ -236,20 +224,6 @@ function ApiKeys() {
                 <div className="key-value">
                   {activeKey ? activeKey.masked_key : 'mk_••••••••••••'}
                 </div>
-                <div className="key-actions-inline">
-                  <button
-                    className="key-action-btn"
-                    onClick={() => activeKey && handleCopyKey(activeKey.id)}
-                    title="Copy to clipboard"
-                    disabled={!activeKey}
-                  >
-                    {copiedKeyId === activeKey?.id ? (
-                      <CheckIcon size={20} />
-                    ) : (
-                      <CopyIcon size={20} />
-                    )}
-                  </button>
-                </div>
               </div>
 
               {activeKey?.is_new && (
@@ -272,8 +246,8 @@ function ApiKeys() {
                   <div className="warning-content">
                     <p className="warning-title">Key Secured</p>
                     <p className="warning-text">
-                      This key is never shown for security. Use the copy button above to copy it
-                      to your clipboard whenever you need it. It covers all metrics automatically.
+                      Your key is hashed at rest and cannot be retrieved. If you need a new key,
+                      revoke this one and create a replacement. It covers all metrics automatically.
                     </p>
                   </div>
                 </div>
@@ -335,23 +309,6 @@ function ApiKeys() {
                         <td className="key-masked">{key.masked_key}</td>
                         <td className="text-right">
                           <div className="key-row-actions">
-                            <button
-                              className="btn-copy-inline"
-                              onClick={() => handleCopyKey(key.id)}
-                              title="Copy to clipboard"
-                            >
-                              {copiedKeyId === key.id ? (
-                                <>
-                                  <CheckIcon size={14} />
-                                  Copied
-                                </>
-                              ) : (
-                                <>
-                                  <CopyIcon size={14} />
-                                  Copy
-                                </>
-                              )}
-                            </button>
                             <button className="btn-revoke" onClick={() => handleRevoke(key.id)}>
                               Revoke
                             </button>
@@ -387,10 +344,10 @@ function ApiKeys() {
       <div className="feature-cards">
         <div className="feature-card">
           <SecurityIcon size={24} className="feature-icon" />
-          <h4 className="feature-title">Encrypted Storage</h4>
+          <h4 className="feature-title">Hashed at Rest</h4>
           <p className="feature-description">
-            All keys are hashed using industry-standard salt protocols before storage in our secure
-            vault.
+            All keys are SHA-256 hashed before storage. Raw keys are shown only once at creation
+            and cannot be retrieved afterward.
           </p>
         </div>
         <div className="feature-card">
@@ -403,10 +360,10 @@ function ApiKeys() {
         </div>
         <div className="feature-card">
           <EyeOffIcon size={24} className="feature-icon" />
-          <h4 className="feature-title">Never Displayed</h4>
+          <h4 className="feature-title">Shown Once</h4>
           <p className="feature-description">
-            Keys are never shown in the UI for security. Copy to clipboard when needed and store
-            in a password manager.
+            Keys are displayed only at creation and auto-copied to your clipboard. Store them in a
+            password manager immediately.
           </p>
         </div>
       </div>

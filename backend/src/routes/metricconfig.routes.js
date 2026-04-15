@@ -4,6 +4,7 @@ import { query } from '../database/connection.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
+import { sha256 } from '../utils/crypto.js';
 
 const router = express.Router();
 
@@ -21,10 +22,10 @@ router.get('/by-api-key',
         });
       }
 
-      // Verify API key and get user_id
+      const keyHash = sha256(apiKey);
       const apiKeyResult = await query(
         'SELECT user_id FROM api_keys WHERE api_key = $1 AND is_active = true',
-        [apiKey]
+        [keyHash]
       );
 
       if (apiKeyResult.rows.length === 0) {

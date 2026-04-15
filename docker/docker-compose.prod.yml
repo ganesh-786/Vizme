@@ -1,0 +1,74 @@
+# Production overrides — use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Requires a .env file with all production secrets set (see .env.example).
+
+services:
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: always
+    mem_limit: 512m
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+
+  mimir:
+    image: grafana/mimir:2.14.0
+    restart: always
+    mem_limit: 1g
+
+  prometheus:
+    image: prom/prometheus:v2.53.3
+    restart: always
+    mem_limit: 512m
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: always
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: always
+    environment:
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_COOKIE_SAMESITE=lax
+    mem_limit: 512m
+
+  backend:
+    image: ${BACKEND_IMAGE:-vizme-backend:latest}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: always
+    volumes: []
+    mem_limit: 512m
+    cpus: 1.0
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-vizme-frontend:latest}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${API_BASE_URL:-}
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    restart: always
+    networks:
+      - metrics_network
+    mem_limit: 128m
+
+  # TLS reverse proxy — mount certs at ./certs/fullchain.pem and ./certs/privkey.pem
+  nginx-proxy:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: always
+    networks:
+      - metrics_network
+    mem_limit: 128m

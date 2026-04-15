@@ -55,7 +55,16 @@ const validateMetricValue = (value, type) => {
  * }
  */
 
+const METRICS_BODY_LIMIT = 256 * 1024; // 256 KB
+
 router.post('/',
+  (req, res, next) => {
+    const len = parseInt(req.headers['content-length'] || '0', 10);
+    if (len > METRICS_BODY_LIMIT) {
+      return res.status(413).json({ success: false, error: `Payload too large. Metrics endpoint limit is ${METRICS_BODY_LIMIT} bytes.` });
+    }
+    next();
+  },
   authenticateApiKey,
   metricsLimiter,
   [

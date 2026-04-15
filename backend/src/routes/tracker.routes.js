@@ -2,6 +2,8 @@ import express from 'express';
 import { query } from '../database/connection.js';
 import { generateLibraryCode } from '../services/codeGenerator.service.js';
 import { config } from '../config.js';
+import { sha256 } from '../utils/crypto.js';
+import { logger } from '../logger.js';
 
 const router = express.Router();
 
@@ -31,10 +33,10 @@ router.get('/tracker.js', async (req, res, next) => {
       return res.status(400).send('// Error: API key required');
     }
 
-    // Verify API key exists and is active
+    const keyHash = sha256(apiKey);
     const apiKeyResult = await query(
       'SELECT user_id FROM api_keys WHERE api_key = $1 AND is_active = true',
-      [apiKey]
+      [keyHash]
     );
 
     if (apiKeyResult.rows.length === 0) {
@@ -107,9 +109,9 @@ router.get('/tracker.js', async (req, res, next) => {
 
     res.send(libraryCode);
   } catch (error) {
-    // Error handling - return JavaScript comment with error
+    logger.error({ err: error, requestId: req.id }, 'Tracker generation failed');
     res.setHeader('Content-Type', 'application/javascript');
-    res.status(500).send(`// Error loading tracker: ${error.message}`);
+    res.status(500).send('// Error loading tracker');
   }
 });
 

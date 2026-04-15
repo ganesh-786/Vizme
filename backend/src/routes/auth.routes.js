@@ -16,6 +16,7 @@ import {
   storeRefreshToken,
   verifyRefreshToken,
 } from '../services/authSession.service.js';
+import { sha256 } from '../utils/crypto.js';
 import { clearGrafanaEmbedCookie } from '../services/grafanaEmbedSession.service.js';
 import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
 import { logger } from '../logger.js';
@@ -209,9 +210,10 @@ router.post(
           throw new UnauthorizedError('Invalid refresh token');
         }
 
+        const tokenHash = sha256(refreshToken);
         const tokenResult = await query(
           'SELECT 1 FROM refresh_tokens WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
-          [refreshToken, req.user.id]
+          [tokenHash, req.user.id]
         );
         if (tokenResult.rows.length === 0) {
           throw new UnauthorizedError('Refresh token not found or expired');
