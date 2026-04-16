@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.BASE_URL || 'http://localhost:5173';
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: './e2e/test-results',
@@ -13,7 +15,7 @@ export default defineConfig({
     : [['html', { open: 'on-failure' }]],
 
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
@@ -34,8 +36,8 @@ export default defineConfig({
       : [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: 'npm run dev -- --strictPort',
+    url: baseURL,
     // Cursor/some tools set CI=1 globally; GITHUB_ACTIONS is only set in GitHub runners.
     reuseExistingServer: !process.env.GITHUB_ACTIONS,
     timeout: 30_000,
