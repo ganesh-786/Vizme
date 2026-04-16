@@ -132,7 +132,10 @@ async function ensureAuthProxyUserInOrg(grafanaLogin, orgId, baseOverride = null
         baseOverride
       );
       if (addRes.ok) {
-        logger.info({ orgId, login }, 'ensureAuthProxyUserInOrg: added existing user to tenant org');
+        logger.info(
+          { orgId, login },
+          'ensureAuthProxyUserInOrg: added existing user to tenant org'
+        );
         return;
       }
       const addText = await addRes.text();
@@ -152,7 +155,10 @@ async function ensureAuthProxyUserInOrg(grafanaLogin, orgId, baseOverride = null
 
     if (lookupRes.status !== 404) {
       const t = await lookupRes.text();
-      logger.warn({ status: lookupRes.status, body: t?.slice(0, 200) }, 'ensureAuthProxyUserInOrg: user lookup failed');
+      logger.warn(
+        { status: lookupRes.status, body: t?.slice(0, 200) },
+        'ensureAuthProxyUserInOrg: user lookup failed'
+      );
       return;
     }
 
@@ -190,7 +196,10 @@ async function ensureAuthProxyUserInOrg(grafanaLogin, orgId, baseOverride = null
         baseOverride
       );
       if (retryAdd.ok || retryAdd.status === 409) {
-        logger.info({ orgId, login }, 'ensureAuthProxyUserInOrg: added user to org after create race');
+        logger.info(
+          { orgId, login },
+          'ensureAuthProxyUserInOrg: added user to org after create race'
+        );
         return;
       }
       const retryText = await retryAdd.text();
@@ -244,7 +253,10 @@ export async function ensureGrafanaTenant(userId, options = {}) {
 
     const dashboardOk = await ensureDashboardInOrg(orgId, uid, base);
     if (!dashboardOk) {
-      logger.error({ orgId, userId: uid }, 'ensureGrafanaTenant: dashboard setup failed, not returning org');
+      logger.error(
+        { orgId, userId: uid },
+        'ensureGrafanaTenant: dashboard setup failed, not returning org'
+      );
       return null;
     }
     if (options.grafanaLogin) {
@@ -265,7 +277,10 @@ export async function ensureGrafanaTenant(userId, options = {}) {
         const orgId = await runOnce(base);
         if (orgId) return orgId;
         if (attempt < MAX_RETRIES) {
-          logger.warn({ attempt, base, orgName }, 'ensureGrafanaTenant: org not ready, retrying...');
+          logger.warn(
+            { attempt, base, orgName },
+            'ensureGrafanaTenant: org not ready, retrying...'
+          );
           await sleep(RETRY_DELAY_MS * attempt);
         }
       } catch (err) {
@@ -398,8 +413,7 @@ async function deleteDatasourceById(orgId, datasourceId, baseOverride = null) {
 export async function inspectDatasourceHealthInOrg(orgId, uid, baseOverride = null) {
   const startedAt = Date.now();
   const datasource = await getDatasourceByUid(orgId, uid, baseOverride);
-  const metricDatasource =
-    uid.startsWith('mimir-') ? 'mimir_tenant' : uid;
+  const metricDatasource = uid.startsWith('mimir-') ? 'mimir_tenant' : uid;
   const expectedUrl =
     uid === 'prometheus'
       ? getExpectedPrometheusDatasourceUrl()
@@ -529,8 +543,7 @@ async function ensurePrometheusDatasource(orgId, baseOverride = null) {
 
   if (existing) {
     const needsUpdate =
-      existing.url !== correctUrl ||
-      existing?.jsonData?.timeInterval !== DATASOURCE_INTERVAL;
+      existing.url !== correctUrl || existing?.jsonData?.timeInterval !== DATASOURCE_INTERVAL;
     if (needsUpdate) {
       const updateRes = await grafanaFetch(
         `/api/datasources/${existing.id}`,
@@ -542,7 +555,10 @@ async function ensurePrometheusDatasource(orgId, baseOverride = null) {
         baseOverride
       );
       if (!updateRes.ok) {
-        logger.warn({ status: updateRes.status, orgId }, 'ensurePrometheusDatasource: update failed');
+        logger.warn(
+          { status: updateRes.status, orgId },
+          'ensurePrometheusDatasource: update failed'
+        );
         return false;
       }
     }
@@ -677,7 +693,13 @@ async function ensureMimirDatasource(orgId, tenantId, baseOverride = null) {
   if (!createRes.ok) {
     const text = await createRes.text();
     logger.error(
-      { status: createRes.status, text: text?.slice(0, 300), orgId, tenantId, grafanaMimirUrl: GRAFANA_MIMIR_URL },
+      {
+        status: createRes.status,
+        text: text?.slice(0, 300),
+        orgId,
+        tenantId,
+        grafanaMimirUrl: GRAFANA_MIMIR_URL,
+      },
       'ensureMimirDatasource: create failed - verify GRAFANA_MIMIR_DATASOURCE_URL is reachable from Grafana (e.g. http://mimir:8080 in Docker)'
     );
     return false;
@@ -697,7 +719,10 @@ function loadDashboardFromFile() {
       const parsed = JSON.parse(content);
       return parsed?.dashboard ?? parsed;
     } catch (err) {
-      logger.warn({ path: explicitPath, err: err.message }, 'loadDashboardFromFile: explicit path failed');
+      logger.warn(
+        { path: explicitPath, err: err.message },
+        'loadDashboardFromFile: explicit path failed'
+      );
       return null;
     }
   }
@@ -746,7 +771,10 @@ async function bootstrapOrg1Dashboard(baseOverride = null) {
     return (panels || []).map((p) => ({
       ...p,
       datasource: resolveDs(p.datasource),
-      targets: (p.targets || []).map((t) => ({ ...t, datasource: resolveDs(t.datasource) ?? resolveDs(p.datasource) })),
+      targets: (p.targets || []).map((t) => ({
+        ...t,
+        datasource: resolveDs(t.datasource) ?? resolveDs(p.datasource),
+      })),
       ...(p.panels?.length ? { panels: setDatasourceOnPanels(p.panels) } : {}),
     }));
   }
@@ -778,7 +806,10 @@ async function bootstrapOrg1Dashboard(baseOverride = null) {
     return true;
   }
   const text = await createRes.text();
-  logger.warn({ status: createRes.status, text: text?.slice(0, 200) }, 'bootstrapOrg1Dashboard: create failed');
+  logger.warn(
+    { status: createRes.status, text: text?.slice(0, 200) },
+    'bootstrapOrg1Dashboard: create failed'
+  );
   return false;
 }
 
@@ -849,7 +880,10 @@ async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null, force 
       return {
         ...p,
         datasource: panelDs,
-        targets: (p.targets || []).map((t) => ({ ...t, datasource: resolveDs(t.datasource) ?? panelDs })),
+        targets: (p.targets || []).map((t) => ({
+          ...t,
+          datasource: resolveDs(t.datasource) ?? panelDs,
+        })),
         ...(p.panels?.length ? { panels: setDatasourceOnPanels(p.panels) } : {}),
       };
     });
@@ -872,7 +906,10 @@ async function ensureDashboardInOrg(orgId, tenantId, baseOverride = null, force 
 
   const CREATE_RETRIES = 3;
   for (let attempt = 1; attempt <= CREATE_RETRIES; attempt++) {
-    logger.info({ orgId, tenantId, attempt }, 'ensureDashboardInOrg: creating dashboard in user org');
+    logger.info(
+      { orgId, tenantId, attempt },
+      'ensureDashboardInOrg: creating dashboard in user org'
+    );
     const createRes = await grafanaFetch(
       '/api/dashboards/db',
       {

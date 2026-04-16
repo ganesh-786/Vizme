@@ -21,7 +21,7 @@ const METRIC_TYPES = ['counter', 'gauge', 'histogram', 'summary'];
  */
 const validateMetricValue = (value, type) => {
   const numValue = typeof value === 'number' ? value : parseFloat(value);
-  
+
   if (isNaN(numValue)) {
     return false;
   }
@@ -36,12 +36,12 @@ const validateMetricValue = (value, type) => {
 
 /**
  * POST /api/v1/metrics
- * 
+ *
  * Metrics ingestion endpoint (requires API key)
- * 
+ *
  * This endpoint accepts metrics from clients, validates them, and forwards them to Mimir.
  * The backend waits for the Mimir remote-write request so ingestion latency is measurable.
- * 
+ *
  * Request body:
  * {
  *   "metrics": [
@@ -55,13 +55,30 @@ const validateMetricValue = (value, type) => {
  * }
  */
 
-router.post('/',
+const METRICS_BODY_LIMIT = 256 * 1024; // 256 KB
+
+router.post(
+  '/',
+  (req, res, next) => {
+    const len = parseInt(req.headers['content-length'] || '0', 10);
+    if (len > METRICS_BODY_LIMIT) {
+      return res.status(413).json({
+        success: false,
+        error: `Payload too large. Metrics endpoint limit is ${METRICS_BODY_LIMIT} bytes.`,
+      });
+    }
+    next();
+  },
   authenticateApiKey,
   metricsLimiter,
   [
-    body('metrics').isArray({ min: 1, max: 100 }).withMessage('Metrics must be an array with 1-100 items'),
+    body('metrics')
+      .isArray({ min: 1, max: 100 })
+      .withMessage('Metrics must be an array with 1-100 items'),
     body('metrics.*.name').trim().isLength({ min: 1 }).withMessage('Metric name is required'),
-    body('metrics.*.type').isIn(METRIC_TYPES).withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
+    body('metrics.*.type')
+      .isIn(METRIC_TYPES)
+      .withMessage(`Metric type must be one of: ${METRIC_TYPES.join(', ')}`),
     body('metrics.*.value').custom((value) => {
       const numValue = typeof value === 'number' ? value : parseFloat(value);
       if (isNaN(numValue)) {
@@ -69,7 +86,7 @@ router.post('/',
       }
       return true;
     }),
-    body('metrics.*.labels').optional().isObject()
+    body('metrics.*.labels').optional().isObject(),
   ],
   async (req, res, next) => {
     const ingestStartedAt = Date.now();
@@ -90,12 +107,12 @@ router.post('/',
 
       for (let i = 0; i < metrics.length; i++) {
         const metric = metrics[i];
-        
+
         // Validate metric value
         if (!validateMetricValue(metric.value, metric.type)) {
           errors_list.push({
             index: i,
-            error: `Invalid value for ${metric.type} metric`
+            error: `Invalid value for ${metric.type} metric`,
           });
           continue;
         }
@@ -131,7 +148,7 @@ router.post('/',
         } catch (error) {
           errors_list.push({
             index: i,
-            error: error.message || 'Failed to record metric'
+            error: error.message || 'Failed to record metric',
           });
         }
       }
@@ -171,8 +188,8 @@ router.post('/',
           total: metrics.length,
           mimirAccepted: Boolean(pushSummary?.ok),
           mimirWriteDurationMs: pushSummary?.durationMs ?? null,
-          errors: errors_list.length > 0 ? errors_list : undefined
-        }
+          errors: errors_list.length > 0 ? errors_list : undefined,
+        },
       });
     } catch (error) {
       recordMetricsIngest({
@@ -190,25 +207,22 @@ router.post('/',
 
 /**
  * GET /api/v1/metrics
- * 
+ *
  * Get metrics information (for authenticated users)
  * Note: Actual Prometheus metrics are exposed at /metrics endpoint
  */
-router.get('/',
-  authenticate,
-  async (req, res, next) => {
-    try {
-      res.json({
-        success: true,
-        message: 'View your metrics in Grafana (Mimir). User metrics are isolated per tenant.',
-        grafanaUrl: config.urls.grafana,
-        mimirUrl: config.urls.mimir
-      });
-    } catch (error) {
-      next(error);
-    }
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      message: 'View your metrics in Grafana (Mimir). User metrics are isolated per tenant.',
+      grafanaUrl: config.urls.grafana,
+      mimirUrl: config.urls.mimir,
+    });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 /**
  * GET /api/v1/metrics/dashboard
@@ -216,20 +230,17 @@ router.get('/',
  * Fetch dashboard metrics from Mimir (tenant-isolated).
  * Returns stats and timeseries for the custom metrics dashboard.
  */
-router.get('/dashboard',
-  authenticate,
-  async (req, res, next) => {
-    try {
-      const userId = req.user.id;
-      const data = await fetchDashboardMetrics(userId, req.query.site_id, {
-        includeSeries: req.query.include_series === '1' || req.query.include_series === 'true',
-        includeDetails: req.query.include_details === '1' || req.query.include_details === 'true',
-      });
-      res.json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
+router.get('/dashboard', authenticate, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const data = await fetchDashboardMetrics(userId, req.query.site_id, {
+      includeSeries: req.query.include_series === '1' || req.query.include_series === 'true',
+      includeDetails: req.query.include_details === '1' || req.query.include_details === 'true',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
   }
-);
+});
 
 export { router as metricsRoutes };

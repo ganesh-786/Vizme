@@ -15,7 +15,7 @@ router.use(apiLimiter);
 
 /**
  * POST /api/v1/code-generation
- * 
+ *
  * Generates minimal tracking snippet (Google Analytics style).
  * The snippet is only ~150 bytes and loads the full library from tracker.js.
  *
@@ -23,12 +23,16 @@ router.use(apiLimiter);
  * (user-level) API key is resolved automatically.  The generated snippet
  * covers ALL metric configurations for the user.
  */
-router.post('/',
+router.post(
+  '/',
   [
-    body('api_key_id').optional({ nullable: true }).isInt().withMessage('api_key_id must be an integer'),
+    body('api_key_id')
+      .optional({ nullable: true })
+      .isInt()
+      .withMessage('api_key_id must be an integer'),
     body('auto_track').optional().isBoolean(),
     body('custom_events').optional().isBoolean(),
-    body('auto_interactions').optional().isBoolean()
+    body('auto_interactions').optional().isBoolean(),
   ],
   async (req, res, next) => {
     try {
@@ -37,7 +41,12 @@ router.post('/',
         throw new BadRequestError('Validation failed', errors.array());
       }
 
-      const { api_key_id, auto_track = true, custom_events = true, auto_interactions = false } = req.body;
+      const {
+        api_key_id,
+        auto_track = true,
+        custom_events = true,
+        auto_interactions = false,
+      } = req.body;
 
       // ----- Resolve API key -------------------------------------------------
       let apiKeyRow;
@@ -61,9 +70,7 @@ router.post('/',
           [req.user.id]
         );
         if (apiKeyResult.rows.length === 0) {
-          throw new NotFoundError(
-            'No active API key found. Please generate an API key first.'
-          );
+          throw new NotFoundError('No active API key found. Please generate an API key first.');
         }
         apiKeyRow = apiKeyResult.rows[0];
       }
@@ -83,7 +90,7 @@ router.post('/',
         baseUrl,
         autoTrack: auto_track,
         customEvents: custom_events,
-        autoInteractions: auto_interactions
+        autoInteractions: auto_interactions,
       });
 
       // ----- Mark onboarding complete (idempotent) --------------------------
@@ -98,13 +105,13 @@ router.post('/',
         data: {
           code,
           apiKeyId: apiKeyRow.id,
-          metricConfigs: allConfigsResult.rows.map(c => ({
+          metricConfigs: allConfigsResult.rows.map((c) => ({
             id: c.id,
             name: c.name,
-            metric_name: c.metric_name
+            metric_name: c.metric_name,
           })),
-          note: 'This snippet covers ALL your metrics. The full library loads automatically from the server.'
-        }
+          note: 'This snippet covers ALL your metrics. The full library loads automatically from the server.',
+        },
       });
     } catch (error) {
       next(error);

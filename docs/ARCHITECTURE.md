@@ -60,6 +60,7 @@ The Metrics Tracker MVP is built as a microservices-oriented architecture with c
 **Technology**: React 18 + Vite
 
 **Responsibilities**:
+
 - User authentication UI
 - Metric configuration management
 - API key management
@@ -67,12 +68,14 @@ The Metrics Tracker MVP is built as a microservices-oriented architecture with c
 - Dashboard and statistics
 
 **Key Features**:
+
 - Client-side routing (React Router)
 - State management (Zustand)
 - API client with token refresh
 - Responsive UI/UX
 
 **File Structure**:
+
 ```
 frontend/
 ├── src/
@@ -88,6 +91,7 @@ frontend/
 **Technology**: Node.js 20 + Express 5
 
 **Responsibilities**:
+
 - Authentication and authorization
 - User management
 - API key management
@@ -99,6 +103,7 @@ frontend/
 **Architecture Pattern**: RESTful API with middleware-based architecture
 
 **File Structure**:
+
 ```
 backend/
 ├── src/
@@ -176,6 +181,7 @@ backend/
 **Schema Design**:
 
 **Users Table**:
+
 - `id` (SERIAL PRIMARY KEY)
 - `email` (VARCHAR, UNIQUE)
 - `password_hash` (VARCHAR)
@@ -183,6 +189,7 @@ backend/
 - `created_at`, `updated_at` (TIMESTAMP)
 
 **Refresh Tokens Table**:
+
 - `id` (SERIAL PRIMARY KEY)
 - `user_id` (INTEGER, FK to users)
 - `token` (VARCHAR, UNIQUE)
@@ -190,6 +197,7 @@ backend/
 - `created_at` (TIMESTAMP)
 
 **API Keys Table**:
+
 - `id` (SERIAL PRIMARY KEY)
 - `user_id` (INTEGER, FK to users)
 - `key_name` (VARCHAR)
@@ -198,6 +206,7 @@ backend/
 - `created_at`, `updated_at` (TIMESTAMP)
 
 **Metric Configs Table**:
+
 - `id` (SERIAL PRIMARY KEY)
 - `user_id` (INTEGER, FK to users)
 - `name` (VARCHAR)
@@ -209,6 +218,7 @@ backend/
 - `created_at`, `updated_at` (TIMESTAMP)
 
 **Indexes**:
+
 - Email lookup (users)
 - Token lookup (refresh_tokens)
 - API key lookup (api_keys)
@@ -217,6 +227,7 @@ backend/
 ### 4. Metrics Infrastructure
 
 **Backend Metrics Service (prom-client)**:
+
 - In-memory Prometheus registry
 - Stores metrics with user_id labels for multi-tenancy
 - Supports Counter, Gauge, Histogram, and Summary metric types
@@ -225,6 +236,7 @@ backend/
 - Default labels for application identification
 
 **Prometheus**:
+
 - Time-series database
 - Scrapes metrics directly from backend `/metrics` endpoint
 - Stores metrics long-term (30-day retention)
@@ -232,6 +244,7 @@ backend/
 - No Pushgateway dependency (direct scraping)
 
 **Grafana**:
+
 - Visualization platform
 - Connects to Prometheus datasource
 - Pre-configured dashboards
@@ -476,16 +489,19 @@ Load Balancer (nginx/HAProxy)
 ## Testing Strategy (Future)
 
 ### Unit Tests
+
 - Service functions
 - Utility functions
 - Validation logic
 
 ### Integration Tests
+
 - API endpoints
 - Database operations
 - Authentication flow
 
 ### E2E Tests
+
 - User workflows
 - Metric collection
 - Code generation

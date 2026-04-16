@@ -41,7 +41,10 @@ function DashboardWidgetForm({ isEdit = false }) {
   });
 
   useEffect(() => {
-    sitesAPI.getAll().then(setSites).catch(() => setSites([]));
+    sitesAPI
+      .getAll()
+      .then(setSites)
+      .catch(() => setSites([]));
   }, []);
 
   useEffect(() => {
@@ -178,7 +181,7 @@ function DashboardWidgetForm({ isEdit = false }) {
               value={form.promql_custom}
               onChange={(e) => update('promql_custom', e.target.value)}
               className="dw-textarea"
-              placeholder='e.g. sum(increase(user_metric_orders{user_filter}[24h])) or vector(0)'
+              placeholder="e.g. sum(increase(user_metric_orders{user_filter}[24h])) or vector(0)"
             />
           </label>
         )}
@@ -254,7 +257,11 @@ function DashboardWidgetForm({ isEdit = false }) {
           Featured time series (24h) for this metric
         </label>
         <div className="dw-form__actions">
-          <button type="button" className="dw-btn dw-btn--ghost" onClick={() => navigate('/dashboard-widgets')}>
+          <button
+            type="button"
+            className="dw-btn dw-btn--ghost"
+            onClick={() => navigate('/dashboard-widgets')}
+          >
             Cancel
           </button>
           <button type="submit" className="dw-btn dw-btn--primary" disabled={saving}>

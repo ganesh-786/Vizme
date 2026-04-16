@@ -70,11 +70,21 @@
 }
 
 /* Stagger animation for multiple skeletons - creates wave effect */
-.skeleton--stagger-1 { animation-delay: 0s; }
-.skeleton--stagger-2 { animation-delay: 0.1s; }
-.skeleton--stagger-3 { animation-delay: 0.2s; }
-.skeleton--stagger-4 { animation-delay: 0.3s; }
-.skeleton--stagger-5 { animation-delay: 0.4s; }
+.skeleton--stagger-1 {
+  animation-delay: 0s;
+}
+.skeleton--stagger-2 {
+  animation-delay: 0.1s;
+}
+.skeleton--stagger-3 {
+  animation-delay: 0.2s;
+}
+.skeleton--stagger-4 {
+  animation-delay: 0.3s;
+}
+.skeleton--stagger-5 {
+  animation-delay: 0.4s;
+}
 
 /* Pulse variant - alternative to shimmer for simpler elements */
 .skeleton--pulse {
@@ -83,7 +93,8 @@
 }
 
 @keyframes skeleton-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

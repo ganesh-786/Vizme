@@ -256,10 +256,7 @@ function isGrafanaStaticAssetPath(path = '') {
 }
 
 function isGrafanaOptionalFeaturePath(path = '') {
-  return (
-    path.includes('/apis/features.grafana.app/') ||
-    path.includes('/ofrep/v1/evaluate/flags')
-  );
+  return path.includes('/apis/features.grafana.app/') || path.includes('/ofrep/v1/evaluate/flags');
 }
 
 function shouldClearEmbedCookieOnUpstreamAuthFailure(path = '', status) {
@@ -455,8 +452,10 @@ export async function grafanaProxyMiddleware(req, res, next) {
       if (lower === 'set-cookie') {
         const existing = res.getHeader('set-cookie');
         const incoming = Array.isArray(v) ? v : [v];
-        const merged = [...(Array.isArray(existing) ? existing : existing ? [existing] : []), ...incoming]
-          .filter(Boolean);
+        const merged = [
+          ...(Array.isArray(existing) ? existing : existing ? [existing] : []),
+          ...incoming,
+        ].filter(Boolean);
         if (merged.length > 0) {
           res.setHeader('set-cookie', merged);
         }

@@ -8,6 +8,7 @@ import {
   verifyAccessToken,
   verifyRefreshTokenFromDb,
 } from '../services/authSession.service.js';
+import { sha256 } from '../utils/crypto.js';
 
 const SAFE_COOKIE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -77,14 +78,15 @@ export const authenticate = async (req, res, next) => {
 export const authenticateApiKey = async (req, res, next) => {
   try {
     const apiKey = req.headers['x-api-key'] || req.query.api_key;
-    
+
     if (!apiKey) {
       throw new UnauthorizedError('API key required');
     }
 
+    const keyHash = sha256(apiKey);
     const result = await query(
       'SELECT ak.*, u.id as user_id, u.email FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE ak.api_key = $1 AND ak.is_active = true',
-      [apiKey]
+      [keyHash]
     );
 
     if (result.rows.length === 0) {

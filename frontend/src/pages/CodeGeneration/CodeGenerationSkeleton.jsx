@@ -106,7 +106,12 @@ function CodeGenerationSkeleton() {
               <Skeleton variant="circle" width="10px" height="10px" />
             </div>
             <div className="cg-status-content">
-              <Skeleton variant="circle" width="48px" height="48px" style={{ marginBottom: '0.5rem' }} />
+              <Skeleton
+                variant="circle"
+                width="48px"
+                height="48px"
+                style={{ marginBottom: '0.5rem' }}
+              />
               <Skeleton width="140px" height="16px" style={{ marginBottom: '0.25rem' }} />
               <Skeleton width="200px" height="12px" />
             </div>

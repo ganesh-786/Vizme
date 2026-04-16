@@ -48,7 +48,13 @@ export const initDatabase = async (retries = 5, delay = 5000) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       logger.info(
-        { attempt, retries, host: config.db.host, port: config.db.port, database: config.db.database },
+        {
+          attempt,
+          retries,
+          host: config.db.host,
+          port: config.db.port,
+          database: config.db.database,
+        },
         'Attempting database connection'
       );
 
@@ -202,6 +208,23 @@ const runMigrations = async () => {
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token)`,
+    // Add key_prefix column (stores first 10 chars for display identification)
+    `DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_keys' AND column_name = 'key_prefix') THEN
+        ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(12);
+      END IF;
+    END $$`,
+
+    // One-time migration: hash any remaining plaintext keys (those starting with 'mk_')
+    `DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM api_keys WHERE api_key LIKE 'mk\\_%' LIMIT 1) THEN
+        UPDATE api_keys
+           SET key_prefix = LEFT(api_key, 10),
+               api_key    = encode(sha256(convert_to(api_key, 'UTF8')), 'hex')
+         WHERE api_key LIKE 'mk\\_%';
+      END IF;
+    END $$`,
+
     `CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)`,
     `CREATE INDEX IF NOT EXISTS idx_metric_configs_user_id ON metric_configs(user_id)`,

@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ['**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - run: npm ci
+      - run: npm run format:check
+
+  backend-test:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+        working-directory: backend
+
+      - run: npm test
+        working-directory: backend
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Backend audit
+        run: npm audit --audit-level=critical
+        working-directory: backend
+
+      - name: Frontend audit
+        run: npm audit --audit-level=critical
+        working-directory: frontend
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build backend image
+        run: docker build -t vizme-backend:ci -f backend/Dockerfile backend/
+
+      - name: Build frontend image
+        run: docker build -t vizme-frontend:ci -f frontend/Dockerfile frontend/
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: vizme-backend:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: vizme-frontend:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL

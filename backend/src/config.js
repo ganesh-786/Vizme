@@ -39,6 +39,13 @@ function validateEnv() {
         'JWT_SECRET must be set to a strong random value (min 32 chars) in production. Do not use default or example values.'
       );
     }
+
+    const origins = (process.env.ALLOWED_METRICS_ORIGINS || '*').trim();
+    if (origins === '*') {
+      throw new Error(
+        'ALLOWED_METRICS_ORIGINS must not be * in production. Set explicit origins (e.g. https://app.example.com).'
+      );
+    }
   }
 }
 
@@ -59,8 +66,7 @@ export const config = {
   },
 
   jwt: {
-    secret:
-      process.env.JWT_SECRET || (isProduction ? undefined : ephemeralDevSecret),
+    secret: process.env.JWT_SECRET || (isProduction ? undefined : ephemeralDevSecret),
     accessExpiry: getEnv('JWT_ACCESS_EXPIRY', '15m'),
     refreshExpiry: getEnv('JWT_REFRESH_EXPIRY', '7d'),
   },

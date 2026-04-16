@@ -12,11 +12,13 @@ export function assertSafeMetricName(name) {
 }
 
 function sanitizeMetricNames(metricNames = []) {
-  return [...new Set(
-    (metricNames || [])
-      .map((name) => String(name || '').replace(/[^a-zA-Z0-9_]/g, ''))
-      .filter(Boolean)
-  )];
+  return [
+    ...new Set(
+      (metricNames || [])
+        .map((name) => String(name || '').replace(/[^a-zA-Z0-9_]/g, ''))
+        .filter(Boolean)
+    ),
+  ];
 }
 
 /**
@@ -96,10 +98,10 @@ export async function listDashboardWidgetsForScope(userId, siteId) {
   if (siteId != null && siteId !== '') {
     const sid = parseInt(String(siteId), 10);
     if (Number.isNaN(sid)) return [];
-    const own = await query(
-      `SELECT s.id FROM sites s WHERE s.id = $1 AND s.user_id = $2`,
-      [sid, uid]
-    );
+    const own = await query(`SELECT s.id FROM sites s WHERE s.id = $1 AND s.user_id = $2`, [
+      sid,
+      uid,
+    ]);
     if (own.rows.length === 0) return [];
     const r = await query(
       `SELECT * FROM dashboard_widgets

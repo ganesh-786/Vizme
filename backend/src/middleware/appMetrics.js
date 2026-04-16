@@ -125,12 +125,8 @@ function sanitizeErrorMessage(error) {
   return String(message).slice(0, 200);
 }
 
-function snapshotStage(section, key, {
-  durationMs = 0,
-  outcome = 'success',
-  details = {},
-} = {}) {
-  const target = key ? (pipelineSnapshot[section] || {}) : pipelineSnapshot;
+function snapshotStage(section, key, { durationMs = 0, outcome = 'success', details = {} } = {}) {
+  const target = key ? pipelineSnapshot[section] || {} : pipelineSnapshot;
   const previous = key ? target[key] || {} : target[section] || {};
   const nowIso = new Date().toISOString();
   const payload = {
@@ -197,7 +193,10 @@ export function recordMimirWrite({
   mimirWriteSamples.observe({ mode }, Math.max(Number(sampleCount) || 0, 0));
   metricsPipelineLastDurationSeconds.set({ stage: `mimir_write_${mode}` }, durationSeconds);
   if (outcome === 'success') {
-    metricsPipelineLastSuccessTimestampSeconds.set({ stage: `mimir_write_${mode}` }, Date.now() / 1000);
+    metricsPipelineLastSuccessTimestampSeconds.set(
+      { stage: `mimir_write_${mode}` },
+      Date.now() / 1000
+    );
   }
 
   snapshotStage('mimirWrite', mode, {
@@ -224,7 +223,10 @@ export function recordMimirQuery({
   mimirQueryResultSeries.observe({ query_kind: queryKind }, Math.max(Number(resultSeries) || 0, 0));
   metricsPipelineLastDurationSeconds.set({ stage: `mimir_query_${queryKind}` }, durationSeconds);
   if (outcome === 'success') {
-    metricsPipelineLastSuccessTimestampSeconds.set({ stage: `mimir_query_${queryKind}` }, Date.now() / 1000);
+    metricsPipelineLastSuccessTimestampSeconds.set(
+      { stage: `mimir_query_${queryKind}` },
+      Date.now() / 1000
+    );
   }
 
   snapshotStage('mimirQuery', queryKind, {
@@ -250,9 +252,15 @@ export function recordGrafanaDatasourceHealth({
   const healthy = outcome === 'success' ? 1 : 0;
   grafanaDatasourceHealthStatus.set({ datasource }, healthy);
   grafanaDatasourceHealthDurationSeconds.observe({ datasource, outcome }, durationSeconds);
-  metricsPipelineLastDurationSeconds.set({ stage: `grafana_datasource_${datasource}` }, durationSeconds);
+  metricsPipelineLastDurationSeconds.set(
+    { stage: `grafana_datasource_${datasource}` },
+    durationSeconds
+  );
   if (outcome === 'success') {
-    metricsPipelineLastSuccessTimestampSeconds.set({ stage: `grafana_datasource_${datasource}` }, Date.now() / 1000);
+    metricsPipelineLastSuccessTimestampSeconds.set(
+      { stage: `grafana_datasource_${datasource}` },
+      Date.now() / 1000
+    );
   }
 
   snapshotStage('grafanaDatasource', datasource, {

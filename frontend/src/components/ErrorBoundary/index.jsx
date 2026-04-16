@@ -32,9 +32,7 @@ class ErrorBoundary extends React.Component {
             textAlign: 'center',
           }}
         >
-          <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
-            Something went wrong
-          </h1>
+          <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Something went wrong</h1>
           <p style={{ color: '#666', marginBottom: '1rem' }}>
             We've been notified. Please try refreshing the page.
           </p>

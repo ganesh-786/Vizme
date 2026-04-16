@@ -7,7 +7,7 @@ export const authLimiter = rateLimit({
   max: config.rateLimit.authMax,
   message: {
     success: false,
-    error: 'Too many authentication attempts, please try again later'
+    error: 'Too many authentication attempts, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -19,13 +19,13 @@ export const metricsLimiter = rateLimit({
   max: config.rateLimit.metricsMax,
   message: {
     success: false,
-    error: 'Too many requests, please try again later'
+    error: 'Too many requests, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
     return req.headers['x-api-key'] || req.query.api_key || req.ip;
-  }
+  },
 });
 
 // General API: configurable (default 100/min)
@@ -34,7 +34,7 @@ export const apiLimiter = rateLimit({
   max: config.rateLimit.apiMax,
   message: {
     success: false,
-    error: 'Too many requests, please try again later'
+    error: 'Too many requests, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,7 +46,7 @@ export const grafanaEmbedLimiter = rateLimit({
   max: config.rateLimit.grafanaEmbedMax,
   message: {
     success: false,
-    error: 'Too many embed requests, please try again later'
+    error: 'Too many embed requests, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,

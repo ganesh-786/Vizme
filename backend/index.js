@@ -1,8 +1,11 @@
+// Load .env BEFORE any imports that read process.env (config.js, logger.js, etc.)
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import { errorHandler } from './src/middleware/errorHandler.js';
 import { requestIdMiddleware } from './src/middleware/requestId.js';
 import { metricsScrapeAuthMiddleware } from './src/middleware/metricsScrapeAuth.js';
@@ -24,10 +27,8 @@ import {
 import { initDatabase } from './src/database/connection.js';
 import { config, validateConfig } from './src/config.js';
 import { logger } from './src/logger.js';
-import { startCounterHeartbeat } from './src/services/mimir.service.js';
+import { startCounterHeartbeat, stopCounterHeartbeat } from './src/services/mimir.service.js';
 import pinoHttp from 'pino-http';
-
-dotenv.config();
 
 // Fail fast if required env is missing (production requires JWT_SECRET)
 validateConfig();
@@ -126,8 +127,8 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
 // Health (liveness: /health/live, readiness: /health/ready, legacy: /health)
@@ -190,6 +191,30 @@ const server = app.listen(PORT, () => {
 setupGrafanaWebSocketProxy(server);
 
 startCounterHeartbeat(config.metrics.heartbeatIntervalMs);
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown — drain connections on SIGTERM/SIGINT (Docker, K8s)
+// ---------------------------------------------------------------------------
+const shutdown = async (signal) => {
+  logger.info({ signal }, 'Shutdown signal received, draining…');
+  stopCounterHeartbeat();
+  server.close(async () => {
+    try {
+      const pool = (await import('./src/database/connection.js')).default;
+      await pool.end();
+      logger.info('Database pool closed');
+    } catch (err) {
+      logger.error({ err }, 'Error closing database pool');
+    }
+    process.exit(0);
+  });
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 25_000);
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export { dbInitialized, dbInitPromise };
 export default app;

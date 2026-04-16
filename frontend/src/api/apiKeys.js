@@ -34,15 +34,6 @@ export const apiKeysAPI = {
     return response.data;
   },
 
-  /**
-   * Retrieve the raw API key for clipboard copy only.
-   * The frontend must NEVER render this value — use it only with navigator.clipboard.
-   */
-  copy: async (id) => {
-    const response = await client.post(`/api-keys/${id}/copy`);
-    return response.data;
-  },
-
   update: async (id, data) => {
     const response = await client.patch(`/api-keys/${id}`, data);
     return response.data;

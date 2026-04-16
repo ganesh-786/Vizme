@@ -12,10 +12,10 @@ The package is published on npm as **`visualizemet`** (public).
 
 ## Package entry points
 
-| Use case | Import / path |
-|----------|----------------|
+| Use case                       | Import / path                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | Bundlers (Vite, Webpack, etc.) | `import Vizme from 'visualizemet'` (ESM) or `const { Vizme } = require('visualizemet')` / `require('visualizemet').default` (CJS) |
-| Script tag (no bundler) | Copy or serve `node_modules/visualizemet/dist/vizme.js`; exposes `window.Vizme` |
+| Script tag (no bundler)        | Copy or serve `node_modules/visualizemet/dist/vizme.js`; exposes `window.Vizme`                                                   |
 
 ## Quick Start
 
@@ -28,7 +28,7 @@ import Vizme from 'visualizemet';
 const tracker = new Vizme({
   apiKey: 'mk_your_api_key_here',
   endpoint: 'http://localhost:3000/api/v1/metrics',
-  autoTrack: true // Automatically track page views, errors, performance
+  autoTrack: true, // Automatically track page views, errors, performance
 });
 
 // Make it globally available
@@ -37,7 +37,7 @@ window.vizme = tracker;
 // Track custom events
 window.vizme.increment('add_to_cart', 1, {
   product_id: '123',
-  product_name: 'Product Name'
+  product_name: 'Product Name',
 });
 ```
 
@@ -51,7 +51,7 @@ Serve or copy `node_modules/visualizemet/dist/vizme.js` and include:
   window.vizme = new Vizme({
     apiKey: 'mk_your_api_key_here',
     endpoint: 'https://api.example.com/api/v1/metrics',
-    autoTrack: true
+    autoTrack: true,
   });
 </script>
 ```
@@ -61,10 +61,7 @@ Serve or copy `node_modules/visualizemet/dist/vizme.js` and include:
 ### HTML Attributes (Zero Code)
 
 ```html
-<button 
-  data-vizme-track="add_to_cart"
-  data-vizme-value="1"
-  data-vizme-label-product-id="123">
+<button data-vizme-track="add_to_cart" data-vizme-value="1" data-vizme-label-product-id="123">
   Add to Cart
 </button>
 ```
@@ -72,26 +69,33 @@ Serve or copy `node_modules/visualizemet/dist/vizme.js` and include:
 ## API
 
 ### `track(name, value, labels)`
+
 Track any metric with a value.
 
 ### `increment(name, value, labels)`
+
 Increment a counter metric.
 
 ### `decrement(name, value, labels)`
+
 Decrement a gauge metric.
 
 ### `set(name, value, labels)`
+
 Set a gauge metric value.
 
 ### `flush()`
+
 Force immediate send of batched metrics.
 
 ### `getStatus()`
+
 Get current status (queue size, batch size, etc.).
 
 ## Auto-Tracking
 
 When `autoTrack: true`, the library automatically tracks:
+
 - Page views
 - Page load time
 - JavaScript errors

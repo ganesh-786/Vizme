@@ -6,10 +6,10 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
 import { ensureSiteOwnedByUser } from '../services/dashboardWidget.service.js';
+import { sha256 } from '../utils/crypto.js';
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(authenticate);
 router.use(apiLimiter);
 
@@ -22,14 +22,7 @@ const generateApiKey = () => {
   return `mk_${crypto.randomBytes(32).toString('hex')}`;
 };
 
-/**
- * Return a masked representation of an API key suitable for display.
- * Only the first 7 characters are kept; the rest is replaced with dots.
- */
-const maskApiKey = (key) => {
-  if (!key) return '';
-  return `${key.substring(0, 7)}${'••••••••••••'}`;
-};
+const KEY_PREFIX_LENGTH = 10;
 
 // ---------------------------------------------------------------------------
 // GET / — List all API keys for the authenticated user (masked, never raw)
@@ -37,15 +30,14 @@ const maskApiKey = (key) => {
 router.get('/', async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT id, key_name, metric_config_id, site_id, is_active, created_at, updated_at
+      `SELECT id, key_name, key_prefix, metric_config_id, site_id, is_active, created_at, updated_at
        FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user.id]
     );
 
-    // Attach a masked representation; raw key is never returned in list.
     const data = result.rows.map((row) => ({
       ...row,
-      masked_key: 'mk_••••••••••••', // constant mask — no partial leak
+      masked_key: row.key_prefix ? `${row.key_prefix}••••••••` : 'mk_••••••••••••',
     }));
 
     res.json({
@@ -60,13 +52,12 @@ router.get('/', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // GET /user-key — Return the authenticated user's primary (user-level) API
 //                 key.  This is the single key that covers ALL metric configs.
-//                 Returns masked key; use POST /:id/copy for raw clipboard copy.
+//                 Returns masked key only (raw key is shown once at creation).
 // ---------------------------------------------------------------------------
 router.get('/user-key', async (req, res, next) => {
   try {
-    // Look for an existing active user-level key (metric_config_id IS NULL)
     const existing = await query(
-      `SELECT id, key_name, site_id, is_active, created_at, updated_at
+      `SELECT id, key_name, key_prefix, site_id, is_active, created_at, updated_at
        FROM api_keys
        WHERE user_id = $1
          AND metric_config_id IS NULL
@@ -78,17 +69,17 @@ router.get('/user-key', async (req, res, next) => {
     );
 
     if (existing.rows.length > 0) {
+      const row = existing.rows[0];
       return res.json({
         success: true,
         data: {
-          ...existing.rows[0],
-          masked_key: 'mk_••••••••••••',
+          ...row,
+          masked_key: row.key_prefix ? `${row.key_prefix}••••••••` : 'mk_••••••••••••',
         },
         has_key: true,
       });
     }
 
-    // No account-wide user-level key found
     res.json({
       success: true,
       data: null,
@@ -108,9 +99,8 @@ router.get('/user-key', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 router.post('/ensure', async (req, res, next) => {
   try {
-    // Look for an existing active user-level key (metric_config_id IS NULL).
     const existing = await query(
-      `SELECT id, key_name, site_id, is_active, created_at, updated_at
+      `SELECT id, key_name, key_prefix, site_id, is_active, created_at, updated_at
        FROM api_keys
        WHERE user_id = $1
          AND metric_config_id IS NULL
@@ -122,33 +112,34 @@ router.post('/ensure', async (req, res, next) => {
     );
 
     if (existing.rows.length > 0) {
+      const row = existing.rows[0];
       return res.json({
         success: true,
         data: {
-          ...existing.rows[0],
-          masked_key: 'mk_••••••••••••',
+          ...row,
+          masked_key: row.key_prefix ? `${row.key_prefix}••••••••` : 'mk_••••••••••••',
         },
         is_new: false,
       });
     }
 
-    // ---- No existing account-wide key — generate one ---------------------
-    const apiKey = generateApiKey();
+    const rawKey = generateApiKey();
     const keyName = 'Account API Key';
+    const keyHash = sha256(rawKey);
+    const keyPrefix = rawKey.substring(0, KEY_PREFIX_LENGTH);
 
     let result;
     try {
       result = await query(
-        `INSERT INTO api_keys (user_id, key_name, api_key, metric_config_id)
-         VALUES ($1, $2, $3, NULL)
-         RETURNING id, key_name, api_key, is_active, created_at`,
-        [req.user.id, keyName, apiKey]
+        `INSERT INTO api_keys (user_id, key_name, api_key, key_prefix, metric_config_id)
+         VALUES ($1, $2, $3, $4, NULL)
+         RETURNING id, key_name, key_prefix, is_active, created_at`,
+        [req.user.id, keyName, keyHash, keyPrefix]
       );
     } catch (err) {
-      // Handle race condition: another concurrent request already created it.
       if (err.code === '23505') {
         const retry = await query(
-          `SELECT id, key_name, site_id, is_active, created_at, updated_at
+          `SELECT id, key_name, key_prefix, site_id, is_active, created_at, updated_at
            FROM api_keys
            WHERE user_id = $1
              AND metric_config_id IS NULL
@@ -158,11 +149,12 @@ router.post('/ensure', async (req, res, next) => {
            LIMIT 1`,
           [req.user.id]
         );
+        const row = retry.rows[0];
         return res.json({
           success: true,
           data: {
-            ...retry.rows[0],
-            masked_key: 'mk_••••••••••••',
+            ...row,
+            masked_key: row.key_prefix ? `${row.key_prefix}••••••••` : 'mk_••••••••••••',
           },
           is_new: false,
         });
@@ -177,14 +169,13 @@ router.post('/ensure', async (req, res, next) => {
       data: {
         id: newRow.id,
         key_name: newRow.key_name,
-        api_key: newRow.api_key, // returned ONLY this one time
-        masked_key: maskApiKey(newRow.api_key),
+        api_key: rawKey,
+        masked_key: `${newRow.key_prefix}••••••••`,
         is_active: newRow.is_active,
         created_at: newRow.created_at,
       },
       is_new: true,
-      message:
-        'API key created and copied to your clipboard. This single key covers all your metrics — current and future.',
+      message: 'API key created. Store it now — it will not be shown again.',
     });
   } catch (error) {
     next(error);
@@ -197,10 +188,7 @@ router.post('/ensure', async (req, res, next) => {
 router.post(
   '/',
   [
-    body('key_name')
-      .trim()
-      .isLength({ min: 1, max: 255 })
-      .withMessage('Key name is required'),
+    body('key_name').trim().isLength({ min: 1, max: 255 }).withMessage('Key name is required'),
     body('site_id').optional({ nullable: true }),
   ],
   async (req, res, next) => {
@@ -220,11 +208,13 @@ router.post(
         siteId = sid;
       }
 
-      const apiKey = generateApiKey();
+      const rawKey = generateApiKey();
+      const keyHash = sha256(rawKey);
+      const keyPrefix = rawKey.substring(0, KEY_PREFIX_LENGTH);
 
       const result = await query(
-        'INSERT INTO api_keys (user_id, key_name, api_key, site_id) VALUES ($1, $2, $3, $4) RETURNING id, key_name, api_key, site_id, is_active, created_at',
-        [req.user.id, key_name, apiKey, siteId]
+        'INSERT INTO api_keys (user_id, key_name, api_key, key_prefix, site_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, key_name, key_prefix, site_id, is_active, created_at',
+        [req.user.id, key_name, keyHash, keyPrefix, siteId]
       );
 
       const newRow = result.rows[0];
@@ -233,10 +223,10 @@ router.post(
         success: true,
         data: {
           ...newRow,
-          masked_key: maskApiKey(newRow.api_key),
+          api_key: rawKey,
+          masked_key: `${newRow.key_prefix}••••••••`,
         },
-        message:
-          'API key created successfully. Store it securely — it will not be shown again.',
+        message: 'API key created. Store it securely — it will not be shown again.',
       });
     } catch (error) {
       next(error);
@@ -244,31 +234,8 @@ router.post(
   }
 );
 
-// ---------------------------------------------------------------------------
-// POST /:id/copy — Return the raw API key for clipboard copy only.
-//                   The frontend must NEVER render this value in the DOM.
-// ---------------------------------------------------------------------------
-router.post('/:id/copy', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const result = await query(
-      'SELECT api_key FROM api_keys WHERE id = $1 AND user_id = $2 AND is_active = true',
-      [id, req.user.id]
-    );
-
-    if (result.rows.length === 0) {
-      throw new NotFoundError('API key not found or inactive');
-    }
-
-    res.json({
-      success: true,
-      data: { api_key: result.rows[0].api_key },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+// POST /:id/copy is intentionally removed — hashed keys cannot be retrieved.
+// Raw keys are shown only once at creation time.
 
 // ---------------------------------------------------------------------------
 // PATCH /:id — Update API key (name or active status)
@@ -291,10 +258,10 @@ router.patch(
       const { key_name, is_active } = req.body;
 
       // Verify ownership
-      const existing = await query(
-        'SELECT id FROM api_keys WHERE id = $1 AND user_id = $2',
-        [id, req.user.id]
-      );
+      const existing = await query('SELECT id FROM api_keys WHERE id = $1 AND user_id = $2', [
+        id,
+        req.user.id,
+      ]);
 
       if (existing.rows.length === 0) {
         throw new NotFoundError('API key not found');
@@ -358,10 +325,10 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const result = await query(
-      'DELETE FROM api_keys WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, req.user.id]
-    );
+    const result = await query('DELETE FROM api_keys WHERE id = $1 AND user_id = $2 RETURNING id', [
+      id,
+      req.user.id,
+    ]);
 
     if (result.rows.length === 0) {
       throw new NotFoundError('API key not found');

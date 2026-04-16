@@ -14,13 +14,24 @@ function DashboardWidgetsSkeleton() {
             <Skeleton width="92%" height="14px" stagger={2} />
           </div>
         </div>
-        <Skeleton variant="button" width="108px" height="36px" stagger={3} style={{ borderRadius: '8px' }} />
+        <Skeleton
+          variant="button"
+          width="108px"
+          height="36px"
+          stagger={3}
+          style={{ borderRadius: '8px' }}
+        />
       </div>
 
       <div className="dw-page__filters">
         <div className="dw-page__filter">
           <Skeleton width="48px" height="12px" stagger={1} />
-          <Skeleton width="280px" height="34px" stagger={2} style={{ borderRadius: '8px', maxWidth: '280px' }} />
+          <Skeleton
+            width="280px"
+            height="34px"
+            stagger={2}
+            style={{ borderRadius: '8px', maxWidth: '280px' }}
+          />
         </div>
       </div>
 

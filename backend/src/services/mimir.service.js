@@ -19,6 +19,46 @@ const DEFAULT_HEARTBEAT_INTERVAL_MS = Math.max(
   5_000
 );
 
+// ---------------------------------------------------------------------------
+// Circuit breaker — protects against cascading failures when Mimir is down.
+// States: CLOSED (normal) → OPEN (failing, reject writes) → HALF_OPEN (probe)
+// ---------------------------------------------------------------------------
+const CB_FAILURE_THRESHOLD = 5;
+const CB_RESET_TIMEOUT_MS = 30_000;
+
+const circuitBreaker = {
+  state: 'CLOSED',
+  failures: 0,
+  lastFailureAt: 0,
+
+  recordSuccess() {
+    this.failures = 0;
+    this.state = 'CLOSED';
+  },
+
+  recordFailure() {
+    this.failures++;
+    this.lastFailureAt = Date.now();
+    if (this.failures >= CB_FAILURE_THRESHOLD) {
+      this.state = 'OPEN';
+      logger.warn({ failures: this.failures }, 'Mimir circuit breaker OPEN');
+    }
+  },
+
+  canAttempt() {
+    if (this.state === 'CLOSED') return true;
+    if (this.state === 'OPEN' && Date.now() - this.lastFailureAt >= CB_RESET_TIMEOUT_MS) {
+      this.state = 'HALF_OPEN';
+      return true;
+    }
+    return this.state === 'HALF_OPEN';
+  },
+};
+
+export function getMimirCircuitState() {
+  return circuitBreaker.state;
+}
+
 /**
  * In-memory cumulative state for Mimir remote-write values.
  * Key: `${tenantId}::user_metric_${name}::${sortedLabelPairs}`
@@ -32,11 +72,13 @@ const DEFAULT_HEARTBEAT_INTERVAL_MS = Math.max(
 const cumulativeState = new Map();
 
 function hashLabels(labels) {
-  return Object.entries(labels)
-    .filter(([k]) => k !== '__name__')
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join(',') || '_';
+  return (
+    Object.entries(labels)
+      .filter(([k]) => k !== '__name__')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join(',') || '_'
+  );
 }
 
 function prepareSample(metric, tenantId) {
@@ -111,10 +153,10 @@ function commitPreparedStates(preparedSeries) {
  * @param {string} params.userId - Tenant ID = X-Scope-OrgID
  */
 export async function pushMetricToMimir({ name, type, value, labels = {}, operation, userId }) {
-  return pushMetricsToMimir(
-    [{ name, type, value, labels, operation, userId }],
-    { mode: 'single', throwOnFailure: false }
-  );
+  return pushMetricsToMimir([{ name, type, value, labels, operation, userId }], {
+    mode: 'single',
+    throwOnFailure: false,
+  });
 }
 
 /**
@@ -169,6 +211,21 @@ export async function pushMetricsToMimir(metrics, options = {}) {
     durationMs: 0,
   };
 
+  if (!circuitBreaker.canAttempt()) {
+    summary.ok = false;
+    for (const tenantId of byTenant.keys()) {
+      summary.failedTenants.push({ tenantId, error: 'Circuit breaker OPEN — Mimir unavailable' });
+    }
+    summary.durationMs = Date.now() - startedAt;
+    if (throwOnFailure) {
+      const cbError = new Error('Mimir circuit breaker is open');
+      cbError.status = 503;
+      cbError.details = summary;
+      throw cbError;
+    }
+    return summary;
+  }
+
   for (const [tenantId, tenantMetrics] of byTenant) {
     const preparedSeries = tenantMetrics.map((m) => prepareSample(m, tenantId));
     const timestamp = Date.now();
@@ -186,6 +243,7 @@ export async function pushMetricsToMimir(metrics, options = {}) {
         },
       });
       commitPreparedStates(preparedSeries);
+      circuitBreaker.recordSuccess();
       summary.successfulTenants.push(tenantId);
       recordMimirWrite({
         mode,
@@ -195,6 +253,7 @@ export async function pushMetricsToMimir(metrics, options = {}) {
         tenantCount: 1,
       });
     } catch (err) {
+      circuitBreaker.recordFailure();
       summary.ok = false;
       summary.failedTenants.push({
         tenantId,
@@ -246,10 +305,13 @@ export function startCounterHeartbeat(intervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS
   const mimirUrl = config.urls.mimir?.replace(/\/$/, '');
   if (!mimirUrl) return;
   const pushUrl = `${mimirUrl}/api/v1/push`;
-  const safeIntervalMs = Math.max(parseInt(String(intervalMs), 10) || DEFAULT_HEARTBEAT_INTERVAL_MS, 5_000);
+  const safeIntervalMs = Math.max(
+    parseInt(String(intervalMs), 10) || DEFAULT_HEARTBEAT_INTERVAL_MS,
+    5_000
+  );
 
   _heartbeatTimer = setInterval(async () => {
-    if (cumulativeState.size === 0 || _heartbeatInFlight) return;
+    if (cumulativeState.size === 0 || _heartbeatInFlight || !circuitBreaker.canAttempt()) return;
     _heartbeatInFlight = true;
 
     try {

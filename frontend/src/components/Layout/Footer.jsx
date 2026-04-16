@@ -30,9 +30,7 @@ function Footer() {
         </div>
 
         <div className="footer-bottom">
-          <p className="footer-copyright">
-            &copy; {currentYear} Vizme. All rights reserved.
-          </p>
+          <p className="footer-copyright">&copy; {currentYear} Vizme. All rights reserved.</p>
         </div>
       </div>
     </footer>

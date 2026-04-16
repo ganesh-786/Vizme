@@ -16,6 +16,7 @@ import {
   storeRefreshToken,
   verifyRefreshToken,
 } from '../services/authSession.service.js';
+import { sha256 } from '../utils/crypto.js';
 import { clearGrafanaEmbedCookie } from '../services/grafanaEmbedSession.service.js';
 import { ensureGrafanaTenant } from '../services/grafanaTenant.service.js';
 import { logger } from '../logger.js';
@@ -160,29 +161,35 @@ router.post(
 );
 
 // Refresh token
-router.post('/refresh', authLimiter, [body('refreshToken').optional().notEmpty()], async (req, res, next) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      throw new BadRequestError('Validation failed', errors.array());
+router.post(
+  '/refresh',
+  authLimiter,
+  [body('refreshToken').optional().notEmpty()],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new BadRequestError('Validation failed', errors.array());
+      }
+
+      const refreshToken = getRefreshTokenFromRequest(req);
+      const { accessToken, refreshToken: newRefreshToken } =
+        await rotateRefreshSession(refreshToken);
+      setAuthCookies(res, { accessToken, refreshToken: newRefreshToken });
+
+      res.json({
+        success: true,
+        data: {
+          accessToken,
+        },
+      });
+    } catch (error) {
+      clearAuthCookies(res);
+      clearGrafanaEmbedCookie(res);
+      next(error);
     }
-
-    const refreshToken = getRefreshTokenFromRequest(req);
-    const { accessToken, refreshToken: newRefreshToken } = await rotateRefreshSession(refreshToken);
-    setAuthCookies(res, { accessToken, refreshToken: newRefreshToken });
-
-    res.json({
-      success: true,
-      data: {
-        accessToken,
-      },
-    });
-  } catch (error) {
-    clearAuthCookies(res);
-    clearGrafanaEmbedCookie(res);
-    next(error);
   }
-});
+);
 
 router.post(
   '/session',
@@ -209,9 +216,10 @@ router.post(
           throw new UnauthorizedError('Invalid refresh token');
         }
 
+        const tokenHash = sha256(refreshToken);
         const tokenResult = await query(
           'SELECT 1 FROM refresh_tokens WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
-          [refreshToken, req.user.id]
+          [tokenHash, req.user.id]
         );
         if (tokenResult.rows.length === 0) {
           throw new UnauthorizedError('Refresh token not found or expired');

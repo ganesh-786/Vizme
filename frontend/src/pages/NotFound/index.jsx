@@ -28,7 +28,11 @@ function NotFound() {
             The URL may be mistyped, or the page may have moved.
           </p>
           <p className="auth-footer" style={{ marginTop: '1.5rem' }}>
-            <Link to="/" className="btn btn-primary" style={{ display: 'inline-block', width: 'auto', padding: '0.65rem 1.25rem' }}>
+            <Link
+              to="/"
+              className="btn btn-primary"
+              style={{ display: 'inline-block', width: 'auto', padding: '0.65rem 1.25rem' }}
+            >
               Back to dashboard
             </Link>
           </p>

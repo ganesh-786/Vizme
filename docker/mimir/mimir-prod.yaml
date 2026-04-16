@@ -1,0 +1,60 @@
+# Production Mimir config — uses real AWS S3 with IAM role credentials.
+#
+# IMPORTANT: This file uses shell-style ${VAR} placeholders. Mimir does NOT
+# expand them natively. You must either:
+#   1. Run envsubst before mounting:
+#        envsubst < mimir-prod.yaml > /etc/mimir/mimir.yaml
+#   2. Or replace placeholders with literal values at deploy time.
+#
+# Required environment or IAM setup:
+#   - S3 bucket created in target region (e.g. vizme-mimir-blocks)
+#   - IAM role attached to the container/pod with s3:GetObject, s3:PutObject,
+#     s3:DeleteObject, s3:ListBucket permissions on the bucket
+#   - Or set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars
+
+target: all,alertmanager,overrides-exporter
+
+multitenancy_enabled: true
+
+limits:
+  ingestion_rate: 100000
+  ingestion_burst_size: 200000
+  max_global_series_per_user: 1000000
+  max_global_series_per_metric: 50000
+  max_fetched_chunks_per_query: 2000000
+  compactor_blocks_retention_period: 365d
+
+ingester:
+  ring:
+    replication_factor: 1
+    zone_awareness_enabled: false
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    zone_awareness_enabled: false
+
+common:
+  storage:
+    backend: s3
+    s3:
+      region: us-east-1
+      bucket_name: vizme-mimir-blocks
+
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/ingester
+
+server:
+  log_level: warn
+  http_listen_port: 8080
+
+ruler:
+  rule_path: /data/ruler
+  alertmanager_url: http://127.0.0.1:8080/alertmanager
+
+alertmanager:
+  data_dir: /data/alertmanager
+  fallback_config_file: /etc/alertmanager-fallback-config.yaml
+  external_url: http://localhost:9009/alertmanager

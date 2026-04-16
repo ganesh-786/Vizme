@@ -90,7 +90,10 @@ export function recommendRangeStepSeconds(start, end) {
 }
 
 function alignRangeBounds(start, end, step) {
-  const safeStep = Math.max(Math.floor(Number(step) || MIN_RANGE_STEP_SECONDS), MIN_RANGE_STEP_SECONDS);
+  const safeStep = Math.max(
+    Math.floor(Number(step) || MIN_RANGE_STEP_SECONDS),
+    MIN_RANGE_STEP_SECONDS
+  );
   const safeStart = Math.floor(Number(start) || 0);
   const safeEnd = Math.max(Math.floor(Number(end) || 0), safeStart + safeStep);
   return {
@@ -132,7 +135,10 @@ export async function queryScalar(tenantId, query, options = {}) {
         resultSeries: 0,
         error: `HTTP ${res.status}: ${body.slice(0, 160)}`,
       });
-      logger.warn({ status: res.status, tenantId, body: body.slice(0, 160) }, 'mimirQuery: non-OK response');
+      logger.warn(
+        { status: res.status, tenantId, body: body.slice(0, 160) },
+        'mimirQuery: non-OK response'
+      );
       return null;
     }
     const data = await res.json();
@@ -189,7 +195,10 @@ export async function queryScalar(tenantId, query, options = {}) {
       resultSeries: 0,
       error: err,
     });
-    logger.warn({ err: err?.message, tenantId, query: query?.slice(0, 80) }, 'mimirQuery: scalar failed');
+    logger.warn(
+      { err: err?.message, tenantId, query: query?.slice(0, 80) },
+      'mimirQuery: scalar failed'
+    );
     return null;
   }
 }
@@ -237,7 +246,9 @@ export async function queryRange(tenantId, query, start, end, step = null, optio
       outcome: data?.status === 'success' ? 'success' : 'error',
       resultSeries: Array.isArray(result) ? result.length : 0,
       stepSeconds: aligned.step,
-      ...(data?.status === 'success' ? {} : { error: data?.error || 'Mimir range query returned non-success status' }),
+      ...(data?.status === 'success'
+        ? {}
+        : { error: data?.error || 'Mimir range query returned non-success status' }),
     });
     return Array.isArray(result) ? result : [];
   } catch (err) {
@@ -249,7 +260,10 @@ export async function queryRange(tenantId, query, start, end, step = null, optio
       stepSeconds: aligned.step,
       error: err,
     });
-    logger.warn({ err: err?.message, tenantId, query: query?.slice(0, 60) }, 'mimirQuery: range failed');
+    logger.warn(
+      { err: err?.message, tenantId, query: query?.slice(0, 60) },
+      'mimirQuery: range failed'
+    );
     return null;
   }
 }
@@ -263,7 +277,7 @@ export async function queryRange(tenantId, query, start, end, step = null, optio
 const MAX_REASONABLE_TIMING_MS = 120_000;
 function clampTimingMs(val, max = MAX_REASONABLE_TIMING_MS) {
   const n = Number(val ?? 0);
-  return (Number.isFinite(n) && n > 0 && n <= max) ? Math.round(n) : 0;
+  return Number.isFinite(n) && n > 0 && n <= max ? Math.round(n) : 0;
 }
 
 /** PromQL fragment: ticketing / cinema counters from the browser SDK (Movie_ticketBooking demo). */
@@ -352,13 +366,34 @@ export async function fetchMovieDashboardMetrics(userId, siteId = null, options 
   const revenueForTickets = promqlSelectorForMetricNames(REVENUE_METRIC_NAMES, userId, siteId);
   const performanceJobs = includeDetails
     ? [
-        queryScalar(uid, `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_ttfb{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_dom_content_loaded{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_fcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_lcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_fid{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_cls{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_ttfb{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_dom_content_loaded{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_fcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_lcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_fid{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_cls{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
       ]
     : [];
 
@@ -377,17 +412,35 @@ export async function fetchMovieDashboardMetrics(userId, siteId = null, options 
     ticketRevenue,
     ...performanceResults
   ] = await Promise.all([
-    queryScalar(uid, `sum(increase(user_metric_ticket_purchase_completed{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_ticket_purchase_completed{${userFilter}}[24h])) or vector(0)`
+    ),
     queryScalar(uid, `sum(increase(user_metric_movie_book_now{${userFilter}}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_featured_movie_book{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_featured_movie_book{${userFilter}}[24h])) or vector(0)`
+    ),
     queryScalar(uid, `sum(increase(${pageViewSelector}[24h])) or vector(0)`),
     queryScalar(uid, promqlCountDistinctMetricNames(MOVIE_DASHBOARD_METRIC_NAMES, userId, siteId)),
-    queryScalar(uid, `sum(increase(user_metric_javascript_errors{${userFilter}}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_promise_rejections{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_javascript_errors{${userFilter}}[24h])) or vector(0)`
+    ),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_promise_rejections{${userFilter}}[24h])) or vector(0)`
+    ),
     queryScalar(uid, `avg(user_metric_scroll_depth{${userFilter}}) or vector(0)`),
     queryScalar(uid, `avg(user_metric_max_scroll_depth{${userFilter}}) or vector(0)`),
-    queryScalar(uid, `avg(avg_over_time(user_metric_time_on_page{${userFilter}}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_user_interaction{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(
+      uid,
+      `avg(avg_over_time(user_metric_time_on_page{${userFilter}}[24h])) or vector(0)`
+    ),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_user_interaction{${userFilter}}[24h])) or vector(0)`
+    ),
     queryScalar(uid, `sum(increase(${revenueForTickets}[24h])) or vector(0)`),
     ...performanceJobs,
   ]);
@@ -413,12 +466,36 @@ export async function fetchMovieDashboardMetrics(userId, siteId = null, options 
     const { start, end } = currentDashboardWindow();
     const step = recommendRangeStepSeconds(start, end);
     [timeseriesData, ticketActivityOverTime, perfOverTime, errorsOverTime] = await Promise.all([
-      queryRange(uid, promqlSelectorForMetricNames(MOVIE_DASHBOARD_METRIC_NAMES, userId, siteId), start, end, step),
-      queryRange(uid, `sum(increase(${movieSelector}[${RECENT_COUNTER_WINDOW}])) or vector(0)`, start, end, step),
+      queryRange(
+        uid,
+        promqlSelectorForMetricNames(MOVIE_DASHBOARD_METRIC_NAMES, userId, siteId),
+        start,
+        end,
+        step
+      ),
+      queryRange(
+        uid,
+        `sum(increase(${movieSelector}[${RECENT_COUNTER_WINDOW}])) or vector(0)`,
+        start,
+        end,
+        step
+      ),
       includeDetails
-        ? queryRange(uid, `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}]))`, start, end, step)
+        ? queryRange(
+            uid,
+            `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}]))`,
+            start,
+            end,
+            step
+          )
         : Promise.resolve([]),
-      queryRange(uid, `sum(increase(user_metric_javascript_errors{${userFilter}}[${RECENT_COUNTER_WINDOW}])) or vector(0)`, start, end, step),
+      queryRange(
+        uid,
+        `sum(increase(user_metric_javascript_errors{${userFilter}}[${RECENT_COUNTER_WINDOW}])) or vector(0)`,
+        start,
+        end,
+        step
+      ),
     ]);
   }
 
@@ -459,24 +536,61 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null, options
   const revenueSelector = promqlSelectorForMetricNames(REVENUE_METRIC_NAMES, userId, siteId);
   const ordersSelector = promqlSelectorForMetricNames(ORDER_COMPLETED_METRIC_NAMES, userId, siteId);
   const pageViewSelector = promqlSelectorForMetricNames(PAGE_VIEW_METRIC_NAMES, userId, siteId);
-  const productsSoldSelector = promqlSelectorForMetricNames(PRODUCT_SOLD_METRIC_NAMES, userId, siteId);
+  const productsSoldSelector = promqlSelectorForMetricNames(
+    PRODUCT_SOLD_METRIC_NAMES,
+    userId,
+    siteId
+  );
   const addToCartSelector = promqlSelectorForMetricNames(ADD_TO_CART_METRIC_NAMES, userId, siteId);
   const performanceJobs = includeDetails
     ? [
-        queryScalar(uid, `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_ttfb{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_dom_content_loaded{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_fcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_lcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_fid{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
-        queryScalar(uid, `avg(avg_over_time(user_metric_cls{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_ttfb{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_dom_content_loaded{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_fcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_lcp{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_fid{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
+        queryScalar(
+          uid,
+          `avg(avg_over_time(user_metric_cls{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}])) or vector(0)`
+        ),
       ]
     : [];
 
   const [
-    revenue, orders, products, pageViews, addToCart, checkout, seriesCount, cartItems, cartValue,
-    jsErrors, promiseRejections,
-    scrollDepth, maxScrollDepth, timeOnPage, interactions,
+    revenue,
+    orders,
+    products,
+    pageViews,
+    addToCart,
+    checkout,
+    seriesCount,
+    cartItems,
+    cartValue,
+    jsErrors,
+    promiseRejections,
+    scrollDepth,
+    maxScrollDepth,
+    timeOnPage,
+    interactions,
     ...performanceResults
   ] = await Promise.all([
     queryScalar(uid, `sum(increase(${revenueSelector}[24h])) or vector(0)`),
@@ -484,16 +598,34 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null, options
     queryScalar(uid, `sum(increase(${productsSoldSelector}[24h])) or vector(0)`),
     queryScalar(uid, `sum(increase(${pageViewSelector}[24h])) or vector(0)`),
     queryScalar(uid, `sum(increase(${addToCartSelector}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_checkout_started{${userFilter}}[24h])) or vector(0)`),
-    queryScalar(uid, promqlCountDistinctMetricNames(ECOMMERCE_DASHBOARD_METRIC_NAMES, userId, siteId)),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_checkout_started{${userFilter}}[24h])) or vector(0)`
+    ),
+    queryScalar(
+      uid,
+      promqlCountDistinctMetricNames(ECOMMERCE_DASHBOARD_METRIC_NAMES, userId, siteId)
+    ),
     queryScalar(uid, `max(user_metric_cart_items_count{${userFilter}}) or vector(0)`),
     queryScalar(uid, `max(user_metric_cart_value_total{${userFilter}}) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_javascript_errors{${userFilter}}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_promise_rejections{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_javascript_errors{${userFilter}}[24h])) or vector(0)`
+    ),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_promise_rejections{${userFilter}}[24h])) or vector(0)`
+    ),
     queryScalar(uid, `avg(user_metric_scroll_depth{${userFilter}}) or vector(0)`),
     queryScalar(uid, `avg(user_metric_max_scroll_depth{${userFilter}}) or vector(0)`),
-    queryScalar(uid, `avg(avg_over_time(user_metric_time_on_page{${userFilter}}[24h])) or vector(0)`),
-    queryScalar(uid, `sum(increase(user_metric_user_interaction{${userFilter}}[24h])) or vector(0)`),
+    queryScalar(
+      uid,
+      `avg(avg_over_time(user_metric_time_on_page{${userFilter}}[24h])) or vector(0)`
+    ),
+    queryScalar(
+      uid,
+      `sum(increase(user_metric_user_interaction{${userFilter}}[24h])) or vector(0)`
+    ),
     ...performanceJobs,
   ]);
 
@@ -517,7 +649,17 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null, options
       {
         userId: uid,
         siteId: siteId ?? null,
-        raw: { revenue, orders, products, pageViews, addToCart, checkout, seriesCount, cartItems, cartValue },
+        raw: {
+          revenue,
+          orders,
+          products,
+          pageViews,
+          addToCart,
+          checkout,
+          seriesCount,
+          cartItems,
+          cartValue,
+        },
         computed: { totalRevenue: rev, avgOrderValue: Math.round(avgOrder) },
       },
       'mimirQuery: fetchLegacyDashboardMetrics raw results'
@@ -533,12 +675,30 @@ export async function fetchLegacyDashboardMetrics(userId, siteId = null, options
     const { start, end } = currentDashboardWindow();
     const step = recommendRangeStepSeconds(start, end);
     [timeseriesData, revenueOverTime, perfOverTime, errorsOverTime] = await Promise.all([
-      queryRange(uid, promqlSelectorForMetricNames(ECOMMERCE_DASHBOARD_METRIC_NAMES, userId, siteId), start, end, step),
+      queryRange(
+        uid,
+        promqlSelectorForMetricNames(ECOMMERCE_DASHBOARD_METRIC_NAMES, userId, siteId),
+        start,
+        end,
+        step
+      ),
       queryRange(uid, revenueSelector, start, end, step),
       includeDetails
-        ? queryRange(uid, `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}]))`, start, end, step)
+        ? queryRange(
+            uid,
+            `avg(avg_over_time(user_metric_page_load_time{${userFilter}}[${RECENT_PERFORMANCE_WINDOW}]))`,
+            start,
+            end,
+            step
+          )
         : Promise.resolve([]),
-      queryRange(uid, `sum(increase(user_metric_javascript_errors{${userFilter}}[${RECENT_COUNTER_WINDOW}])) or vector(0)`, start, end, step),
+      queryRange(
+        uid,
+        `sum(increase(user_metric_javascript_errors{${userFilter}}[${RECENT_COUNTER_WINDOW}])) or vector(0)`,
+        start,
+        end,
+        step
+      ),
     ]);
   }
 
@@ -581,7 +741,9 @@ export async function fetchConfigDrivenDashboardMetrics(userId, siteId, widgets,
   const { start, end } = currentDashboardWindow();
   const step = recommendRangeStepSeconds(start, end);
 
-  const scalars = await Promise.all(widgets.map((w) => queryScalar(uid, promqlForWidget(w, userId, siteId))));
+  const scalars = await Promise.all(
+    widgets.map((w) => queryScalar(uid, promqlForWidget(w, userId, siteId)))
+  );
 
   const featuredByIndex = new Map();
   let multiSeries = [];
@@ -598,7 +760,9 @@ export async function fetchConfigDrivenDashboardMetrics(userId, siteId, widgets,
       featuredByIndex.set(job.i, flattenRangeSeries(featuredRanges[j]));
     });
 
-    const multiMetricNames = widgets.filter((w) => w.include_in_multi_chart).map((w) => w.metric_name);
+    const multiMetricNames = widgets
+      .filter((w) => w.include_in_multi_chart)
+      .map((w) => w.metric_name);
     if (multiMetricNames.length > 0) {
       const ts = await queryRange(
         uid,
@@ -661,7 +825,12 @@ export async function fetchDashboardMetrics(userId, siteId = null, options = {})
   };
 
   if (widgets.length > 0) {
-    const cfg = await fetchConfigDrivenDashboardMetrics(userId, normalizedSite, widgets, normalizedOptions);
+    const cfg = await fetchConfigDrivenDashboardMetrics(
+      userId,
+      normalizedSite,
+      widgets,
+      normalizedOptions
+    );
     const siteNum =
       normalizedSite != null && !Number.isNaN(parseInt(String(normalizedSite), 10))
         ? parseInt(String(normalizedSite), 10)

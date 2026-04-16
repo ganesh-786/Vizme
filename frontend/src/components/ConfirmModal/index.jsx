@@ -11,7 +11,7 @@ const ConfirmModalContext = createContext(null);
 
 /**
  * ConfirmModalProvider - Wrap your app to enable useConfirm hook globally
- * 
+ *
  * Usage:
  * ```jsx
  * <ConfirmModalProvider>
@@ -33,13 +33,7 @@ export function ConfirmModalProvider({ children }) {
   });
 
   const confirm = useCallback(
-    ({
-      title,
-      message,
-      variant = 'danger',
-      confirmText = 'Confirm',
-      cancelText = 'Cancel',
-    }) => {
+    ({ title, message, variant = 'danger', confirmText = 'Confirm', cancelText = 'Cancel' }) => {
       return new Promise((resolve) => {
         setModalState({
           isOpen: true,
@@ -92,11 +86,11 @@ export function ConfirmModalProvider({ children }) {
 
 /**
  * useConfirm - Hook to trigger confirmation modals
- * 
+ *
  * Usage:
  * ```jsx
  * const { confirm } = useConfirm();
- * 
+ *
  * const handleDelete = async () => {
  *   const confirmed = await confirm({
  *     title: 'Delete Item',
@@ -105,7 +99,7 @@ export function ConfirmModalProvider({ children }) {
  *     confirmText: 'Delete',
  *     cancelText: 'Cancel',
  *   });
- *   
+ *
  *   if (confirmed) {
  *     // Perform delete action
  *   }
@@ -126,7 +120,7 @@ export function useConfirm() {
 
 /**
  * ConfirmModal - A professional confirmation modal component
- * 
+ *
  * @param {string} title - Modal title
  * @param {string} message - Confirmation message
  * @param {string} variant - 'danger' | 'warning' | 'info' (affects colors and icon)
@@ -222,11 +216,7 @@ export function ConfirmModal({
   };
 
   const modalContent = (
-    <div
-      className="confirm-modal-backdrop"
-      onClick={handleBackdropClick}
-      role="presentation"
-    >
+    <div className="confirm-modal-backdrop" onClick={handleBackdropClick} role="presentation">
       <div
         ref={modalRef}
         className={`confirm-modal confirm-modal--${variant}`}
@@ -247,9 +237,7 @@ export function ConfirmModal({
         </button>
 
         {/* Icon */}
-        <div className={`confirm-modal__icon confirm-modal__icon--${variant}`}>
-          {getIcon()}
-        </div>
+        <div className={`confirm-modal__icon confirm-modal__icon--${variant}`}>{getIcon()}</div>
 
         {/* Content */}
         <div className="confirm-modal__content">

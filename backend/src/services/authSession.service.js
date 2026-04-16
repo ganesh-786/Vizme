@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { query } from '../database/connection.js';
 import { config } from '../config.js';
 import { UnauthorizedError } from '../middleware/errorHandler.js';
+import { sha256 } from '../utils/crypto.js';
 
 export const ACCESS_COOKIE_NAME = 'vizme_access_token';
 export const REFRESH_COOKIE_NAME = 'vizme_refresh_token';
@@ -42,17 +43,19 @@ export function generateTokens(userId) {
 export async function storeRefreshToken(userId, token) {
   const decoded = jwt.decode(token);
   const expiresAt = new Date(decoded.exp * 1000);
+  const tokenHash = sha256(token);
 
   await query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)', [
     userId,
-    token,
+    tokenHash,
     expiresAt,
   ]);
 }
 
 export async function revokeRefreshToken(token) {
   if (!token) return;
-  await query('DELETE FROM refresh_tokens WHERE token = $1', [token]);
+  const tokenHash = sha256(token);
+  await query('DELETE FROM refresh_tokens WHERE token = $1', [tokenHash]);
 }
 
 export function verifyAccessToken(token) {
@@ -122,9 +125,10 @@ export async function verifyRefreshTokenFromDb(refreshToken) {
     throw error;
   }
 
+  const tokenHash = sha256(refreshToken);
   const tokenResult = await query(
     'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-    [refreshToken]
+    [tokenHash]
   );
 
   if (tokenResult.rows.length === 0) {
@@ -155,9 +159,10 @@ export async function rotateRefreshSession(refreshToken) {
     throw error;
   }
 
+  const tokenHash = sha256(refreshToken);
   const tokenResult = await query(
     'SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()',
-    [refreshToken]
+    [tokenHash]
   );
 
   if (tokenResult.rows.length === 0) {

@@ -2,7 +2,7 @@ services:
   # Optional: Keep local postgres for development/testing
   # Comment out or remove if only using external DB
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.8-alpine
     container_name: metrics_postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-metrics_db}
@@ -24,7 +24,7 @@ services:
 
   # MinIO - S3-compatible storage for Mimir (required for Mimir)
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: metrics_minio
     command: server --quiet /data
     environment:
@@ -44,7 +44,7 @@ services:
   # Initialize MinIO bucket(s) needed by Mimir.
   # Safe to re-run: creates bucket if missing.
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
     container_name: metrics_minio_init
     depends_on:
       minio:
@@ -61,7 +61,7 @@ services:
 
   # Grafana Mimir - multi-tenant metrics backend with hard isolation (X-Scope-OrgID = user_id)
   mimir:
-    image: grafana/mimir:latest
+    image: grafana/mimir:2.14.0
     container_name: metrics_mimir
     command: ["-config.file=/etc/mimir/mimir.yaml"]
     ports:
@@ -77,7 +77,7 @@ services:
       - minio-init
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.3
     container_name: metrics_prometheus
     entrypoint: ["/bin/sh", "/etc/prometheus/entrypoint.sh"]
     command:
@@ -102,7 +102,7 @@ services:
       - backend
 
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.27.0
     container_name: metrics_alertmanager
     ports:
       - "9093:9093"
@@ -115,7 +115,7 @@ services:
       - metrics_network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0
     container_name: metrics_grafana
     ports:
       - "3001:3000"
@@ -137,12 +137,11 @@ services:
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       # Root URL must match how users access (via backend proxy at :3000)
       - GF_SERVER_ROOT_URL=${API_BASE_URL:-http://localhost:3000}/grafana
-      - GF_SECURITY_COOKIE_SAMESITE=disabled
-      # Disable unified alerting - stops AlertStatesDataLayer 404s on /api/prometheus/grafana/api/v1/rules
+      - GF_SECURITY_COOKIE_SAMESITE=${GF_SECURITY_COOKIE_SAMESITE:-lax}
       - GF_UNIFIED_ALERTING_ENABLED=false
-      - GF_SECURITY_CSRF_TRUSTED_ORIGINS=http://localhost:3000
+      - GF_SECURITY_CSRF_TRUSTED_ORIGINS=${GF_SECURITY_CSRF_TRUSTED_ORIGINS:-http://localhost:3000}
       - GF_SECURITY_CSRF_ADDITIONAL_HEADERS=X-WEBAUTH-USER
-      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_SECURITY_COOKIE_SECURE=${GF_SECURITY_COOKIE_SECURE:-false}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
@@ -176,7 +175,6 @@ services:
       # Application config (for production set JWT_SECRET in .env to a strong random value)
       - JWT_SECRET=${JWT_SECRET:-dev-secret-do-not-use-in-production}
       - DB_SSL_REJECT_UNAUTHORIZED=${DB_SSL_REJECT_UNAUTHORIZED:-true}
-      - PUSHGATEWAY_URL=${PUSHGATEWAY_URL:-http://pushgateway:9091}
       - MIMIR_URL=${MIMIR_URL:-http://mimir:8080}
       - GRAFANA_MIMIR_DATASOURCE_URL=${GRAFANA_MIMIR_DATASOURCE_URL:-http://mimir:8080}
       - PROMETHEUS_INTERNAL_URL=${PROMETHEUS_INTERNAL_URL:-http://prometheus:9090}
@@ -215,7 +213,6 @@ services:
 volumes:
   postgres_data:
   prometheus_data:
-  pushgateway_data:
   grafana_data:
   minio_data:
   mimir_data:
