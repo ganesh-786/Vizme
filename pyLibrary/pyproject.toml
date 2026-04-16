@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vizme-python"
+version = "0.1.0"
+description = "Python client for Vizme metrics ingestion"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "Vizme Team" }
+]
+dependencies = [
+  "requests>=2.31.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/ganesh-786/Vizme"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
