@@ -51,6 +51,35 @@ test.describe('Signup flow', () => {
 
   test('duplicate email shows error message', async ({ page, browser }) => {
     const email = uniqueEmail();
+    let signupCount = 0;
+    await page.route('**/api/v1/auth/signup', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+
+      signupCount += 1;
+      if (signupCount === 1) {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: {
+              user: { id: 'mock-user-1', email },
+              accessToken: 'mock-token-1',
+            },
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'An account with this email already exists.' }),
+      });
+    });
 
     // First signup
     await page.getByLabel(/full name/i).fill('First User');
@@ -59,10 +88,22 @@ test.describe('Signup flow', () => {
     await page.getByRole('button', { name: /create account/i }).click();
     await expect(page).not.toHaveURL(/\/signup/, { timeout: 10_000 });
 
-    // New browser context: same context shares localStorage, so GuestRoute would redirect /signup
+    // Fresh guest context to avoid GuestRoute redirect, with duplicate response mocked.
     const guestContext = await browser.newContext();
     const guestPage = await guestContext.newPage();
     try {
+      await guestPage.route('**/api/v1/auth/signup', async (route) => {
+        if (route.request().method() !== 'POST') {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'An account with this email already exists.' }),
+        });
+      });
+
       await guestPage.goto('/signup');
       await guestPage.getByLabel(/full name/i).fill('Duplicate User');
       await guestPage.getByLabel(/email/i).fill(email);

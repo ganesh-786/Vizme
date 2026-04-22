@@ -1,5 +1,54 @@
 import { test, expect } from '@playwright/test';
 
+async function stubDashboardReads(page) {
+  await page.route('**/api/v1/metric-configs', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== 'GET' || path !== '/api/v1/metric-configs') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: [] }),
+    });
+  });
+
+  await page.route('**/api/v1/api-keys', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== 'GET' || path !== '/api/v1/api-keys') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: [] }),
+    });
+  });
+
+  await page.route('**/api/v1/auth/onboarding-status', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          has_metric_configs: false,
+          metric_configs_count: 0,
+          has_api_key: false,
+          onboarding_completed_at: null,
+          is_setup_complete: false,
+        },
+      }),
+    });
+  });
+}
+
 test.describe('Login flow', () => {
   test('renders login form with required fields', async ({ page }) => {
     await page.goto('/login');
@@ -66,6 +115,7 @@ test.describe('Login flow', () => {
       );
     });
     const page = await context.newPage();
+    await stubDashboardReads(page);
 
     try {
       await page.goto('/login');
