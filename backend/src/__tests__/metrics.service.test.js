@@ -102,29 +102,17 @@ describe('metrics.service', () => {
 
   it('enforces per-user cardinality limit by distinct series', () => {
     const metricName = `cardinality_${nextId()}`;
-    recordMetric(
-      { name: metricName, type: 'gauge', value: 1, labels: { route: '/a' } },
-      'u5'
-    );
-    recordMetric(
-      { name: metricName, type: 'gauge', value: 1, labels: { route: '/b' } },
-      'u5'
-    );
+    recordMetric({ name: metricName, type: 'gauge', value: 1, labels: { route: '/a' } }, 'u5');
+    recordMetric({ name: metricName, type: 'gauge', value: 1, labels: { route: '/b' } }, 'u5');
 
     expect(() =>
-      recordMetric(
-        { name: metricName, type: 'gauge', value: 1, labels: { route: '/c' } },
-        'u5'
-      )
+      recordMetric({ name: metricName, type: 'gauge', value: 1, labels: { route: '/c' } }, 'u5')
     ).toThrow(/Cardinality limit exceeded/);
   });
 
   it('supports gauge decrement operation and tracks stats', () => {
     const metricName = `gauge_ops_${nextId()}`;
-    recordMetric(
-      { name: metricName, type: 'gauge', value: -3, labels: { env: 'dev' } },
-      'u6'
-    );
+    recordMetric({ name: metricName, type: 'gauge', value: -3, labels: { env: 'dev' } }, 'u6');
 
     const stats = getMetricsStats();
     expect(stats.totalMetrics).toBeGreaterThanOrEqual(1);

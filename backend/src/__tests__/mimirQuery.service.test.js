@@ -31,7 +31,9 @@ const setupService = async () => {
       siteId == null ? `user_id=~"^${userId}$"` : `user_id=~"^${userId}$",site_id=~"^${siteId}$"`
     ),
     listDashboardWidgetsForScope: vi.fn().mockResolvedValue([]),
-    promqlCountDistinctMetricNames: vi.fn(() => 'count(count by (__name__)({__name__=~"user_metric_.*"}))'),
+    promqlCountDistinctMetricNames: vi.fn(
+      () => 'count(count by (__name__)({__name__=~"user_metric_.*"}))'
+    ),
     promqlForWidget: vi.fn(() => 'sum(user_metric_orders_completed)'),
     promqlRangeForMetricName: vi.fn(() => 'user_metric_orders_completed'),
     promqlSelectorForMetricNames: vi.fn(() => '{__name__=~"user_metric_.*"}'),

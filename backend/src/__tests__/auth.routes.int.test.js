@@ -111,11 +111,9 @@ describe('auth.routes integration', () => {
 
   it('POST /signup creates a user and returns auth payload', async () => {
     const { app, mocks } = await setupApp();
-    mocks.queryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({
-        rows: [{ id: 10, email: 'new@example.com', name: 'New User' }],
-      });
+    mocks.queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({
+      rows: [{ id: 10, email: 'new@example.com', name: 'New User' }],
+    });
     mocks.hashMock.mockResolvedValue('hashed-password');
     mocks.generateTokensMock.mockReturnValue({
       accessToken: 'access-token',
@@ -202,7 +200,9 @@ describe('auth.routes integration', () => {
   it('POST /refresh clears cookies when refresh token is invalid', async () => {
     const { app, mocks, UnauthorizedError } = await setupApp();
     mocks.getRefreshTokenFromRequestMock.mockReturnValue('bad-token');
-    mocks.rotateRefreshSessionMock.mockRejectedValue(new UnauthorizedError('Invalid refresh token'));
+    mocks.rotateRefreshSessionMock.mockRejectedValue(
+      new UnauthorizedError('Invalid refresh token')
+    );
 
     const res = await request(app).post('/api/v1/auth/refresh').send({
       refreshToken: 'bad-token',

@@ -57,6 +57,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Prepare docker env file
+        run: cp docker/.env.example docker/.env
+
       - name: Run backend tests in Docker test profile
         run: >
           docker compose

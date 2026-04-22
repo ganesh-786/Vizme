@@ -113,10 +113,22 @@ describe('mimir.service', () => {
     const { service } = await setupService({ pushImpl });
 
     await service.pushMetricsToMimir([
-      { name: 'orders_completed', type: 'counter', value: 2, labels: { env: 'prod' }, userId: '11' },
+      {
+        name: 'orders_completed',
+        type: 'counter',
+        value: 2,
+        labels: { env: 'prod' },
+        userId: '11',
+      },
     ]);
     await service.pushMetricsToMimir([
-      { name: 'orders_completed', type: 'counter', value: 3, labels: { env: 'prod' }, userId: '11' },
+      {
+        name: 'orders_completed',
+        type: 'counter',
+        value: 3,
+        labels: { env: 'prod' },
+        userId: '11',
+      },
     ]);
 
     const firstSeries = pushImpl.mock.calls[0][0][0];

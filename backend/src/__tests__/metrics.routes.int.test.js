@@ -88,9 +88,11 @@ describe('metrics.routes integration', () => {
     const { app, mocks } = await setupApp();
     mocks.pushMetricsToMimirMock.mockResolvedValue({ ok: true, durationMs: 21 });
 
-    const res = await request(app).post('/api/v1/metrics').send({
-      metrics: [{ name: 'orders_completed', type: 'counter', value: 1, labels: { env: 'prod' } }],
-    });
+    const res = await request(app)
+      .post('/api/v1/metrics')
+      .send({
+        metrics: [{ name: 'orders_completed', type: 'counter', value: 1, labels: { env: 'prod' } }],
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -122,9 +124,11 @@ describe('metrics.routes integration', () => {
   it('POST /api/v1/metrics returns 400 when request fails validation', async () => {
     const { app } = await setupApp();
 
-    const res = await request(app).post('/api/v1/metrics').send({
-      metrics: [{ name: '', type: 'counter', value: 'not-a-number' }],
-    });
+    const res = await request(app)
+      .post('/api/v1/metrics')
+      .send({
+        metrics: [{ name: '', type: 'counter', value: 'not-a-number' }],
+      });
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -138,14 +142,18 @@ describe('metrics.routes integration', () => {
       throw new Error('metric rejected');
     });
 
-    const res = await request(app).post('/api/v1/metrics').send({
-      metrics: [{ name: 'orders_completed', type: 'counter', value: 1, labels: { env: 'prod' } }],
-    });
+    const res = await request(app)
+      .post('/api/v1/metrics')
+      .send({
+        metrics: [{ name: 'orders_completed', type: 'counter', value: 1, labels: { env: 'prod' } }],
+      });
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.error).toBe('No valid metrics to process');
-    expect(res.body.details[0]).toEqual(expect.objectContaining({ index: 0, error: 'metric rejected' }));
+    expect(res.body.details[0]).toEqual(
+      expect.objectContaining({ index: 0, error: 'metric rejected' })
+    );
   });
 
   it('GET /api/v1/metrics/dashboard returns dashboard payload', async () => {
@@ -174,9 +182,11 @@ describe('metrics.routes integration', () => {
     mimirError.status = 502;
     mocks.pushMetricsToMimirMock.mockRejectedValue(mimirError);
 
-    const res = await request(app).post('/api/v1/metrics').send({
-      metrics: [{ name: 'orders_completed', type: 'counter', value: 1, labels: { env: 'prod' } }],
-    });
+    const res = await request(app)
+      .post('/api/v1/metrics')
+      .send({
+        metrics: [{ name: 'orders_completed', type: 'counter', value: 1, labels: { env: 'prod' } }],
+      });
 
     expect(res.status).toBe(502);
     expect(res.body.success).toBe(false);
