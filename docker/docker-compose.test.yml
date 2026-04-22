@@ -1,0 +1,48 @@
+services:
+  postgres_test:
+    image: postgres:15.8-alpine
+    container_name: metrics_postgres_test
+    environment:
+      POSTGRES_DB: metrics_test_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d metrics_test_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - metrics_network
+    profiles:
+      - test
+
+  backend-test:
+    image: node:20-alpine
+    container_name: metrics_backend_test_runner
+    working_dir: /app
+    command: >
+      sh -lc "npm ci && npm run test:unit && npm run test:integration"
+    environment:
+      NODE_ENV: test
+      DB_HOST: postgres_test
+      DB_PORT: 5432
+      DB_NAME: metrics_test_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_SSL: false
+      JWT_SECRET: test-secret-value-with-32-plus-characters
+      FRONTEND_URL: http://localhost:5173
+      API_BASE_URL: http://localhost:3000
+      MIMIR_URL: http://mimir:8080
+      GRAFANA_URL: http://grafana:3000
+      GRAFANA_INTERNAL_URL: http://grafana:3000
+    volumes:
+      - ../backend:/app
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    networks:
+      - metrics_network
+    profiles:
+      - test
+

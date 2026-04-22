@@ -10,8 +10,11 @@
     "migrate:up": "node-pg-migrate up --migrations-dir migrations",
     "migrate:down": "node-pg-migrate down --migrations-dir migrations",
     "migrate:create": "node-pg-migrate create --migrations-dir migrations",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "npm run test:unit",
+    "test:unit": "vitest run --config vitest.config.js",
+    "test:integration": "vitest run --config vitest.integration.config.js --passWithNoTests",
+    "test:coverage": "vitest run --config vitest.config.js --coverage",
+    "test:watch": "vitest --config vitest.config.js"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +42,8 @@
     "prometheus-remote-write": "^0.5.1"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.5",
+    "supertest": "^7.2.2",
     "vitest": "^4.1.4"
   }
 }

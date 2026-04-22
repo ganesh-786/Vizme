@@ -44,8 +44,40 @@ jobs:
       - run: npm ci
         working-directory: backend
 
-      - run: npm test
+      - run: npm run test:unit
         working-directory: backend
+
+      - run: npm run test:integration
+        working-directory: backend
+
+  backend-test-docker:
+    name: Backend Tests (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run backend tests in Docker test profile
+        run: >
+          docker compose
+          -f docker/docker-compose.yml
+          -f docker/docker-compose.test.yml
+          --profile test
+          up
+          --abort-on-container-exit
+          --exit-code-from backend-test
+          backend-test
+
+      - name: Tear down Docker test profile
+        if: always()
+        run: >
+          docker compose
+          -f docker/docker-compose.yml
+          -f docker/docker-compose.test.yml
+          --profile test
+          down
+          --volumes
+          --remove-orphans
 
   security:
     name: Security Audit
