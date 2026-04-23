@@ -1,0 +1,14 @@
+name = "vizme-frontend"
+compatibility_date = "2026-04-23"
+
+# Optional but recommended if you want a workers.dev URL
+workers_dev = true
+
+# Build Vite before publishing assets
+[build]
+command = "npm run build"
+
+# Serve static output from Vite
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
