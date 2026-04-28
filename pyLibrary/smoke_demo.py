@@ -29,14 +29,14 @@ def main() -> None:
     response = client.send_batch(
         [
             Metric(
-                name="python_smoke_counter",
+                name="test_metric_main",
                 metric_type="counter",
                 value=1,
                 labels={"source": "pyLibrary", "run_ts": str(now)},
                 operation="increment",
             ),
             Metric(
-                name="python_smoke_gauge",
+                name="test_metric_secondary",
                 metric_type="gauge",
                 value=42,
                 labels={"source": "pyLibrary", "run_ts": str(now)},
