@@ -66,6 +66,57 @@ Serve or copy `node_modules/visualizemet/dist/vizme.js` and include:
 </button>
 ```
 
+`data-vizme-value-from` reads the value from another element instead of a fixed attribute — handy
+for things like a quantity input next to an "Add to cart" button:
+
+```html
+<input type="number" id="qty" value="2" />
+<button data-vizme-track="add_to_cart" data-vizme-value-from="#qty">Add to Cart</button>
+```
+
+#### Product context
+
+Wrap a tracked element in a container carrying `data-vizme-product*` attributes (or their
+`data-product*` aliases) and the library automatically attaches that product's context —
+id/name/category/price/currency — to any tracking event fired from inside it:
+
+```html
+<div
+  data-vizme-product
+  data-vizme-product-id="123"
+  data-vizme-product-name="Blue Widget"
+  data-vizme-product-category="electronics"
+  data-vizme-product-price="29.99"
+>
+  <button data-vizme-track="add_to_cart" data-vizme-value="1">Add to Cart</button>
+</div>
+```
+
+If no `data-vizme-product` container is present, the library falls back to reading
+[Schema.org Product microdata](https://schema.org/Product) (`[itemtype*="schema.org/Product"]`)
+from the nearest ancestor, so sites that already mark up products for SEO get product context for
+free.
+
+#### `vizme:track` custom event (dynamic flows)
+
+For events that don't map cleanly to a static DOM element (e.g. dispatched from a framework
+component after an async action), dispatch a `CustomEvent` instead of using `data-*` attributes:
+
+```javascript
+window.dispatchEvent(
+  new CustomEvent('vizme:track', {
+    detail: {
+      event: 'add_to_cart',
+      value: 1,
+      product_id: '123',
+      product_name: 'Widget',
+      category: 'electronics',
+      price: '29.99',
+    },
+  })
+);
+```
+
 ## API
 
 ### `track(name, value, labels)`

@@ -52,7 +52,7 @@ npm run dev                   # Starts on :5173 with API proxy to :3000
 
 ### Manual Setup
 
-See [docs/SETUP.md](./docs/SETUP.md) for detailed instructions.
+See [docs/getting-started/SETUP.md](./docs/getting-started/SETUP.md) for detailed instructions.
 
 ## Project Structure
 
@@ -219,15 +219,27 @@ npm run build     # Builds CJS + ESM bundles with esbuild
 
 ## Documentation
 
-- [Setup Guide](./docs/SETUP.md) — Detailed setup instructions
-- [API Documentation](./docs/README.md#api-documentation) — Complete API reference
-- [Architecture](./docs/ARCHITECTURE.md) — System architecture and design
+- [Setup Guide](./docs/getting-started/SETUP.md) — Detailed setup instructions
+- [API Documentation](./docs/reference/API.md) — Complete API reference
+- [Architecture](./docs/architecture/ARCHITECTURE.md) — System architecture and design
 - [Docker Troubleshooting](./docker/docker_docs/TROUBLESHOOTING.md) — Common Docker issues
+- [Production Roadmap](./docs/operations/PRODUCTION_ROADMAP.md) — Gap analysis and deployment plan
+- [Documentation Index](./docs/README.md) — Full list of docs by category
 
 ## Production Deployment
 
-See [docs/README.md](./docs/README.md#deployment) for production deployment guidelines.
+See [docs/operations/PRODUCTION.md](./docs/operations/PRODUCTION.md) for the deployment checklist and
+[docs/operations/PRODUCTION_ROADMAP.md](./docs/operations/PRODUCTION_ROADMAP.md) for the current gap analysis and
+recommended deployment architecture.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). In short: run `npm run format:check` before committing — CI enforces Prettier formatting, backend unit/integration tests, an `npm audit` gate, and a Trivy container scan on every PR (see `.github/workflows/ci.yml`).
+
+## Security
+
+See [SECURITY.md](./SECURITY.md) for how to report a vulnerability.
 
 ## License
 
-ISC
+[MIT](./LICENSE) — see [CHANGELOG.md](./CHANGELOG.md) for release history.

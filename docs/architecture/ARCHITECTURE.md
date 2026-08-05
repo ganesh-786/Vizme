@@ -53,6 +53,13 @@ The Metrics Tracker MVP is built as a microservices-oriented architecture with c
 └─────────────────────┘  └──────────────────────────┘
 ```
 
+> **Note:** this diagram predates the Mimir multi-tenancy work and omits it. In the current
+> implementation, end-user tracked metrics are pushed from the backend to **Grafana Mimir** via
+> remote-write (`X-Scope-OrgID = user_id`), not scraped by Prometheus. Prometheus only scrapes the
+> backend's own `/metrics` endpoint (app metrics — request counts, Mimir write latency — no
+> end-user data), and Grafana queries Mimir per-tenant, not Prometheus, for user dashboards. See
+> [MIMIR_MULTITENANCY.md](./MIMIR_MULTITENANCY.md) for the accurate diagram.
+
 ## Component Details
 
 ### 1. Frontend (React Application)
@@ -298,16 +305,22 @@ backend/
    ↓
 10. Backend validates metrics format
     ↓
-11. Backend records metrics in Prometheus registry (prom-client)
+11. Backend records the metric locally (prom-client, for cardinality tracking and app metrics)
     ↓
-12. Prometheus scrapes /metrics endpoint from backend
+12. Backend batch-pushes the metric to Grafana Mimir via remote-write, with
+    X-Scope-OrgID = user_id (hard tenant isolation) — see docs/architecture/MIMIR_MULTITENANCY.md
     ↓
-13. Metrics stored in Prometheus TSDB
+13. Mimir stores the metric in the user's tenant, isolated from all other tenants
     ↓
-14. Grafana queries Prometheus
+14. Grafana queries Mimir (per-tenant datasource, same X-Scope-OrgID) for that user's org
     ↓
-15. User views metrics in Grafana (filtered by user_id)
+15. User views metrics in their embedded Grafana dashboard (hard-isolated, not just filtered)
 ```
+
+Note: the backend's own `/metrics` endpoint (scraped directly by Prometheus) exposes **app**
+metrics only (`http_requests_total`, Mimir remote-write duration/sample counts, etc.) — it is a
+separate, unauthenticated-by-default path and does not carry end-user tracked data. See
+`docs/architecture/MIMIR_MULTITENANCY.md` for the full ingestion architecture.
 
 ### Code Generation Flow
 

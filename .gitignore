@@ -63,12 +63,33 @@ blob-report/
 *.sqlite
 *.sqlite3
 
+# TLS certificates and private keys — never commit these
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+docker/certs/
+
 # Docker
 docker-compose.override.yml
 
-# Prometheus data
+# Docker persistent data (named volumes normally live outside the repo tree,
+# but ignore these in case anyone bind-mounts them locally for debugging)
+postgres_data/
 prometheus_data/
 grafana_data/
+minio_data/
+mimir_data/
+alertmanager_data/
+
+# Package publishing artifacts / local registry auth
+*.tgz
+.npmrc
+
+# Claude Code local settings (machine-specific permission overrides)
+.claude/settings.local.json
+.claude
 
 # Temporary files
 tmp/

@@ -22,8 +22,8 @@ That yields a **single isolation model**: JWT identifies the tenant; **both** th
 
 ## Related implementation
 
-- Backend aggregation: `[backend/src/services/mimirQuery.service.js](../backend/src/services/mimirQuery.service.js)`
-- React dashboard (KPI cards + Grafana iframe): `[frontend/src/components/MetricsDashboard/index.jsx](../frontend/src/components/MetricsDashboard/index.jsx)`
-- Grafana embed: `[frontend/src/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed.jsx](../frontend/src/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed.jsx)`
-- Embed URL + proxy (X-Scope-OrgID): `[backend/src/routes/grafana.routes.js](../backend/src/routes/grafana.routes.js)`
-- Grafana org + Mimir datasource provisioning: `[backend/src/services/grafanaTenant.service.js](../backend/src/services/grafanaTenant.service.js)`
+- Backend aggregation: [backend/src/services/mimirQuery.service.js](../../backend/src/services/mimirQuery.service.js)
+- React dashboard (KPI cards + Grafana iframe): [frontend/src/components/MetricsDashboard/index.jsx](../../frontend/src/components/MetricsDashboard/index.jsx)
+- Grafana embed: [frontend/src/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed.jsx](../../frontend/src/components/GrafanaDashboardEmbed/GrafanaDashboardEmbed.jsx)
+- Embed URL + proxy (X-Scope-OrgID): [backend/src/routes/grafana.routes.js](../../backend/src/routes/grafana.routes.js)
+- Grafana org + Mimir datasource provisioning: [backend/src/services/grafanaTenant.service.js](../../backend/src/services/grafanaTenant.service.js)

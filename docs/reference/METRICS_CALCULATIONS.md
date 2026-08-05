@@ -33,3 +33,27 @@ This document describes how each dashboard metric is calculated and which PromQL
 ## Verification
 
 Run `./scripts/verify-metrics-calculations.sh <USER_ID>` to compare Mimir PromQL results with the dashboard. Set `MIMIR_DEBUG=1` when starting the backend to log raw query results.
+
+## Worked example: Total Revenue
+
+Total Revenue (24h) shows the sum of completed transaction amounts in the last 24 hours.
+
+**Metric configuration:** name `total_revenue` (or `revenue`, `totalRevenue`), type `counter`.
+
+**When checkout completes**, send the order amount once:
+
+```javascript
+// Counter (recommended): increment by order amount
+tracker.increment('total_revenue', orderAmount);
+
+// Example: order total is 5000 NPR
+tracker.increment('total_revenue', 5000);
+```
+
+**Common mistakes:**
+
+1. Sending on every page view — do NOT send `total_revenue` on page load, visibility change, or a timer. Only send when checkout completes.
+2. Sending the current cart value repeatedly — do NOT `set('total_revenue', cartValue)` on every cart update; that produces incorrect totals.
+3. Sending `cart_value_total` as revenue — `cart_value_total` is the current cart. Revenue is the sum of cart values at checkout completion, which is a different metric.
+
+**Dashboard query:** `increase(user_metric_total_revenue[24h])` — the Prometheus increase over the last 24 hours. This correctly accumulates all order amounts as long as you increment only on checkout.
